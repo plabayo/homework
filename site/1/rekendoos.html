@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>rekendoos</title>
+
+    <meta property="og:title" content="huiswerk rekendoos" />
+    <meta property="og:locale" content="nl_BE" />
+    <meta property="og:type" content="website">
+    <meta property="og:description"
+        content="gratis huiswerk middel voor rekenen te oefenen in het 1ste leerjaar van de basisschool" />
+    <meta property="og:site_name" content="huiswerk" />
+
+    <style>
+        body {
+            font-size: 1.5 em;
+        }
+
+        main {
+            max-width: 800px;
+            margin-inline: auto;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        form {
+            padding: 5px;
+        }
+
+        form * {
+            margin: 5px;
+        }
+
+        .box {
+            border: 1px solid black;
+            padding: 10px;
+            margin: 10px;
+            width: fit-content;
+        }
+
+        #form-exercise>* {
+            font-size: 2em;
+        }
+
+        #exercise {
+            margin: 20px auto;
+        }
+
+        #exercise-feedback {
+            text-align: center;
+        }
+
+        #answer {
+            width: 3em;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>rekendoos <code>➕➖🟰</code></h1>
+        <p>
+            <a href="../index.html">🏠 Ga terug naar de thuispagina.</a>
+        </p>
+
+        <div id="page-setup">
+            <p>
+                Deze digitale rekendoos is bedoeld voor leerlingen
+                om hun rekenkunde te oefenen.
+            </p>
+            <form id="form-setup" , action="javascript:void(0)">
+                <label for="count-until">Tot hoeveel kan het kind al tellen?</label>
+                <input type="number" id="count-until" name="count-until" min="10" max="100" value="10" required><br>
+
+                <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
+                <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
+
+                <label>Wat wil u oefenen?</label><br>
+                <input type="checkbox" id="practice-som" name="practice" value="som" checked>
+                <label for="practice-som">optellen</label><br>
+
+                <input type="checkbox" id="practice-verschil" name="practice" value="verschil" checked>
+                <label for="practice-verschil">aftrekken</label><br>
+
+                <input type="checkbox" id="practice-splitsen" name="practice" value="splitsen" checked>
+                <label for="practice-splitsen">splitsen</label><br>
+
+                <button type="submit">start met oefenen</button>
+            </form>
+        </div>
+
+        <div id="page-exercises" hidden>
+            <button id="button-reset">begin opnieuw ↩️</button>
+            <div id="exercise" class="box">
+                <h3 id="form-title"></h3>
+                <form id="form-exercise" , action="javascript:void(0)">
+                </form>
+            </div>
+            <p id="exercise-feedback"></p>
+        </div>
+
+        <script>
+            window.onload = () => {
+                console.log("rekendoos loaded");
+
+                document.getElementById("button-reset").addEventListener("click", () => {
+                    document.getElementById("page-setup").hidden = false;
+                    document.getElementById("page-exercises").hidden = true;
+                });
+
+                document.getElementById("form-setup").addEventListener("submit", (e) => {
+                    e.preventDefault();
+
+                    const countUntil = Number(document.getElementById("count-until").value);
+                    const numExercises = Number(document.getElementById("num-exercises").value);
+
+                    const exercises = [];
+                    document.querySelectorAll('input[name="practice"]:checked').forEach((checkbox) => {
+                        exercises.push(checkbox.value);
+                    });
+
+                    console.log("form submitted");
+                    console.log("countUntil", countUntil);
+                    console.log("numExercises", numExercises);
+                    console.log("exercises", exercises);
+
+                    let exerciseCount = 0;
+                    let exercise = {};
+                    let wrongExercises = [];
+
+                    document.getElementById("page-setup").hidden = true;
+                    document.getElementById("page-exercises").hidden = false;
+
+                    function generateExercise() {
+                        exerciseCount += 1;
+                        document.getElementById("exercise").hidden = false;
+                        document.getElementById("exercise-feedback").hidden = true;
+
+                        exercise = {
+                            a: Math.floor(Math.random() * countUntil),
+                            exercise: exercises[Math.floor(Math.random() * exercises.length)]
+                        };
+
+                        switch (exercise.exercise) {
+                            case "som":
+                            case "splitsen":
+                                exercise.b = Math.floor(Math.random() * (countUntil - exercise.a));
+                                exercise.answer = exercise.a + exercise.b;
+                                break;
+                            case "verschil":
+                                exercise.b = Math.floor(Math.random() * exercise.a);
+                                exercise.answer = exercise.a - exercise.b;
+                                break;
+                        }
+
+                        console.log("exercise", exerciseCount, exercise);
+
+                        document.getElementById("exercise-feedback").hidden = true;
+                        document.getElementById("form-title").innerHTML = `oefening ${exerciseCount} van ${numExercises}:`;
+
+                        switch (exercise.exercise) {
+                            case "som":
+                                document.getElementById("form-exercise").innerHTML = `
+                                    <span>${exercise.a} + ${exercise.b} =</span>
+                                    <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
+                                    <br>
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
+                                break;
+                            case "verschil":
+                                document.getElementById("form-exercise").innerHTML = `
+                                    <span>${exercise.a} - ${exercise.b} =</span>
+                                    <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
+                                    <br>
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
+                                break;
+                            case "splitsen":
+                                if (Math.floor(Math.random() * 2) + 1 === 1) {
+                                    document.getElementById("form-exercise").innerHTML = `
+                                        <span>${exercise.a} + </span>
+                                        <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
+                                        <input type="hidden" id="answer-context" name="answer-context" value="b">
+                                        <span> = ${exercise.answer}</span>
+                                        <br>
+                                        <button type="submit" id="button-check">👉 antwoord</button>
+                                    `;
+                                } else {
+                                    document.getElementById("form-exercise").innerHTML = `
+                                        <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
+                                        <input type="hidden" id="answer-context" name="answer-context" value="a">
+                                        <span> + ${exercise.b} = ${exercise.answer}</span>
+                                        <br>
+                                        <button type="submit" id="button-check">👉 antwoord</button>
+                                    `;
+                                }
+                                break;
+                        }
+                    }
+
+                    function validateAnswer() {
+                        const answer = Number(document.getElementById("answer").value);
+                        const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
+
+                        if (answer == exercise[answerContext]) {
+                            document.getElementById("exercise-feedback").hidden = true;
+
+                            if (exerciseCount < numExercises) {
+                                generateExercise();
+                            } else {
+                                document.getElementById("exercise").hidden = true;
+                                document.getElementById("exercise-feedback").hidden = false;
+                                const feedback = document.getElementById("exercise-feedback");
+                                feedback.innerHTML = `<h3>🎉 Proficiat, je hebt alle oefeningen gemaakt!<h3>`;
+                                if (wrongExercises.length > 0) {
+                                    if (wrongExercises.length === 1) {
+                                        feedback.innerHTML += `<p>Je hebt 1 oefening fout gemaakt. </p>`;
+                                    } else if (wrongExercises.length > 1) {
+                                        feedback.innerHTML += `<p>Je hebt ${wrongExercises.length} oefeningen fout gemaakt. </p>`;
+                                    }
+                                    wrongExercises.forEach((exercise) => {
+                                        feedback.innerHTML += `<p>${exercise}</p>`;
+                                    });
+                                }
+                            }
+                        } else {
+                            document.getElementById("exercise-feedback").innerHTML = `❌ Fout, probeer het nog eens.`;
+                            document.getElementById("exercise-feedback").hidden = false;
+
+                            let exerciseString = "";
+                            switch (exercise.exercise) {
+                                case "som":
+                                    exerciseString = `${exercise.a} + ${exercise.b} = <strong>${exercise.answer}</strong>`;
+                                    break;
+                                case "verschil":
+                                    exerciseString = `${exercise.a} - ${exercise.b} = <strong>${exercise.answer}</strong>`;
+                                    break;
+                                case "splitsen":
+                                    if (answerContext === "a") {
+                                        exerciseString = `<strong>${exercise.a}</strong> + ${exercise.b} = ${exercise.answer}`;
+                                    } else {
+                                        exerciseString = `${exercise.a} + <strong>${exercise.b}</strong> = ${exercise.answer}`;
+                                    }
+                                    break;
+                            }
+                            if (!wrongExercises.includes(exerciseString)) {
+                                wrongExercises.push(exerciseString);
+                            }
+                        }
+                    }
+
+                    document.getElementById("form-exercise").addEventListener("submit", (e) => {
+                        e.preventDefault();
+                        validateAnswer();
+                    });
+
+                    generateExercise();
+                });
+            }
+        </script>
+    </main>
+</body>
+
+</html>
