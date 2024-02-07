@@ -69,6 +69,7 @@
             display: inline-block;
             text-align: center;
         }
+
         input.split-part {
             text-align: center;
             line-height: 1.75em;
@@ -100,7 +101,7 @@
             </p>
             <form id="form-setup" , action="javascript:void(0)">
                 <label for="count-until">Tot hoeveel kan het kind al tellen?</label>
-                <input type="number" id="count-until" name="count-until" min="10" max="100" value="10" required><br>
+                <input type="number" id="count-until" name="count-until" min="3" max="100" value="10" required><br>
 
                 <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
                 <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
@@ -153,6 +154,11 @@
                     console.log("countUntil", countUntil);
                     console.log("numExercises", numExercises);
                     console.log("exercises", exercises);
+
+                    if (exercises.length === 0) {
+                        alert("Gelieve minstens één soort oefening te selecteren.");
+                        return;
+                    }
 
                     let exerciseCount = 0;
                     let exercise = {};
@@ -244,11 +250,11 @@
                         const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
 
                         if (answer == exercise[answerContext]) {
-                            document.getElementById("exercise-feedback").hidden = true;
-
                             if (exerciseCount < numExercises) {
+                                console.log(answer, "correct, next exercise");
                                 generateExercise();
                             } else {
+                                console.log(answer, "correct, done");
                                 document.getElementById("exercise").hidden = true;
                                 document.getElementById("exercise-feedback").hidden = false;
                                 const feedback = document.getElementById("exercise-feedback");
@@ -265,6 +271,8 @@
                                 }
                             }
                         } else {
+                            console.log(answer, "wrong, try again");
+
                             document.getElementById("exercise-feedback").innerHTML = `❌ Fout, probeer het nog eens.`;
                             document.getElementById("exercise-feedback").hidden = false;
 
@@ -287,6 +295,7 @@
                             if (!wrongExercises.includes(exerciseString)) {
                                 wrongExercises.push(exerciseString);
                             }
+                            document.getElementById("exercise").hidden = false;
                         }
                     }
 
