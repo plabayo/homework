@@ -15,6 +15,10 @@
     <meta property="og:site_name" content="huiswerk" />
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-size: 1.5 em;
         }
@@ -32,8 +36,17 @@
             padding: 5px;
         }
 
-        form * {
+        #form-exercise {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #form-exercise span,
+        #form-exercise input,
+        #form-exercise button {
             margin: 5px;
+            font-size: 2em;
         }
 
         .box {
@@ -41,10 +54,6 @@
             padding: 10px;
             margin: 10px;
             width: fit-content;
-        }
-
-        #form-exercise>* {
-            font-size: 2em;
         }
 
         #exercise {
@@ -55,8 +64,24 @@
             text-align: center;
         }
 
+        span.split-part {
+            width: 3em;
+            display: inline-block;
+            text-align: center;
+        }
+        input.split-part {
+            text-align: center;
+            line-height: 1.75em;
+            border: 1px solid black;
+        }
+
         #answer {
             width: 3em;
+        }
+
+        #exercise,
+        #answer {
+            background-color: #fffde6
         }
     </style>
 </head>
@@ -82,13 +107,13 @@
 
                 <label>Wat wil u oefenen?</label><br>
                 <input type="checkbox" id="practice-som" name="practice" value="som" checked>
-                <label for="practice-som">optellen</label><br>
+                <label for="practice-som">optellen ➕</label><br>
 
                 <input type="checkbox" id="practice-verschil" name="practice" value="verschil" checked>
-                <label for="practice-verschil">aftrekken</label><br>
+                <label for="practice-verschil">aftrekken ➖</label><br>
 
                 <input type="checkbox" id="practice-splitsen" name="practice" value="splitsen" checked>
-                <label for="practice-splitsen">splitsen</label><br>
+                <label for="practice-splitsen">splitsen 🔼</label><br>
 
                 <button type="submit">start met oefenen</button>
             </form>
@@ -181,24 +206,35 @@
                                 `;
                                 break;
                             case "splitsen":
+                                formExercise = document.getElementById("form-exercise");
+                                formExercise.innerHTML = `
+                                    <p>
+                                        <span class="box split-part">${exercise.answer}</span>
+                                    </p>
+                                    <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
+                                        <pan>&sol;&nbsp;&nbsp;&bsol;</span>
+                                    </p>
+                                `;
                                 if (Math.floor(Math.random() * 2) + 1 === 1) {
-                                    document.getElementById("form-exercise").innerHTML = `
-                                        <span>${exercise.a} + </span>
-                                        <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
-                                        <input type="hidden" id="answer-context" name="answer-context" value="b">
-                                        <span> = ${exercise.answer}</span>
-                                        <br>
-                                        <button type="submit" id="button-check">👉 antwoord</button>
+                                    document.getElementById("form-exercise").innerHTML += `
+                                        <p>
+                                            <span class="box split-part">${exercise.a}</span>
+                                            <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" class="split-part" size="3" required autofocus>
+                                            <input type="hidden" id="answer-context" name="answer-context" value="b">
+                                        </p>
                                     `;
                                 } else {
-                                    document.getElementById("form-exercise").innerHTML = `
-                                        <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" required autofocus>
-                                        <input type="hidden" id="answer-context" name="answer-context" value="a">
-                                        <span> + ${exercise.b} = ${exercise.answer}</span>
-                                        <br>
-                                        <button type="submit" id="button-check">👉 antwoord</button>
+                                    document.getElementById("form-exercise").innerHTML += `
+                                        <p>
+                                            <input type="number" id="answer" name="answer" min="0" max="${countUntil}" value="" class="split-part" size="3" required autofocus>
+                                            <input type="hidden" id="answer-context" name="answer-context" value="a">
+                                            <span class="box split-part">${exercise.b}</span>
+                                        </p>
                                     `;
                                 }
+                                formExercise.innerHTML += `
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
                                 break;
                         }
                     }
