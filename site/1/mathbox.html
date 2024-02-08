@@ -60,6 +60,7 @@
             padding: 10px;
             margin: 10px;
             width: fit-content;
+            border-radius: 5px;
         }
 
         #exercise {
@@ -79,8 +80,9 @@
 
         input.split-part {
             text-align: center;
-            line-height: 1.75em;
+            line-height: 2em;
             border: 1px solid black;
+            border-radius: 5px;
         }
 
         #answer {
@@ -207,6 +209,74 @@
                     wrongExercises: [],
                 };
 
+                function randomAnimal() {
+                    const animals = [
+                        '🐶', '🦊', '🦄', '🐭', '🐼', '🐣', '🦉',
+                    ];
+                    return animals[Math.floor(Math.random() * animals.length)];
+                }
+
+                function trackWrongExercise() {
+                    const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
+
+                    let exerciseString = "";
+                    switch (window.mathBoxState.exercise.exercise) {
+                        case "som":
+                            exerciseString = `som: ${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
+                            break;
+                        case "verschil":
+                            exerciseString = `verschil: ${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
+                            break;
+                        case "splitsen":
+                            if (answerContext === "a") {
+                                exerciseString = `splitsen: <strong>${window.mathBoxState.exercise.a}</strong> + ${window.mathBoxState.exercise.b} = ${window.mathBoxState.exercise.answer}`;
+                            } else {
+                                exerciseString = `${window.mathBoxState.exercise.a} + <strong>${window.mathBoxState.exercise.b}</strong> = ${window.mathBoxState.exercise.answer}`;
+                            }
+                            break;
+                    }
+                    if (window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1] !== exerciseString) {
+                        window.mathBoxState.wrongExerciseCount += 1;
+                        window.mathBoxState.wrongExercises.push(exerciseString);
+
+                        const skipButton = document.getElementById("button-skip");
+                        if (skipButton) {
+                            skipButton.hidden = false;
+                        }
+                    }
+                }
+
+                function nextExercise() {
+                    if (window.mathBoxState.exerciseCount < window.mathBoxState.numExercises) {
+                        console.log(answer, "correct, next exercise");
+                        generateExercise();
+                    } else {
+                        console.log(answer, "correct, done");
+
+                        console.log("show page result");
+                        document.getElementById("page-setup").hidden = true;
+                        document.getElementById("page-exercises").hidden = true;
+                        document.getElementById("page-result").hidden = false;
+
+                        const score = window.mathBoxState.exerciseCount - window.mathBoxState.wrongExerciseCount;
+                        const total = window.mathBoxState.exerciseCount;
+
+                        // show confetti only at max score
+                        document.getElementById("confetti").style.height = score === total ? '100vh' : '0';
+
+                        const feedback = document.getElementById("result");
+                        feedback.innerHTML = `<h2>🎉 klaar!<h2>`;
+                        feedback.innerHTML += `<h3>${score} &sol; ${total}</h3>`;
+                        if (window.mathBoxState.wrongExercises.length > 0) {
+                            const animal = randomAnimal();
+                            feedback.innerHTML += `<p>${animal} bekijk goed:</p>`;
+                            window.mathBoxState.wrongExercises.forEach((exercise) => {
+                                feedback.innerHTML += `<p>${exercise}</p>`;
+                            });
+                        }
+                    }
+                }
+
                 function generateExercise() {
                     window.mathBoxState.exerciseCount += 1;
                     document.getElementById("exercise-feedback").innerHTML = "&nbsp;";
@@ -241,6 +311,7 @@
                                         <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
+                                    <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
                             break;
                         case "verschil":
@@ -251,6 +322,7 @@
                                         <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
+                                    <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
                             break;
                         case "splitsen":
@@ -283,6 +355,7 @@
                             }
                             formExercise.innerHTML += `
                                     <button type="submit" id="button-check">👉 antwoord</button>
+                                    <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
                             break;
                     }
@@ -292,6 +365,12 @@
                     document.getElementById("exercise-feedback").style.color = "black";
                     answerEl.focus();
                     answerEl.click();
+
+                    document.getElementById("button-skip").addEventListener("click", (e) => {
+                        e.preventDefault();
+                        trackWrongExercise();
+                        nextExercise();
+                    });
 
                     document.getElementById("exercise").scrollTo({
                         behavior: "smooth",
@@ -307,69 +386,17 @@
                     const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
 
                     if (answer == window.mathBoxState.exercise[answerContext]) {
-                        if (window.mathBoxState.exerciseCount < window.mathBoxState.numExercises) {
-                            console.log(answer, "correct, next exercise");
-                            generateExercise();
-                        } else {
-                            console.log(answer, "correct, done");
-
-                            console.log("show page result");
-                            document.getElementById("page-setup").hidden = true;
-                            document.getElementById("page-exercises").hidden = true;
-                            document.getElementById("page-result").hidden = false;
-
-                            const score = window.mathBoxState.exerciseCount - window.mathBoxState.wrongExerciseCount;
-                            const total = window.mathBoxState.exerciseCount;
-
-                            // show confetti only at max score
-                            document.getElementById("confetti").style.height = score === total ? '100vh' : '0';
-
-                            const feedback = document.getElementById("result");
-                            feedback.innerHTML = `<h2>🎉 Proficiat, je hebt alle oefeningen gemaakt!<h2>`;
-                            feedback.innerHTML += `<h3>${score} &sol; ${total}</h3>`;
-                            if (window.mathBoxState.wrongExercises.length > 0) {
-                                if (window.mathBoxState.wrongExercises.length === 1) {
-                                    feedback.innerHTML += `<p>Je hebt deze oefening fout gemaakt:</p>`;
-                                } else if (window.mathBoxState.wrongExercises.length > 1) {
-                                    feedback.innerHTML += `<p>Je hebt deze oefeningen fout gemaakt:</p>`;
-                                }
-                                window.mathBoxState.wrongExercises.forEach((exercise) => {
-                                    feedback.innerHTML += `<p>${exercise}</p>`;
-                                });
-                            }
-                        }
+                        nextExercise();
                     } else {
                         console.log(answer, "wrong, try again");
 
-                        const animals = [
-                            '🐶', '🦊', '🦄', '🐭', '🐼', '🐣', '🦉',
-                        ];
-                        const animal = animals[Math.floor(Math.random() * animals.length)];
+                        const animal = randomAnimal();
 
                         document.getElementById("exercise-feedback").innerHTML = `${animal} Probeer het nog eens.`;
                         document.getElementById("exercise-feedback").style.color = "red";
                         document.getElementById("answer").style.backgroundColor = "rgb(253, 220, 220)";
 
-                        let exerciseString = "";
-                        switch (window.mathBoxState.exercise.exercise) {
-                            case "som":
-                                exerciseString = `${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
-                                break;
-                            case "verschil":
-                                exerciseString = `${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
-                                break;
-                            case "splitsen":
-                                if (answerContext === "a") {
-                                    exerciseString = `<strong>${window.mathBoxState.exercise.a}</strong> + ${window.mathBoxState.exercise.b} = ${window.mathBoxState.exercise.answer}`;
-                                } else {
-                                    exerciseString = `${window.mathBoxState.exercise.a} + <strong>${window.mathBoxState.exercise.b}</strong> = ${window.mathBoxState.exercise.answer}`;
-                                }
-                                break;
-                        }
-                        if (window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1] !== exerciseString) {
-                            window.mathBoxState.wrongExerciseCount += 1;
-                            window.mathBoxState.wrongExercises.push(exerciseString);
-                        }
+                        trackWrongExercise();
                     }
                 }
 
