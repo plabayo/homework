@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>rekendoos</title>
+
+    <meta property="og:title" content="huiswerk rekendoos" />
+    <meta property="og:locale" content="nl_BE" />
+    <meta property="og:type" content="website">
+    <meta property="og:description"
+        content="gratis huiswerk middel voor rekenen te oefenen in het 1ste leerjaar van de basisschool" />
+    <meta property="og:site_name" content="huiswerk" />
+
+    <link rel="stylesheet" href="/css/reset.css">
+
+    <style>
+        main {
+            max-width: 800px;
+            margin-inline: auto;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        form {
+            padding: 5px;
+        }
+
+        #form-exercise {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #form-exercise span,
+        #form-exercise input,
+        #form-exercise button {
+            margin: 5px;
+            font-size: 2em;
+        }
+
+        .box {
+            border: 1px solid black;
+            padding: 10px;
+            margin: 10px;
+            width: fit-content;
+        }
+
+        #exercise {
+            margin: 20px auto;
+        }
+
+        #exercise-feedback {
+            text-align: center;
+            margin-block: 5px;
+        }
+
+        span.split-part {
+            width: 3em;
+            display: inline-block;
+            text-align: center;
+        }
+
+        input.split-part {
+            text-align: center;
+            line-height: 1.75em;
+            border: 1px solid black;
+        }
+
+        #answer {
+            width: 3em;
+            padding-inline-start: 0.25em;
+        }
+
+        #exercise,
+        #answer {
+            background-color: #fffde6
+        }
+
+        #result {
+            margin: 20px auto;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>rekendoos <code>➕➖🟰</code></h1>
+        <p>
+            <a href="/index.html">🏠 Ga terug naar de thuispagina.</a>
+        </p>
+
+        <div id="page-setup">
+            <p>
+                Deze digitale rekendoos is bedoeld voor leerlingen
+                om hun rekenkunde te oefenen.
+            </p>
+            <form id="form-setup" , action="javascript:void(0)">
+                <label for="count-until">Tot hoeveel kan het kind al tellen?</label>
+                <input type="number" id="count-until" name="count-until" min="3" max="100" value="10" required><br>
+
+                <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
+                <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
+
+                <label>Wat wil u oefenen?</label><br>
+                <input type="checkbox" id="practice-som" name="practice" value="som" checked>
+                <label for="practice-som">optellen ➕</label><br>
+
+                <input type="checkbox" id="practice-verschil" name="practice" value="verschil" checked>
+                <label for="practice-verschil">aftrekken ➖</label><br>
+
+                <input type="checkbox" id="practice-splitsen" name="practice" value="splitsen" checked>
+                <label for="practice-splitsen">splitsen 🔼</label><br>
+
+                <button type="submit">start met oefenen</button>
+            </form>
+        </div>
+
+        <div id="page-exercises" hidden>
+            <button class="button-reset">begin opnieuw ↩️</button>
+            <div id="exercise" class="box">
+                <h3 id="form-title"></h3>
+                <p id="exercise-feedback">&nbsp;</p>
+                <form id="form-exercise" , action="javascript:void(0)">
+                </form>
+            </div>
+        </div>
+
+        <div id="page-result" hidden>
+            <button class="button-reset">begin opnieuw ↩️</button>
+            <div id="result" class="box">
+            </div>
+        </div>
+
+        <script>
+            window.onload = () => {
+                console.log("rekendoos loaded");
+
+                document.querySelectorAll(".button-reset").forEach((el) => {
+                    el.addEventListener("click", () => {
+                        console.log("show page setup");
+                        document.getElementById("page-setup").hidden = false;
+                        document.getElementById("page-exercises").hidden = true;
+                        document.getElementById("page-result").hidden = true;
+                    });
+                });
+
+                window.mathBoxState = {
+                    countUntil: 0,
+                    numExercises: 0,
+                    exerciseCount: 0,
+                    exercise: {},
+                    exercises: [],
+                    wrongExercises: [],
+                };
+
+                function generateExercise() {
+                    window.mathBoxState.exerciseCount += 1;
+                    document.getElementById("exercise-feedback").innerHTML = "&nbsp;";
+
+                    window.mathBoxState.exercise = {
+                        a: Math.floor(Math.random() * window.mathBoxState.countUntil),
+                        exercise: window.mathBoxState.exercises[Math.floor(Math.random() * window.mathBoxState.exercises.length)]
+                    };
+
+                    switch (window.mathBoxState.exercise.exercise) {
+                        case "som":
+                        case "splitsen":
+                            window.mathBoxState.exercise.b = Math.floor(Math.random() * (window.mathBoxState.countUntil - window.mathBoxState.exercise.a));
+                            window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a + window.mathBoxState.exercise.b;
+                            break;
+                        case "verschil":
+                            window.mathBoxState.exercise.b = Math.floor(Math.random() * window.mathBoxState.exercise.a);
+                            window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a - window.mathBoxState.exercise.b;
+                            break;
+                    }
+
+                    console.log("exercise", window.mathBoxState.exerciseCount, window.mathBoxState.exercise);
+
+                    document.getElementById("form-title").innerHTML = `oefening ${window.mathBoxState.exerciseCount} van ${window.mathBoxState.numExercises}:`;
+
+                    switch (window.mathBoxState.exercise.exercise) {
+                        case "som":
+                            document.getElementById("exercise-feedback").innerHTML = "maak de som ➕";
+                            document.getElementById("form-exercise").innerHTML = `
+                                    <p>
+                                        <span>${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} =</span>
+                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                    </p>
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
+                            break;
+                        case "verschil":
+                            document.getElementById("exercise-feedback").innerHTML = "maak het verschil ➖";
+                            document.getElementById("form-exercise").innerHTML = `
+                                    <p>
+                                        <span>${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} =</span>
+                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                    </p>
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
+                            break;
+                        case "splitsen":
+                            document.getElementById("exercise-feedback").innerHTML = "maak de splitsing 🔼";
+                            formExercise = document.getElementById("form-exercise");
+                            formExercise.innerHTML = `
+                                    <p>
+                                        <span class="box split-part">${window.mathBoxState.exercise.answer}</span>
+                                    </p>
+                                    <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
+                                        <pan>&sol;&nbsp;&nbsp;&bsol;</span>
+                                    </p>
+                                `;
+                            if (Math.floor(Math.random() * 2) + 1 === 1) {
+                                document.getElementById("form-exercise").innerHTML += `
+                                        <p>
+                                            <span class="box split-part">${window.mathBoxState.exercise.a}</span>
+                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
+                                            <input type="hidden" id="answer-context" name="answer-context" value="b">
+                                        </p>
+                                    `;
+                            } else {
+                                document.getElementById("form-exercise").innerHTML += `
+                                        <p>
+                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
+                                            <input type="hidden" id="answer-context" name="answer-context" value="a">
+                                            <span class="box split-part">${window.mathBoxState.exercise.b}</span>
+                                        </p>
+                                    `;
+                            }
+                            formExercise.innerHTML += `
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                `;
+                            break;
+                    }
+
+                    const answerEl = document.getElementById("answer");
+                    answerEl.style.backgroundColor = "#fffde6";
+                    answerEl.focus();
+                    answerEl.click();
+                }
+
+                function validateAnswer() {
+                    console.log("validateAnswer: status data",
+                        window.mathBoxState.exerciseCount, window.mathBoxState.numExercises,
+                        window.mathBoxState.wrongExerciseCount, window.mathBoxState.exercise, window.mathBoxState.wrongExercises);
+
+                    const answer = Number(document.getElementById("answer").value);
+                    const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
+
+                    if (answer == window.mathBoxState.exercise[answerContext]) {
+                        if (window.mathBoxState.exerciseCount < window.mathBoxState.numExercises) {
+                            console.log(answer, "correct, next exercise");
+                            generateExercise();
+                        } else {
+                            console.log(answer, "correct, done");
+
+                            console.log("show page result");
+                            document.getElementById("page-setup").hidden = true;
+                            document.getElementById("page-exercises").hidden = true;
+                            document.getElementById("page-result").hidden = false;
+
+                            const feedback = document.getElementById("result");
+                            feedback.innerHTML = `<h2>🎉 Proficiat, je hebt alle oefeningen gemaakt!<h2>`;
+                            feedback.innerHTML += `<h3>${window.mathBoxState.exerciseCount - window.mathBoxState.wrongExerciseCount} &sol; ${window.mathBoxState.exerciseCount}</h3>`;
+                            if (window.mathBoxState.wrongExercises.length > 0) {
+                                if (window.mathBoxState.wrongExercises.length === 1) {
+                                    feedback.innerHTML += `<p>Je hebt deze oefening fout gemaakt:</p>`;
+                                } else if (window.mathBoxState.wrongExercises.length > 1) {
+                                    feedback.innerHTML += `<p>Je hebt deze oefeningen fout gemaakt:</p>`;
+                                }
+                                window.mathBoxState.wrongExercises.forEach((exercise) => {
+                                    feedback.innerHTML += `<p>${exercise}</p>`;
+                                });
+                            }
+                        }
+                    } else {
+                        console.log(answer, "wrong, try again");
+
+                        document.getElementById("exercise-feedback").innerHTML = `❌ Fout, probeer het nog eens.`;
+                        document.getElementById("answer").style.backgroundColor = "rgb(253, 220, 220)";
+
+                        let exerciseString = "";
+                        switch (window.mathBoxState.exercise.exercise) {
+                            case "som":
+                                exerciseString = `${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
+                                break;
+                            case "verschil":
+                                exerciseString = `${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
+                                break;
+                            case "splitsen":
+                                if (answerContext === "a") {
+                                    exerciseString = `<strong>${window.mathBoxState.exercise.a}</strong> + ${window.mathBoxState.exercise.b} = ${window.mathBoxState.exercise.answer}`;
+                                } else {
+                                    exerciseString = `${window.mathBoxState.exercise.a} + <strong>${window.mathBoxState.exercise.b}</strong> = ${window.mathBoxState.exercise.answer}`;
+                                }
+                                break;
+                        }
+                        if (window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1] !== exerciseString) {
+                            window.mathBoxState.wrongExerciseCount += 1;
+                            window.mathBoxState.wrongExercises.push(exerciseString);
+                        }
+                    }
+                }
+
+                document.getElementById("form-setup").addEventListener("submit", (e) => {
+                    e.preventDefault();
+
+                    window.mathBoxState.countUntil = Number(document.getElementById("count-until").value);
+                    window.mathBoxState.numExercises = Number(document.getElementById("num-exercises").value);
+
+                    window.mathBoxState.exercises = [];
+                    document.querySelectorAll('input[name="practice"]:checked').forEach((checkbox) => {
+                        window.mathBoxState.exercises.push(checkbox.value);
+                    });
+
+                    console.log("form submitted");
+                    console.log("countUntil", window.mathBoxState.countUntil);
+                    console.log("numExercises", window.mathBoxState.numExercises);
+                    console.log("exercises", window.mathBoxState.exercises);
+
+                    if (window.mathBoxState.exercises.length === 0) {
+                        alert("Gelieve minstens één soort oefening te selecteren.");
+                        return;
+                    }
+
+                    window.mathBoxState.exerciseCount = 0;
+                    window.mathBoxState.wrongExerciseCount = 0;
+
+                    window.mathBoxState.exercise = {};
+                    window.mathBoxState.wrongExercises = [];
+
+                    console.log("status data",
+                        window.mathBoxState.exerciseCount, window.mathBoxState.numExercises,
+                        window.mathBoxState.wrongExerciseCount, window.mathBoxState.exercise, window.mathBoxState.wrongExercises);
+
+                    console.log("show page exercises");
+                    document.getElementById("page-setup").hidden = true;
+                    document.getElementById("page-exercises").hidden = false;
+                    document.getElementById("page-result").hidden = true;
+
+                    generateExercise();
+                });
+
+                document.getElementById("form-exercise").addEventListener("submit", (e) => {
+                    e.preventDefault();
+                    validateAnswer();
+                });
+            }
+        </script>
+    </main>
+</body>
+
+</html>
