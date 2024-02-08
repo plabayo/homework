@@ -323,7 +323,7 @@
                                         exerciseFeedback += `
                                                 <p>
                                                     <span>${exercise.a} + ${exercise.b} = </span>
-                                                    <span class="box bad">${exercise.answer}</span>
+                                                    <span class="box bad split-part">${exercise.answer}</span>
                                                 </p>
                                             `;
                                         break;
@@ -332,7 +332,7 @@
                                         exerciseFeedback += `
                                                 <p>
                                                     <span>${exercise.a} - ${exercise.b} =</span>
-                                                    <span class="box bad">${exercise.answer}</span>
+                                                    <span class="box bad split-part">${exercise.answer}</span>
                                                 </p>
                                             `;
                                         break;
@@ -343,7 +343,7 @@
                                                     <span class="box split-part">${exercise.answer}</span>
                                                 </p>
                                                 <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
-                                                    <span>&sol;&nbsp;&nbsp;&bsol;</span>
+                                                    &sol;&nbsp;&nbsp;&bsol;
                                                 </p>
                                             `;
                                         if (Math.floor(Math.random() * 2) + 1 === 1) {
@@ -429,7 +429,7 @@
                                         <span class="box split-part">${window.mathBoxState.exercise.answer}</span>
                                     </p>
                                     <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
-                                        <span>&sol;&nbsp;&nbsp;&bsol;</span>
+                                        &sol;&nbsp;&nbsp;&bsol;
                                     </p>
                                 `;
                             if (Math.floor(Math.random() * 2) + 1 === 1) {
