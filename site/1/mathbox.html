@@ -165,12 +165,36 @@
             window.onload = () => {
                 console.log("rekendoos loaded");
 
+                const initPageSetup = () => {
+                    console.log("show page setup");
+                    document.getElementById("page-setup").hidden = false;
+                    document.getElementById("page-exercises").hidden = true;
+                    document.getElementById("page-result").hidden = true;
+
+                    // respect previous config for easier use,
+                    // as for example a kid will probably want to do exercises with the same settings
+                    // each time they use the website
+                    try {
+                        const storedConfig = JSON.parse(localStorage.getItem("mathBoxConfig"));
+                        if (storedConfig.countUntil) {
+                            document.getElementById("count-until").value = storedConfig.countUntil;
+                        }
+                        if (storedConfig.numExercises) {
+                            document.getElementById("num-exercises").value = storedConfig.numExercises;
+                        }
+                        if (storedConfig.exercises) {
+                            document.querySelectorAll('input[name="practice"]').forEach((checkbox) => {
+                                checkbox.checked = storedConfig.exercises.includes(checkbox.id.split('-')[1]);
+                            });
+                        }
+                    } catch (e) { }
+                };
+                initPageSetup();
+
                 document.querySelectorAll(".button-reset").forEach((el) => {
-                    el.addEventListener("click", () => {
-                        console.log("show page setup");
-                        document.getElementById("page-setup").hidden = false;
-                        document.getElementById("page-exercises").hidden = true;
-                        document.getElementById("page-result").hidden = true;
+                    el.addEventListener("click", (el) => {
+                        el.preventDefault();
+                        initPageSetup();
                     });
                 });
 
@@ -357,6 +381,13 @@
                     console.log("countUntil", window.mathBoxState.countUntil);
                     console.log("numExercises", window.mathBoxState.numExercises);
                     console.log("exercises", window.mathBoxState.exercises);
+
+                    // store the chosen config for later usage
+                    localStorage.setItem("mathBoxConfig", JSON.stringify({
+                        countUntil: window.mathBoxState.countUntil,
+                        numExercises: window.mathBoxState.numExercises,
+                        exercises: window.mathBoxState.exercises,
+                    }));
 
                     if (window.mathBoxState.exercises.length === 0) {
                         alert("Gelieve minstens één soort oefening te selecteren.");
