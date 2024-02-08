@@ -289,6 +289,7 @@
 
                     const answerEl = document.getElementById("answer");
                     answerEl.style.backgroundColor = "#fffde6";
+                    document.getElementById("exercise-feedback").style.color = "black";
                     answerEl.focus();
                     answerEl.click();
 
@@ -340,7 +341,13 @@
                     } else {
                         console.log(answer, "wrong, try again");
 
-                        document.getElementById("exercise-feedback").innerHTML = `🦉 Probeer het nog eens.`;
+                        const animals = [
+                            '🐶', '🦊', '🦄', '🐭', '🐼', '🐣', '🦉',
+                        ];
+                        const animal = animals[Math.floor(Math.random() * animals.length)];
+
+                        document.getElementById("exercise-feedback").innerHTML = `${animal} Probeer het nog eens.`;
+                        document.getElementById("exercise-feedback").style.color = "red";
                         document.getElementById("answer").style.backgroundColor = "rgb(253, 220, 220)";
 
                         let exerciseString = "";
