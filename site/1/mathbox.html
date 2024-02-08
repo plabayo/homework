@@ -5,14 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>rekendoos</title>
+    <title>rekendoos oefening</title>
 
-    <meta property="og:title" content="huiswerk rekendoos" />
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🏫</text></svg>">
+
+    <meta property="og:title" content="rekendoos" />
     <meta property="og:locale" content="nl_BE" />
     <meta property="og:type" content="website">
     <meta property="og:description"
         content="gratis huiswerk middel voor rekenen te oefenen in het 1ste leerjaar van de basisschool" />
-    <meta property="og:site_name" content="huiswerk" />
+    <meta property="og:site_name" content="rekendoos" />
 
     <link rel="stylesheet" href="/css/reset.css">
 
@@ -32,6 +35,11 @@
 
         form {
             padding: 5px;
+        }
+
+
+        #form-setup>* {
+            margin-block-end: 10px;
         }
 
         #form-exercise {
@@ -259,6 +267,10 @@
                     answerEl.style.backgroundColor = "#fffde6";
                     answerEl.focus();
                     answerEl.click();
+
+                    document.getElementById("exercise").scrollTo({
+                        behavior: "smooth",
+                    })
                 }
 
                 function validateAnswer() {
