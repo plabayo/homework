@@ -50,7 +50,8 @@
 
         #form-exercise span,
         #form-exercise input,
-        #form-exercise button {
+        #form-exercise button,
+        .exercise-feedback span {
             margin: 5px;
             font-size: 2em;
         }
@@ -61,6 +62,17 @@
             margin: 10px;
             width: fit-content;
             border-radius: 5px;
+        }
+
+        .exercise-feedback {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px auto;
+        }
+
+        .exercise-feedback>h3 {
+            margin-block-end: 5px;
         }
 
         #exercise {
@@ -109,6 +121,14 @@
             position: absolute;
             top: 0;
             z-index: -1;
+        }
+
+        .bad {
+            background-color: rgb(253, 220, 220);
+        }
+
+        #review-buttons {
+            margin-block: 10px;
         }
     </style>
 </head>
@@ -159,7 +179,7 @@
         <div id="page-result" hidden>
             <canvas id="confetti"></canvas>
             <button class="button-reset">begin opnieuw ↩️</button>
-            <div id="result" class="box">
+            <div id="result">
             </div>
         </div>
 
@@ -219,25 +239,13 @@
                 function trackWrongExercise() {
                     const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
 
-                    let exerciseString = "";
-                    switch (window.mathBoxState.exercise.exercise) {
-                        case "som":
-                            exerciseString = `som: ${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
-                            break;
-                        case "verschil":
-                            exerciseString = `verschil: ${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} = <strong>${window.mathBoxState.exercise.answer}</strong>`;
-                            break;
-                        case "splitsen":
-                            if (answerContext === "a") {
-                                exerciseString = `splitsen: <strong>${window.mathBoxState.exercise.a}</strong> + ${window.mathBoxState.exercise.b} = ${window.mathBoxState.exercise.answer}`;
-                            } else {
-                                exerciseString = `splitsen: ${window.mathBoxState.exercise.a} + <strong>${window.mathBoxState.exercise.b}</strong> = ${window.mathBoxState.exercise.answer}`;
-                            }
-                            break;
-                    }
-                    if (window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1] !== exerciseString) {
+                    const last = window.mathBoxState.wrongExercises.length > 0
+                        ? JSON.stringify(window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1])
+                        : null;
+                    const current = JSON.stringify(window.mathBoxState.exercise);
+                    if (last !== current) {
                         window.mathBoxState.wrongExerciseCount += 1;
-                        window.mathBoxState.wrongExercises.push(exerciseString);
+                        window.mathBoxState.wrongExercises.push(JSON.parse(current));
 
                         const skipButton = document.getElementById("button-skip");
                         if (skipButton) {
@@ -247,6 +255,7 @@
                 }
 
                 function nextExercise() {
+                    const answer = Number(document.getElementById("answer").value);
                     if (window.mathBoxState.exerciseCount < window.mathBoxState.numExercises) {
                         console.log(answer, "correct, next exercise");
                         generateExercise();
@@ -269,10 +278,97 @@
                         feedback.innerHTML += `<h3>${score} &sol; ${total}</h3>`;
                         if (window.mathBoxState.wrongExercises.length > 0) {
                             const animal = randomAnimal();
-                            feedback.innerHTML += `<p>${animal} bekijk goed:</p>`;
-                            window.mathBoxState.wrongExercises.forEach((exercise) => {
-                                feedback.innerHTML += `<p>${exercise}</p>`;
+                            feedback.innerHTML += `<h2>${animal} bekijk goed</h2>`;
+                            feedback.innerHTML += `
+                                <div id="review-buttons">
+                                    <button id="review-button-back">⬅️ vorige</button>
+                                    <button id="review-button-next">volgende ➡️</button>
+                                </div>
+                                <div id="review"></div>
+                            `;
+
+                            let index = 0;
+
+                            function setReviewButtons() {
+                                document.getElementById("review-button-back").disabled = index === 0;
+                                document.getElementById("review-button-next").disabled = index === window.mathBoxState.wrongExercises.length - 1;
+                            }
+
+                            document.getElementById("review-button-back").addEventListener("click", (e) => {
+                                e.preventDefault();
+                                if (index === 0) {
+                                    return;
+                                }
+                                index -= 1;
+                                displayExercise();
+                                setReviewButtons();
                             });
+
+                            document.getElementById("review-button-next").addEventListener("click", (e) => {
+                                e.preventDefault();
+                                if (index === window.mathBoxState.wrongExercises.length - 1) {
+                                    return;
+                                }
+                                index += 1;
+                                displayExercise();
+                                setReviewButtons();
+                            });
+
+                            function displayExercise() {
+                                const exercise = window.mathBoxState.wrongExercises[index];
+                                let exerciseFeedback = '<div class="box exercise-feedback">';
+                                switch (exercise.exercise) {
+                                    case "som":
+                                        exerciseFeedback += "<h3>maak de som ➕</h3>";
+                                        exerciseFeedback += `
+                                                <p>
+                                                    <span>${exercise.a} + ${exercise.b} = </span>
+                                                    <span class="box bad">${exercise.answer}</span>
+                                                </p>
+                                            `;
+                                        break;
+                                    case "verschil":
+                                        exerciseFeedback += "<h3>maak het verschil ➖</h3>";
+                                        exerciseFeedback += `
+                                                <p>
+                                                    <span>${exercise.a} - ${exercise.b} =</span>
+                                                    <span class="box bad">${exercise.answer}</span>
+                                                </p>
+                                            `;
+                                        break;
+                                    case "splitsen":
+                                        exerciseFeedback += "<h3>maak de splitsing 🔼</h3>";
+                                        exerciseFeedback += `
+                                                <p>
+                                                    <span class="box split-part">${exercise.answer}</span>
+                                                </p>
+                                                <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
+                                                    <span>&sol;&nbsp;&nbsp;&bsol;</span>
+                                                </p>
+                                            `;
+                                        if (Math.floor(Math.random() * 2) + 1 === 1) {
+                                            exerciseFeedback += `
+                                                    <p>
+                                                        <span class="box split-part">${exercise.a}</span>
+                                                        <span class="box split-part bad">${exercise.b}</span>
+                                                    </p>
+                                                `;
+                                        } else {
+                                            exerciseFeedback += `
+                                                    <p>
+                                                        <span class="box split-part bad">${exercise.a}</span>
+                                                        <span class="box split-part">${exercise.b}</span>
+                                                    </p>
+                                                `;
+                                        }
+                                        break;
+                                }
+                                exerciseFeedback += '</div>';
+                                document.getElementById("review").innerHTML = exerciseFeedback;
+                            }
+
+                            displayExercise();
+                            setReviewButtons();
                         }
                     }
                 }
@@ -333,7 +429,7 @@
                                         <span class="box split-part">${window.mathBoxState.exercise.answer}</span>
                                     </p>
                                     <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
-                                        <pan>&sol;&nbsp;&nbsp;&bsol;</span>
+                                        <span>&sol;&nbsp;&nbsp;&bsol;</span>
                                     </p>
                                 `;
                             if (Math.floor(Math.random() * 2) + 1 === 1) {
