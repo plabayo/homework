@@ -162,7 +162,7 @@
                 <input type="checkbox" id="practice-splitsen" name="practice" value="splitsen" checked>
                 <label for="practice-splitsen">splitsen 🔼</label><br>
 
-                <button type="submit">start met oefenen</button>
+                <button type="submit">🟢 start met oefenen</button>
             </form>
         </div>
 
@@ -227,6 +227,7 @@
                     exercise: {},
                     exercises: [],
                     wrongExercises: [],
+                    premadeExercises: [],
                 };
 
                 function randomAnimal() {
@@ -281,6 +282,9 @@
                             feedback.innerHTML += `<h2>${animal} bekijk goed</h2>`;
                             feedback.innerHTML += `
                                 <div id="review-buttons">
+                                    <button id="review-button-repeat">🟢 herhaal</button>
+                                </div>
+                                <div id="review-buttons">
                                     <button id="review-button-back">⬅️ vorige</button>
                                     <button id="review-button-next">volgende ➡️</button>
                                 </div>
@@ -293,6 +297,22 @@
                                 document.getElementById("review-button-back").disabled = index === 0;
                                 document.getElementById("review-button-next").disabled = index === window.mathBoxState.wrongExercises.length - 1;
                             }
+
+                            document.getElementById("review-button-repeat").addEventListener("click", (e) => {
+                                e.preventDefault();
+                                window.mathBoxState.numExercises = window.mathBoxState.wrongExercises.length;
+                                window.mathBoxState.exerciseCount = 0;
+                                window.mathBoxState.wrongExerciseCount = 0;
+                                window.mathBoxState.premadeExercises = window.mathBoxState.wrongExercises;
+                                window.mathBoxState.wrongExercises = [];
+
+                                console.log("show page exercises");
+                                document.getElementById("page-setup").hidden = true;
+                                document.getElementById("page-exercises").hidden = false;
+                                document.getElementById("page-result").hidden = true;
+
+                                generateExercise();
+                            });
 
                             document.getElementById("review-button-back").addEventListener("click", (e) => {
                                 e.preventDefault();
@@ -377,21 +397,26 @@
                     window.mathBoxState.exerciseCount += 1;
                     document.getElementById("exercise-feedback").innerHTML = "&nbsp;";
 
-                    window.mathBoxState.exercise = {
-                        a: Math.floor(Math.random() * window.mathBoxState.countUntil),
-                        exercise: window.mathBoxState.exercises[Math.floor(Math.random() * window.mathBoxState.exercises.length)]
-                    };
+                    if (window.mathBoxState.premadeExercises.length > 0) {
+                        const i = Math.floor(Math.random() * window.mathBoxState.premadeExercises.length);
+                        window.mathBoxState.exercise = window.mathBoxState.premadeExercises.splice(i, 1)[0];
+                    } else {
+                        window.mathBoxState.exercise = {
+                            a: Math.floor(Math.random() * window.mathBoxState.countUntil),
+                            exercise: window.mathBoxState.exercises[Math.floor(Math.random() * window.mathBoxState.exercises.length)]
+                        };
 
-                    switch (window.mathBoxState.exercise.exercise) {
-                        case "som":
-                        case "splitsen":
-                            window.mathBoxState.exercise.b = Math.floor(Math.random() * (window.mathBoxState.countUntil - window.mathBoxState.exercise.a));
-                            window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a + window.mathBoxState.exercise.b;
-                            break;
-                        case "verschil":
-                            window.mathBoxState.exercise.b = Math.floor(Math.random() * window.mathBoxState.exercise.a);
-                            window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a - window.mathBoxState.exercise.b;
-                            break;
+                        switch (window.mathBoxState.exercise.exercise) {
+                            case "som":
+                            case "splitsen":
+                                window.mathBoxState.exercise.b = Math.floor(Math.random() * (window.mathBoxState.countUntil - window.mathBoxState.exercise.a));
+                                window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a + window.mathBoxState.exercise.b;
+                                break;
+                            case "verschil":
+                                window.mathBoxState.exercise.b = Math.floor(Math.random() * window.mathBoxState.exercise.a);
+                                window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a - window.mathBoxState.exercise.b;
+                                break;
+                        }
                     }
 
                     console.log("exercise", window.mathBoxState.exerciseCount, window.mathBoxState.exercise);
@@ -529,6 +554,7 @@
 
                     window.mathBoxState.exercise = {};
                     window.mathBoxState.wrongExercises = [];
+                    window.mathBoxState.premadeExercises = [];
 
                     console.log("status data",
                         window.mathBoxState.exerciseCount, window.mathBoxState.numExercises,
