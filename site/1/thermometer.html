@@ -276,6 +276,7 @@
                     countUntil: 0,
                     numExercises: 0,
                     exerciseCount: 0,
+                    seenValues: [],
                     exercise: {},
                     wrongExercises: [],
                     premadeExercises: [],
@@ -352,6 +353,7 @@
                                 window.thermomterState.numExercises = window.thermomterState.wrongExercises.length;
                                 window.thermomterState.exerciseCount = 0;
                                 window.thermomterState.wrongExerciseCount = 0;
+                                window.thermomterState.seenValues = [];
                                 window.thermomterState.premadeExercises = window.thermomterState.wrongExercises;
                                 window.thermomterState.wrongExercises = [];
 
@@ -441,11 +443,18 @@
                         const i = Math.floor(Math.random() * window.thermomterState.premadeExercises.length);
                         window.thermomterState.exercise = window.thermomterState.premadeExercises.splice(i, 1)[0];
                     } else {
-                        const exercises = ["teken", "schrijf"];
+                        const exercises = ["teken", "teken", "schrijf", "schrijf"];
                         window.thermomterState.exercise = {
-                            value: Math.floor(Math.random() * (window.thermomterState.countUntil)),
+                            value: Math.floor(Math.random() * window.thermomterState.countUntil),
                             exercise: exercises[Math.floor(Math.random() * exercises.length)],
                         };
+                        while (window.thermomterState.seenValues.includes(window.thermomterState.exercise.value)) {
+                            window.thermomterState.exercise.value = Math.floor(Math.random() * window.thermomterState.countUntil);
+                        }
+                        window.thermomterState.seenValues.push(window.thermomterState.exercise.value);
+                        if (window.thermomterState.seenValues.length >= window.thermomterState.countUntil) {
+                            window.thermomterState.seenValues = [];
+                        }
                     }
 
                     console.log("exercise", window.thermomterState.exerciseCount, window.thermomterState.exercise);
@@ -525,7 +534,7 @@
                             break;
 
                         case "teken":
-                            answer = -1;
+                            answer = 0;
                             document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td.liquid').forEach((el) => {
                                 const value = Number(el.getAttribute('value'));
                                 if (value > answer) {
@@ -573,6 +582,7 @@
 
                     window.thermomterState.exercise = {};
                     window.thermomterState.wrongExercises = [];
+                    window.thermomterState.seenValues = [];
                     window.thermomterState.premadeExercises = [];
 
                     console.log("status data",
