@@ -5,17 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>rekendoos oefening</title>
+    <title>thermometer oefening</title>
 
     <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🔢</text></svg>">
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🌡️</text></svg>">
 
-    <meta property="og:title" content="rekendoos" />
+    <meta property="og:title" content="thermometer" />
     <meta property="og:locale" content="nl_BE" />
     <meta property="og:type" content="website">
     <meta property="og:description"
-        content="gratis huiswerk middel voor rekenen te oefenen in het 1ste leerjaar van de basisschool" />
-    <meta property="og:site_name" content="rekendoos" />
+        content="gratis huiswerk middel voor te leren werken met een analoge thermometer in het 1ste leerjaar van de basisschool" />
+    <meta property="og:site_name" content="thermometer" />
 
     <link rel="stylesheet" href="/css/reset.css">
 
@@ -130,37 +130,92 @@
         #review-buttons {
             margin-block: 10px;
         }
+
+        #thermometer {
+            margin-block: 15px;
+        }
+
+        #thermometer table {
+            border-spacing: 0px;
+            margin-inline-start: 50px;
+        }
+
+        #thermometer tr {
+            height: 10px;
+        }
+
+        #thermometer td {
+            width: 20px;
+        }
+
+        #thermometer tr:last-child>td:nth-child(2) {
+            border-bottom: 0;
+        }
+
+        #thermometer tr>td.marker {
+            border-bottom: 1px solid black;
+        }
+
+        #thermometer tr>td.bold-marker {
+            border-bottom: 3px solid black;
+        }
+
+        #thermometer tr>td:first-child {
+            border-inline: 3px solid black;
+        }
+
+        #thermometer tr:last-child>td:first-child {
+            background-color: red;
+        }
+
+        #thermometer tr>td:nth-child(3) {
+            width: 30px;
+            text-align: center;
+        }
+
+        #thermometer tr:first-child>td:first-child {
+            border-top: 3px solid black;
+            display: block;
+            border-top-left-radius: 50%;
+            border-top-right-radius: 50%;
+        }
+
+        #thermometer tr:last-child>td:first-child {
+            border-bottom: 3px solid black;
+            display: block;
+            border-bottom-left-radius: 50%;
+            border-bottom-right-radius: 50%;
+        }
+
+        #thermometer.interactive tr:not(:last-child)>td:first-child:hover {
+            background-color: green;
+            cursor: pointer;
+        }
+
+        #thermometer td.liquid {
+            background-color: red;
+        }
     </style>
 </head>
 
 <body>
     <main>
-        <h1>rekendoos <code>➕➖🟰</code></h1>
+        <h1>thermometer <code>🌡️</code></h1>
         <p>
             <a href="/index.html">🏠 Ga terug naar de thuispagina.</a>
         </p>
 
         <div id="page-setup">
             <p>
-                Deze digitale rekendoos is bedoeld voor leerlingen
-                om hun rekenkunde te oefenen.
+                Deze oefening is bedoeld voor leerlingen
+                om te leren werken met een analoge thermometer.
             </p>
             <form id="form-setup" , action="javascript:void(0)">
-                <label for="count-until">Tot hoeveel kan het kind al tellen?</label>
-                <input type="number" id="count-until" name="count-until" min="3" max="100" value="10" required><br>
+                <label for="count-until">Tot hoeveel kan het kind al werken op de thermometer?</label>
+                <input type="number" id="count-until" name="count-until" min="3" max="100" value="20" required><br>
 
                 <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
                 <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
-
-                <label>Wat wil u oefenen?</label><br>
-                <input type="checkbox" id="practice-som" name="practice" value="som" checked>
-                <label for="practice-som">optellen ➕</label><br>
-
-                <input type="checkbox" id="practice-verschil" name="practice" value="verschil" checked>
-                <label for="practice-verschil">aftrekken ➖</label><br>
-
-                <input type="checkbox" id="practice-splitsen" name="practice" value="splitsen" checked>
-                <label for="practice-splitsen">splitsen 🔼</label><br>
 
                 <button type="submit">🟢 start met oefenen</button>
             </form>
@@ -185,7 +240,7 @@
 
         <script>
             window.onload = () => {
-                console.log("rekendoos loaded");
+                console.log("thermometer loaded");
 
                 const initPageSetup = () => {
                     console.log("show page setup");
@@ -197,17 +252,12 @@
                     // as for example a kid will probably want to do exercises with the same settings
                     // each time they use the website
                     try {
-                        const storedConfig = JSON.parse(localStorage.getItem("mathBoxConfig"));
+                        const storedConfig = JSON.parse(localStorage.getItem("thermometerConfig"));
                         if (storedConfig.countUntil) {
                             document.getElementById("count-until").value = storedConfig.countUntil;
                         }
                         if (storedConfig.numExercises) {
                             document.getElementById("num-exercises").value = storedConfig.numExercises;
-                        }
-                        if (storedConfig.exercises) {
-                            document.querySelectorAll('input[name="practice"]').forEach((checkbox) => {
-                                checkbox.checked = storedConfig.exercises.includes(checkbox.id.split('-')[1]);
-                            });
                         }
                     } catch (e) { }
                 };
@@ -220,12 +270,11 @@
                     });
                 });
 
-                window.mathBoxState = {
+                window.thermomterState = {
                     countUntil: 0,
                     numExercises: 0,
                     exerciseCount: 0,
                     exercise: {},
-                    exercises: [],
                     wrongExercises: [],
                     premadeExercises: [],
                 };
@@ -238,15 +287,13 @@
                 }
 
                 function trackWrongExercise() {
-                    const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
-
-                    const last = window.mathBoxState.wrongExercises.length > 0
-                        ? JSON.stringify(window.mathBoxState.wrongExercises[window.mathBoxState.wrongExercises.length - 1])
+                    const last = window.thermomterState.wrongExercises.length > 0
+                        ? JSON.stringify(window.thermomterState.wrongExercises[window.thermomterState.wrongExercises.length - 1])
                         : null;
-                    const current = JSON.stringify(window.mathBoxState.exercise);
+                    const current = JSON.stringify(window.thermomterState.exercise);
                     if (last !== current) {
-                        window.mathBoxState.wrongExerciseCount += 1;
-                        window.mathBoxState.wrongExercises.push(JSON.parse(current));
+                        window.thermomterState.wrongExerciseCount += 1;
+                        window.thermomterState.wrongExercises.push(JSON.parse(current));
 
                         const skipButton = document.getElementById("button-skip");
                         if (skipButton) {
@@ -256,8 +303,8 @@
                 }
 
                 function nextExercise() {
-                    const answer = Number(document.getElementById("answer").value);
-                    if (window.mathBoxState.exerciseCount < window.mathBoxState.numExercises) {
+                    const answer = Number(document.getElementById("answer") ? document.getElementById("answer").value : -1);
+                    if (window.thermomterState.exerciseCount < window.thermomterState.numExercises) {
                         console.log(answer, "correct, next exercise");
                         generateExercise();
                     } else {
@@ -268,8 +315,8 @@
                         document.getElementById("page-exercises").hidden = true;
                         document.getElementById("page-result").hidden = false;
 
-                        const score = window.mathBoxState.exerciseCount - window.mathBoxState.wrongExerciseCount;
-                        const total = window.mathBoxState.exerciseCount;
+                        const score = window.thermomterState.exerciseCount - window.thermomterState.wrongExerciseCount;
+                        const total = window.thermomterState.exerciseCount;
 
                         // show confetti only at max score
                         document.getElementById("confetti").style.height = score === total ? '100vh' : '0';
@@ -277,7 +324,7 @@
                         const feedback = document.getElementById("result");
                         feedback.innerHTML = `<h2>🎉 klaar!<h2>`;
                         feedback.innerHTML += `<h3>${score} &sol; ${total}</h3>`;
-                        if (window.mathBoxState.wrongExercises.length > 0) {
+                        if (window.thermomterState.wrongExercises.length > 0) {
                             const animal = randomAnimal();
                             feedback.innerHTML += `<h2>${animal} bekijk goed</h2>`;
                             feedback.innerHTML += `
@@ -295,16 +342,16 @@
 
                             function setReviewButtons() {
                                 document.getElementById("review-button-back").disabled = index === 0;
-                                document.getElementById("review-button-next").disabled = index === window.mathBoxState.wrongExercises.length - 1;
+                                document.getElementById("review-button-next").disabled = index === window.thermomterState.wrongExercises.length - 1;
                             }
 
                             document.getElementById("review-button-repeat").addEventListener("click", (e) => {
                                 e.preventDefault();
-                                window.mathBoxState.numExercises = window.mathBoxState.wrongExercises.length;
-                                window.mathBoxState.exerciseCount = 0;
-                                window.mathBoxState.wrongExerciseCount = 0;
-                                window.mathBoxState.premadeExercises = window.mathBoxState.wrongExercises;
-                                window.mathBoxState.wrongExercises = [];
+                                window.thermomterState.numExercises = window.thermomterState.wrongExercises.length;
+                                window.thermomterState.exerciseCount = 0;
+                                window.thermomterState.wrongExerciseCount = 0;
+                                window.thermomterState.premadeExercises = window.thermomterState.wrongExercises;
+                                window.thermomterState.wrongExercises = [];
 
                                 console.log("show page exercises");
                                 document.getElementById("page-setup").hidden = true;
@@ -326,7 +373,7 @@
 
                             document.getElementById("review-button-next").addEventListener("click", (e) => {
                                 e.preventDefault();
-                                if (index === window.mathBoxState.wrongExercises.length - 1) {
+                                if (index === window.thermomterState.wrongExercises.length - 1) {
                                     return;
                                 }
                                 index += 1;
@@ -335,54 +382,22 @@
                             });
 
                             function displayExercise() {
-                                const exercise = window.mathBoxState.wrongExercises[index];
+                                const exercise = window.thermomterState.wrongExercises[index];
                                 let exerciseFeedback = '<div class="box exercise-feedback">';
                                 switch (exercise.exercise) {
-                                    case "som":
-                                        exerciseFeedback += "<h3>maak de som ➕</h3>";
-                                        exerciseFeedback += `
-                                                <p>
-                                                    <span>${exercise.a} + ${exercise.b} = </span>
-                                                    <span class="box bad split-part">${exercise.answer}</span>
-                                                </p>
-                                            `;
+                                    case "teken":
+                                        exerciseFeedback += "<h3>kleur de themperatuur 🎨</h3>";
+                                        exerciseFeedback += drawThermometer(exercise, true);
                                         break;
-                                    case "verschil":
-                                        exerciseFeedback += "<h3>maak het verschil ➖</h3>";
-                                        exerciseFeedback += `
-                                                <p>
-                                                    <span>${exercise.a} - ${exercise.b} =</span>
-                                                    <span class="box bad split-part">${exercise.answer}</span>
-                                                </p>
-                                            `;
-                                        break;
-                                    case "splitsen":
-                                        exerciseFeedback += "<h3>maak de splitsing 🔼</h3>";
-                                        exerciseFeedback += `
-                                                <p>
-                                                    <span class="box split-part">${exercise.answer}</span>
-                                                </p>
-                                                <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
-                                                    &sol;&nbsp;&nbsp;&bsol;
-                                                </p>
-                                            `;
-                                        if (Math.floor(Math.random() * 2) + 1 === 1) {
-                                            exerciseFeedback += `
-                                                    <p>
-                                                        <span class="box split-part">${exercise.a}</span>
-                                                        <span class="box split-part bad">${exercise.b}</span>
-                                                    </p>
-                                                `;
-                                        } else {
-                                            exerciseFeedback += `
-                                                    <p>
-                                                        <span class="box split-part bad">${exercise.a}</span>
-                                                        <span class="box split-part">${exercise.b}</span>
-                                                    </p>
-                                                `;
-                                        }
+                                    case "schrijf":
+                                        exerciseFeedback += "<h3>schrijf de themperatuur ✏️</h3>";
+                                        exerciseFeedback += drawThermometer(exercise, true);
                                         break;
                                 }
+                                exerciseFeedback += `<p>
+                                    <span class="box split-part bad">${window.thermomterState.exercise.value}</span>
+                                    <span>℃</span>
+                                </p>`;
                                 exerciseFeedback += '</div>';
                                 document.getElementById("review").innerHTML = exerciseFeedback;
                             }
@@ -393,105 +408,103 @@
                     }
                 }
 
+                function drawThermometer(exercise, feedback) {
+                    let thermometer = `<div id="thermometer" class="${exercise.exercise === 'teken' ? 'interactive' : ''}">
+                        <table><tbody>`;
+                    let cells = Math.ceil(window.thermomterState.countUntil / 5.0) * 5;
+                    for (let i = 0; i < cells + 2; i++) {
+                        const cellValue = cells - i + 1;
+                        let liquidClass = '';
+                        if ((feedback || exercise.exercise === 'schrijf') && cellValue <= exercise.value) {
+                            liquidClass = 'liquid'
+                        }
+                        thermometer += `
+                            <tr>
+                                <td id="cell-${cellValue}" value="${cellValue}" class="${liquidClass}">&nbsp;</td>
+                                <td class="${i > cells ? '' : (i % 5 === 0 ? 'bold-marker' : 'marker')}">&nbsp;</td>
+                                ${i <= cells && i % 5 === 0 ? '<td rowspan="2">' + (cells - i) + '</td>' : (i <= cells && (i - 1) % 5 === 0 ? '' : '<td>&nbsp;</td>')}
+                            </tr>`;
+                    }
+                    thermometer += `</tbody></table>
+                        </div>`;
+
+                    return thermometer;
+                }
+
                 function generateExercise() {
-                    window.mathBoxState.exerciseCount += 1;
+                    window.thermomterState.exerciseCount += 1;
                     document.getElementById("exercise-feedback").innerHTML = "&nbsp;";
 
-                    if (window.mathBoxState.premadeExercises.length > 0) {
-                        const i = Math.floor(Math.random() * window.mathBoxState.premadeExercises.length);
-                        window.mathBoxState.exercise = window.mathBoxState.premadeExercises.splice(i, 1)[0];
+                    if (window.thermomterState.premadeExercises.length > 0) {
+                        const i = Math.floor(Math.random() * window.thermomterState.premadeExercises.length);
+                        window.thermomterState.exercise = window.thermomterState.premadeExercises.splice(i, 1)[0];
                     } else {
-                        window.mathBoxState.exercise = {
-                            a: Math.floor(Math.random() * window.mathBoxState.countUntil),
-                            exercise: window.mathBoxState.exercises[Math.floor(Math.random() * window.mathBoxState.exercises.length)]
+                        const exercises = ["teken", "schrijf"];
+                        window.thermomterState.exercise = {
+                            value: Math.floor(Math.random() * (window.thermomterState.countUntil)),
+                            exercise: exercises[Math.floor(Math.random() * exercises.length)],
                         };
-
-                        switch (window.mathBoxState.exercise.exercise) {
-                            case "som":
-                            case "splitsen":
-                                window.mathBoxState.exercise.b = Math.floor(Math.random() * (window.mathBoxState.countUntil - window.mathBoxState.exercise.a));
-                                window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a + window.mathBoxState.exercise.b;
-                                break;
-                            case "verschil":
-                                window.mathBoxState.exercise.b = Math.floor(Math.random() * window.mathBoxState.exercise.a);
-                                window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a - window.mathBoxState.exercise.b;
-                                break;
-                        }
                     }
 
-                    console.log("exercise", window.mathBoxState.exerciseCount, window.mathBoxState.exercise);
+                    console.log("exercise", window.thermomterState.exerciseCount, window.thermomterState.exercise);
 
-                    document.getElementById("form-title").innerHTML = `oefening ${window.mathBoxState.exerciseCount} van ${window.mathBoxState.numExercises}:`;
+                    document.getElementById("form-title").innerHTML = `oefening ${window.thermomterState.exerciseCount} van ${window.thermomterState.numExercises}:`;
 
-                    switch (window.mathBoxState.exercise.exercise) {
-                        case "som":
-                            document.getElementById("exercise-feedback").innerHTML = "maak de som ➕";
-                            document.getElementById("form-exercise").innerHTML = `
+                    switch (window.thermomterState.exercise.exercise) {
+                        case "teken":
+                            document.getElementById("exercise-feedback").innerHTML = "kleur de themperatuur 🎨";
+                            document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
                                     <p>
-                                        <span>${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} =</span>
-                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                        <span class="box split-part">${window.thermomterState.exercise.value}</span>
+                                        <span>℃</span>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
+
+                            document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td:first-child').forEach((el) => {
+                                el.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    const elementId = e.target ? e.target.id : e.srcElement.id;
+                                    const el = document.getElementById(elementId);
+                                    const maxValue = Number(el.getAttribute('value'));
+
+                                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td:first-child').forEach((el) => {
+                                        const value = Number(el.getAttribute('value'));
+                                        el.className = value <= maxValue ? 'liquid' : '';
+                                    });
+                                })
+                            });
                             break;
-                        case "verschil":
-                            document.getElementById("exercise-feedback").innerHTML = "maak het verschil ➖";
-                            document.getElementById("form-exercise").innerHTML = `
+                        case "schrijf":
+                            document.getElementById("exercise-feedback").innerHTML = "schrijf de themperatuur ✏️";
+                            document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
                                     <p>
-                                        <span>${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} =</span>
-                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                        <input type="number" id="answer" name="answer" min="0" max="${window.thermomterState.countUntil}" value="" required>
+                                        <span>℃</span>
                                     </p>
-                                    <button type="submit" id="button-check">👉 antwoord</button>
-                                    <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
-                                `;
-                            break;
-                        case "splitsen":
-                            document.getElementById("exercise-feedback").innerHTML = "maak de splitsing 🔼";
-                            formExercise = document.getElementById("form-exercise");
-                            formExercise.innerHTML = `
-                                    <p>
-                                        <span class="box split-part">${window.mathBoxState.exercise.answer}</span>
-                                    </p>
-                                    <p style="margin: -15px 0; padding: 0; font-size: 2em; font-style: bold;">
-                                        &sol;&nbsp;&nbsp;&bsol;
-                                    </p>
-                                `;
-                            if (Math.floor(Math.random() * 2) + 1 === 1) {
-                                document.getElementById("form-exercise").innerHTML += `
-                                        <p>
-                                            <span class="box split-part">${window.mathBoxState.exercise.a}</span>
-                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
-                                            <input type="hidden" id="answer-context" name="answer-context" value="b">
-                                        </p>
-                                    `;
-                            } else {
-                                document.getElementById("form-exercise").innerHTML += `
-                                        <p>
-                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
-                                            <input type="hidden" id="answer-context" name="answer-context" value="a">
-                                            <span class="box split-part">${window.mathBoxState.exercise.b}</span>
-                                        </p>
-                                    `;
-                            }
-                            formExercise.innerHTML += `
                                     <button type="submit" id="button-check">👉 antwoord</button>
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
                             break;
                     }
 
-                    const answerEl = document.getElementById("answer");
-                    answerEl.style.backgroundColor = "#fffde6";
                     document.getElementById("exercise-feedback").style.color = "black";
-                    answerEl.focus();
-                    answerEl.click();
+                    const answerEl = document.getElementById("answer");
+                    if (answerEl) {
+                        answerEl.style.backgroundColor = "#fffde6";
+                        answerEl.focus();
+                        answerEl.click();
+                    }
 
-                    document.getElementById("button-skip").addEventListener("click", (e) => {
-                        e.preventDefault();
-                        trackWrongExercise();
-                        nextExercise();
-                    });
+                    const buttonSkipEl = document.getElementById("button-skip");
+                    if (buttonSkipEl) {
+                        buttonSkipEl.addEventListener("click", (e) => {
+                            e.preventDefault();
+                            trackWrongExercise();
+                            nextExercise();
+                        });
+                    }
 
                     document.getElementById("exercise").scrollTo({
                         behavior: "smooth",
@@ -500,22 +513,40 @@
 
                 function validateAnswer() {
                     console.log("validateAnswer: status data",
-                        window.mathBoxState.exerciseCount, window.mathBoxState.numExercises,
-                        window.mathBoxState.wrongExerciseCount, window.mathBoxState.exercise, window.mathBoxState.wrongExercises);
+                        window.thermomterState.exerciseCount, window.thermomterState.numExercises,
+                        window.thermomterState.wrongExerciseCount, window.thermomterState.exercise, window.thermomterState.wrongExercises);
 
-                    const answer = Number(document.getElementById("answer").value);
-                    const answerContext = document.getElementById("answer-context") ? document.getElementById("answer-context").value : "answer";
+                    let valid = false;
+                    let answer = null;
+                    switch (window.thermomterState.exercise.exercise) {
+                        case "schrijf":
+                            answer = Number(document.getElementById("answer").value);
+                            valid = answer === window.thermomterState.exercise.value;
+                            break;
 
-                    if (answer == window.mathBoxState.exercise[answerContext]) {
+                        case "teken":
+                            answer = -1;
+                            document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td.liquid').forEach((el) => {
+                                const value = Number(el.getAttribute('value'));
+                                if (value > answer) {
+                                    answer = value;
+                                }
+                            });
+                            valid = answer === window.thermomterState.exercise.value;
+                            break;
+                    }
+
+                    if (valid) {
                         nextExercise();
                     } else {
                         console.log(answer, "wrong, try again");
-
                         const animal = randomAnimal();
 
                         document.getElementById("exercise-feedback").innerHTML = `${animal} Probeer het nog eens.`;
                         document.getElementById("exercise-feedback").style.color = "red";
-                        document.getElementById("answer").style.backgroundColor = "rgb(253, 220, 220)";
+                        if (document.getElementById("answer")) {
+                            document.getElementById("answer").style.backgroundColor = "rgb(253, 220, 220)";
+                        }
 
                         trackWrongExercise();
                     }
@@ -524,41 +555,29 @@
                 document.getElementById("form-setup").addEventListener("submit", (e) => {
                     e.preventDefault();
 
-                    window.mathBoxState.countUntil = Number(document.getElementById("count-until").value);
-                    window.mathBoxState.numExercises = Number(document.getElementById("num-exercises").value);
-
-                    window.mathBoxState.exercises = [];
-                    document.querySelectorAll('input[name="practice"]:checked').forEach((checkbox) => {
-                        window.mathBoxState.exercises.push(checkbox.value);
-                    });
+                    window.thermomterState.countUntil = Number(document.getElementById("count-until").value);
+                    window.thermomterState.numExercises = Number(document.getElementById("num-exercises").value);
 
                     console.log("form submitted");
-                    console.log("countUntil", window.mathBoxState.countUntil);
-                    console.log("numExercises", window.mathBoxState.numExercises);
-                    console.log("exercises", window.mathBoxState.exercises);
+                    console.log("countUntil", window.thermomterState.countUntil);
+                    console.log("numExercises", window.thermomterState.numExercises);
 
                     // store the chosen config for later usage
-                    localStorage.setItem("mathBoxConfig", JSON.stringify({
-                        countUntil: window.mathBoxState.countUntil,
-                        numExercises: window.mathBoxState.numExercises,
-                        exercises: window.mathBoxState.exercises,
+                    localStorage.setItem("thermometerConfig", JSON.stringify({
+                        countUntil: window.thermomterState.countUntil,
+                        numExercises: window.thermomterState.numExercises,
                     }));
 
-                    if (window.mathBoxState.exercises.length === 0) {
-                        alert("Gelieve minstens één soort oefening te selecteren.");
-                        return;
-                    }
+                    window.thermomterState.exerciseCount = 0;
+                    window.thermomterState.wrongExerciseCount = 0;
 
-                    window.mathBoxState.exerciseCount = 0;
-                    window.mathBoxState.wrongExerciseCount = 0;
-
-                    window.mathBoxState.exercise = {};
-                    window.mathBoxState.wrongExercises = [];
-                    window.mathBoxState.premadeExercises = [];
+                    window.thermomterState.exercise = {};
+                    window.thermomterState.wrongExercises = [];
+                    window.thermomterState.premadeExercises = [];
 
                     console.log("status data",
-                        window.mathBoxState.exerciseCount, window.mathBoxState.numExercises,
-                        window.mathBoxState.wrongExerciseCount, window.mathBoxState.exercise, window.mathBoxState.wrongExercises);
+                        window.thermomterState.exerciseCount, window.thermomterState.numExercises,
+                        window.thermomterState.wrongExerciseCount, window.thermomterState.exercise, window.thermomterState.wrongExercises);
 
                     console.log("show page exercises");
                     document.getElementById("page-setup").hidden = true;
