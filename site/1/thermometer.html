@@ -33,6 +33,11 @@
             text-align: center;
         }
 
+        #exercise-meta {
+            margin: 0 auto;
+            width: fit-content;
+        }
+
         form {
             padding: 5px;
         }
@@ -218,9 +223,11 @@
 
         <div id="page-exercises" hidden>
             <button class="button-reset">begin opnieuw ↩️</button>
+            <div id="exercise-meta">
+                <p id="form-title"></p>
+            </div>
             <div id="exercise" class="box">
-                <h3 id="form-title"></h3>
-                <p id="exercise-feedback">&nbsp;</p>
+                <h3 id="exercise-feedback">&nbsp;</h3>
                 <form id="form-exercise" , action="javascript:void(0)">
                 </form>
             </div>
