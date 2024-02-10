@@ -464,7 +464,7 @@
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
 
-                            document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td:first-child').forEach((el) => {
+                            document.querySelectorAll('#thermometer.interactive tr > td:first-child').forEach((el) => {
                                 el.addEventListener('click', (e) => {
                                     e.preventDefault();
                                     const elementId = e.target ? e.target.id : e.srcElement.id;
@@ -495,8 +495,6 @@
                     const answerEl = document.getElementById("answer");
                     if (answerEl) {
                         answerEl.style.backgroundColor = "#fffde6";
-                        answerEl.focus();
-                        answerEl.click();
                     }
 
                     const buttonSkipEl = document.getElementById("button-skip");
