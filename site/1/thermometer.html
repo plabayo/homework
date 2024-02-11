@@ -395,7 +395,7 @@
                                 let exerciseFeedback = '<div class="box exercise-feedback">';
                                 switch (exercise.exercise) {
                                     case "teken":
-                                        exerciseFeedback += "<h3>kleur de themperatuur 🎨</h3>";
+                                        exerciseFeedback += "<h3>kleur de thermometer 🎨</h3>";
                                         exerciseFeedback += drawThermometer(exercise, true);
                                         break;
                                     case "schrijf":
@@ -417,10 +417,14 @@
                     }
                 }
 
+                function cellCount() {
+                    return (Math.ceil(window.thermomterState.countUntil / 5.0) * 5) + 5;
+                }
+
                 function drawThermometer(exercise, feedback) {
                     let thermometer = `<div id="thermometer" class="${exercise.exercise === 'teken' ? 'interactive' : ''}">
                         <table><tbody>`;
-                    let cells = (Math.ceil(window.thermomterState.countUntil / 5.0) * 5) + 5;
+                    let cells = cellCount();
                     for (let i = 0; i < cells + 2; i++) {
                         const cellValue = cells - i + 1;
                         let liquidClass = '';
@@ -438,6 +442,17 @@
                         </div>`;
 
                     return thermometer;
+                }
+
+                function getThermometerValue() {
+                    let answer = 0;
+                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td.liquid').forEach((el) => {
+                        const value = Number(el.getAttribute('value'));
+                        if (value > answer) {
+                            answer = value;
+                        }
+                    });
+                    return answer;
                 }
 
                 function generateExercise() {
@@ -468,8 +483,12 @@
 
                     switch (window.thermomterState.exercise.exercise) {
                         case "teken":
-                            document.getElementById("exercise-feedback").innerHTML = "kleur de themperatuur 🎨";
+                            document.getElementById("exercise-feedback").innerHTML = "kleur de thermometer 🎨";
                             document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
+                                    <div id="review-buttons">
+                                        <button type="button" id="button-decrement">➖ minder</button>
+                                        <button type="button" id="button-increment">meer ➕</button>
+                                    </div>
                                     <p>
                                         <span class="box split-part">${window.thermomterState.exercise.value}</span>
                                         <span>℃</span>
@@ -491,7 +510,42 @@
                                     });
                                 })
                             });
+
+                            function setIncDecButtonDisabled() {
+                                const value = getThermometerValue();
+                                document.getElementById("button-decrement").disabled = value <= 0;
+                                document.getElementById("button-increment").disabled = value > cellCount();
+                            }
+
+                            document.getElementById("button-decrement").addEventListener("click", (e) => {
+                                e.preventDefault();
+
+                                const value = getThermometerValue();
+                                console.log("decrement via button", value);
+                                if (value <= 0) {
+                                    return;
+                                } else {
+                                    document.querySelector(`td:first-child#cell-${value}`).className = '';
+                                    setIncDecButtonDisabled();
+                                }
+                            });
+
+                            document.getElementById("button-increment").addEventListener("click", (e) => {
+                                e.preventDefault();
+
+                                const value = getThermometerValue();
+                                console.log("increment via button", value);
+                                if (value > cellCount()) {
+                                    return;
+                                } else {
+                                    document.querySelector(`td:first-child#cell-${value + 1}`).className = 'liquid';
+                                    setIncDecButtonDisabled();
+                                }
+                            });
+
+                            setIncDecButtonDisabled();
                             break;
+
                         case "schrijf":
                             document.getElementById("exercise-feedback").innerHTML = "schrijf de themperatuur ✏️";
                             document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
@@ -539,13 +593,7 @@
                             break;
 
                         case "teken":
-                            answer = 0;
-                            document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td.liquid').forEach((el) => {
-                                const value = Number(el.getAttribute('value'));
-                                if (value > answer) {
-                                    answer = value;
-                                }
-                            });
+                            answer = getThermometerValue();
                             valid = answer === window.thermomterState.exercise.value;
                             break;
                     }
