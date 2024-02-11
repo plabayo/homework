@@ -146,11 +146,11 @@
         }
 
         #thermometer tr {
-            height: 10px;
+            height: 15px;
         }
 
         #thermometer td {
-            width: 20px;
+            width: 80px;
         }
 
         #thermometer tr:last-child>td:nth-child(2) {
@@ -173,6 +173,10 @@
             background-color: red;
         }
 
+        #thermometer tr>td:nth-child(2) {
+            width: 20px;
+        }
+
         #thermometer tr>td:nth-child(3) {
             width: 30px;
             text-align: center;
@@ -188,6 +192,7 @@
         #thermometer tr:last-child>td:first-child {
             border-bottom: 3px solid black;
             display: block;
+            height: 30px;
             border-bottom-left-radius: 50%;
             border-bottom-right-radius: 50%;
         }
@@ -415,7 +420,7 @@
                 function drawThermometer(exercise, feedback) {
                     let thermometer = `<div id="thermometer" class="${exercise.exercise === 'teken' ? 'interactive' : ''}">
                         <table><tbody>`;
-                    let cells = Math.ceil(window.thermomterState.countUntil / 5.0) * 5;
+                    let cells = (Math.ceil(window.thermomterState.countUntil / 5.0) * 5) + 5;
                     for (let i = 0; i < cells + 2; i++) {
                         const cellValue = cells - i + 1;
                         let liquidClass = '';
@@ -423,10 +428,10 @@
                             liquidClass = 'liquid'
                         }
                         thermometer += `
-                            <tr>
+                            <tr id="cell-${cellValue}" value="${cellValue}">
                                 <td id="cell-${cellValue}" value="${cellValue}" class="${liquidClass}">&nbsp;</td>
-                                <td class="${i > cells ? '' : (i % 5 === 0 ? 'bold-marker' : 'marker')}">&nbsp;</td>
-                                ${i <= cells && i % 5 === 0 ? '<td rowspan="2">' + (cells - i) + '</td>' : (i <= cells && (i - 1) % 5 === 0 ? '' : '<td>&nbsp;</td>')}
+                                <td id="cell-${cellValue}" value="${cellValue}" class="${i > cells ? '' : (i % 5 === 0 ? 'bold-marker' : 'marker')}">&nbsp;</td>
+                                ${i <= cells && i % 5 === 0 ? `<td id="cell-${cellValue}" value="${cellValue}" rowspan="2">` + (cells - i) + '</td>' : (i <= cells && (i - 1) % 5 === 0 ? '' : `<td id="cell-${cellValue}" value="${cellValue}">&nbsp;</td>`)}
                             </tr>`;
                     }
                     thermometer += `</tbody></table>
@@ -473,16 +478,16 @@
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
 
-                            document.querySelectorAll('#thermometer.interactive tr > td:first-child').forEach((el) => {
+                            document.querySelectorAll('#thermometer.interactive tr').forEach((el) => {
                                 el.addEventListener('click', (e) => {
                                     e.preventDefault();
                                     const elementId = e.target ? e.target.id : e.srcElement.id;
                                     const el = document.getElementById(elementId);
                                     const maxValue = Number(el.getAttribute('value'));
 
-                                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td:first-child').forEach((el) => {
+                                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)').forEach((el) => {
                                         const value = Number(el.getAttribute('value'));
-                                        el.className = value <= maxValue ? 'liquid' : '';
+                                        el.querySelector('td:first-child').className = value <= maxValue ? 'liquid' : '';
                                     });
                                 })
                             });
