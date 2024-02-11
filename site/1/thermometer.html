@@ -33,6 +33,10 @@
             text-align: center;
         }
 
+        button:disabled {
+            opacity: 0.5;
+        }
+
         #exercise-meta {
             margin: 0 auto;
             width: fit-content;
@@ -344,7 +348,7 @@
                         document.getElementById("page-exercises").hidden = true;
                         document.getElementById("page-result").hidden = false;
 
-                        document.getElementsByTagName("main").scrollTo({
+                        document.querySelector("h1").scrollTo({
                             behavior: "smooth",
                         });
 
@@ -471,12 +475,14 @@
 
                 function getThermometerValue() {
                     let answer = 0;
-                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)>td.liquid').forEach((el) => {
+                    const liquidElements = document.querySelectorAll('div#page-exercises #thermometer.interactive tr:not(:last-child)>td.liquid');
+                    liquidElements.forEach((el) => {
                         const value = Number(el.getAttribute('value'));
                         if (value > answer) {
                             answer = value;
                         }
                     });
+                    console.log("getThermometerValue", answer, liquidElements);
                     return answer;
                 }
 
@@ -528,20 +534,6 @@
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
                                 `;
 
-                            document.querySelectorAll('#thermometer.interactive tr').forEach((el) => {
-                                el.addEventListener('click', (e) => {
-                                    e.preventDefault();
-                                    const elementId = e.target ? e.target.id : e.srcElement.id;
-                                    const el = document.getElementById(elementId);
-                                    const maxValue = Number(el.getAttribute('value'));
-
-                                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)').forEach((el) => {
-                                        const value = Number(el.getAttribute('value'));
-                                        el.querySelector('td:first-child').className = value <= maxValue ? 'liquid' : '';
-                                    });
-                                })
-                            });
-
                             function setIncDecButtonDisabled() {
                                 const value = getThermometerValue();
                                 document.getElementById("button-decrement").disabled = value <= 0;
@@ -572,6 +564,22 @@
                                     document.querySelector(`td:first-child#cell-${value + 1}`).className = 'liquid';
                                     setIncDecButtonDisabled();
                                 }
+                            });
+
+                            document.querySelectorAll('#thermometer.interactive tr').forEach((el) => {
+                                el.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    const elementId = e.target ? e.target.id : e.srcElement.id;
+                                    const el = document.getElementById(elementId);
+                                    const maxValue = Number(el.getAttribute('value'));
+
+                                    document.querySelectorAll('#thermometer.interactive tr:not(:last-child)').forEach((el) => {
+                                        const value = Number(el.getAttribute('value'));
+                                        el.querySelector('td:first-child').className = value <= maxValue ? 'liquid' : '';
+                                    });
+
+                                    setIncDecButtonDisabled();
+                                })
                             });
 
                             setIncDecButtonDisabled();
