@@ -51,6 +51,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            width: 300px;
+            max-width: 100%;
+            ;
         }
 
         #form-exercise span,
@@ -112,6 +115,10 @@
             background-color: #fffde6
         }
 
+        #exercise-help {
+            width: fit-content;
+        }
+
         #result {
             margin: 20px auto;
             text-align: center;
@@ -142,7 +149,16 @@
 
         #thermometer table {
             border-spacing: 0px;
-            margin-inline-start: 50px;
+        }
+
+        #thermometer,
+        #thermometer table,
+        #thermometer tbody {
+            margin-inline: auto;
+        }
+
+        #thermometer table {
+            width: min-content;
         }
 
         #thermometer tr {
@@ -439,8 +455,8 @@
                         thermometer += `
                             <tr id="cell-${cellValue}" value="${cellValue}">
                                 <td id="cell-${cellValue}" value="${cellValue}" class="${liquidClass}">&nbsp;</td>
-                                <td id="cell-${cellValue}" value="${cellValue}" class="${i > cells ? '' : (i % 5 === 0 ? 'bold-marker' : 'marker')}">&nbsp;</td>
-                                ${i <= cells && i % 5 === 0 ? `<td id="cell-${cellValue}" value="${cellValue}" rowspan="2">` + (cells - i) + '</td>' : (i <= cells && (i - 1) % 5 === 0 ? '' : `<td id="cell-${cellValue}" value="${cellValue}">&nbsp;</td>`)}
+                                <td id="cell-${cellValue}" value="${cellValue}" class="${i > cells ? '' : (i % 5 === 0 ? 'bold-marker' : 'marker')}">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+                                ${i <= cells && i % 5 === 0 ? `<td id="cell-${cellValue}" value="${cellValue}" rowspan="2">&nbsp;&nbsp;` + (cells - i) + '</td>' : (i <= cells && (i - 1) % 5 === 0 ? '' : `<td id="cell-${cellValue}" value="${cellValue}">&nbsp;</td>`)}
                             </tr>`;
                     }
                     thermometer += `</tbody></table>
@@ -490,6 +506,12 @@
                         case "teken":
                             document.getElementById("exercise-feedback").innerHTML = "kleur de thermometer 🎨";
                             document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
+                                    <div class="exercise-help">
+                                        <p>
+                                            Klik op de thermometer op de juiste hoogte
+                                            of gebruik de <code>➖&sol;➕</code> knoppen onderaan.
+                                        </p>
+                                    </div>
                                     <div id="review-buttons">
                                         <button type="button" id="button-decrement">➖</button>
                                         <button type="button" id="button-increment">➕</button>
