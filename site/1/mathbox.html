@@ -275,6 +275,10 @@
                         document.getElementById("page-exercises").hidden = true;
                         document.getElementById("page-result").hidden = false;
 
+                        document.getElementsByTagName("main").scrollTo({
+                            behavior: "smooth",
+                        });
+
                         const score = window.mathBoxState.exerciseCount - window.mathBoxState.wrongExerciseCount;
                         const total = window.mathBoxState.exerciseCount;
 

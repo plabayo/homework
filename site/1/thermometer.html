@@ -344,6 +344,10 @@
                         document.getElementById("page-exercises").hidden = true;
                         document.getElementById("page-result").hidden = false;
 
+                        document.getElementsByTagName("main").scrollTo({
+                            behavior: "smooth",
+                        });
+
                         const score = window.thermomterState.exerciseCount - window.thermomterState.wrongExerciseCount;
                         const total = window.thermomterState.exerciseCount;
 
@@ -603,7 +607,7 @@
 
                     document.getElementById("exercise").scrollTo({
                         behavior: "smooth",
-                    })
+                    });
                 }
 
                 function validateAnswer() {
