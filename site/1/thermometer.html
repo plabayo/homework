@@ -58,7 +58,7 @@
         #form-exercise button,
         .exercise-feedback span {
             margin: 5px;
-            font-size: 2em;
+            font-size: 1.5em;
         }
 
         .box {
@@ -199,6 +199,11 @@
 
         #thermometer td.liquid {
             background-color: red;
+        }
+
+        #button-increment,
+        #button-decrement {
+            padding-inline: 25px;
         }
     </style>
 </head>
@@ -486,8 +491,8 @@
                             document.getElementById("exercise-feedback").innerHTML = "kleur de thermometer 🎨";
                             document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
                                     <div id="review-buttons">
-                                        <button type="button" id="button-decrement">➖ minder</button>
-                                        <button type="button" id="button-increment">meer ➕</button>
+                                        <button type="button" id="button-decrement">➖</button>
+                                        <button type="button" id="button-increment">➕</button>
                                     </div>
                                     <p>
                                         <span class="box split-part">${window.thermomterState.exercise.value}</span>
