@@ -158,10 +158,10 @@
             </p>
             <form id="form-setup" , action="javascript:void(0)">
                 <label for="count-until">Tot hoeveel kan het kind al tellen?</label>
-                <input type="number" id="count-until" name="count-until" min="3" max="100" value="10" required><br>
+                <input inputmode="numeric" pattern="[0-9]+" id="count-until" name="count-until" min="3" max="100" value="10" required><br>
 
                 <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
-                <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
+                <input inputmode="numeric" pattern="[0-9]+" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
 
                 <label>Wat wil u oefenen?</label><br>
                 <input type="checkbox" id="practice-som" name="practice" value="som" checked>
@@ -446,7 +446,7 @@
                             document.getElementById("form-exercise").innerHTML = `
                                     <p>
                                         <span>${window.mathBoxState.exercise.a} + ${window.mathBoxState.exercise.b} =</span>
-                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                        <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
@@ -457,7 +457,7 @@
                             document.getElementById("form-exercise").innerHTML = `
                                     <p>
                                         <span>${window.mathBoxState.exercise.a} - ${window.mathBoxState.exercise.b} =</span>
-                                        <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                        <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
                                     <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
@@ -478,14 +478,14 @@
                                 document.getElementById("form-exercise").innerHTML += `
                                         <p>
                                             <span class="box split-part">${window.mathBoxState.exercise.a}</span>
-                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
+                                            <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
                                             <input type="hidden" id="answer-context" name="answer-context" value="b">
                                         </p>
                                     `;
                             } else {
                                 document.getElementById("form-exercise").innerHTML += `
                                         <p>
-                                            <input type="number" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
+                                            <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" class="split-part" size="3" required>
                                             <input type="hidden" id="answer-context" name="answer-context" value="a">
                                             <span class="box split-part">${window.mathBoxState.exercise.b}</span>
                                         </p>

@@ -244,10 +244,10 @@
             </p>
             <form id="form-setup" , action="javascript:void(0)">
                 <label for="count-until">Tot hoeveel kan het kind al werken op de thermometer?</label>
-                <input type="number" id="count-until" name="count-until" min="3" max="100" value="20" required><br>
+                <input inputmode="numeric" pattern="[0-9]+" id="count-until" name="count-until" min="3" max="100" value="20" required><br>
 
                 <label for="num-exercises">Hoeveel oefeningen wenst u te doen?</label>
-                <input type="number" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
+                <input inputmode="numeric" pattern="[0-9]+" id="num-exercises" name="num-exercises" min="1" max="100" value="10" required><br>
 
                 <button type="submit">🟢 start met oefenen</button>
             </form>
@@ -591,7 +591,7 @@
                             document.getElementById("exercise-feedback").innerHTML = "schrijf de themperatuur ✏️";
                             document.getElementById("form-exercise").innerHTML = drawThermometer(window.thermomterState.exercise) + `
                                     <p>
-                                        <input type="number" id="answer" name="answer" min="0" max="${window.thermomterState.countUntil}" value="" required>
+                                        <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.thermomterState.countUntil}" value="" required>
                                         <span>℃</span>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
