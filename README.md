@@ -30,3 +30,18 @@ No promises though.
 While I don't expect any security issues, given it all runs as fairly dum client-only widgets on your own machine,
 there is always a possibility in this very overly complex world. As such, should you notice any security issues,
 of any severity or kind, you can find more info on what to do with that [in the SECURITY doc](./SECURITY.md).
+
+### Premium Sponsors
+
+* [rama](https://ramaproxy.org)
+* [fly.io](https://fly.io)
+
+🦙 Rama (ラマ) is a modular service framework for the 🦀 Rust language
+to move and transform your network packets. This FOSS web service
+is built with rama and maintained by [Plabayo](https://plabayo.tech).
+
+[fly.io](https://fly.io) sponsors the hosting of the service
+as a globally accessible cloud service.
+
+
+We are grateful to both sponsors for sponsering us these cloud resources.
