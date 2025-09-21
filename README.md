@@ -2,6 +2,8 @@
 
 Free online playground to practice homework.
 
+> Homework is available at <https://elementary.training> for free.
+
 Of course you can also use it within a class setting or anywhere really. Naming is hard.
 
 The goal of this tool is not to replace personal guidance, teachers or parents. It is a tool
@@ -10,27 +12,13 @@ child and be there for them as guidance.
 
 ## Developers
 
-Homework is available at <https://elementary.training> for free as a static website,
-static as in purely client-side. Each exercise page is its own program that is developed
-independently.
-
-Please note that we are not going for the most clever or best designed code in this project.
-Obviously we do not want to aim for obsecurity either, but the aim is first and foremost to
-have exercises that are good enough for our kids to be able to practise.
-
 ### Run
 
 ```bash
-python -m http.server -d site 8080
+just run
 ```
 
-or run it more easily using [just](https://just.systems/):
-
-```bash
-just
-```
-
-which does the same, but less typing for you.
+...using [just](https://just.systems/)
 
 ### Contributing
 
