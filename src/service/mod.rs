@@ -29,7 +29,9 @@ mod legacy;
 pub async fn load_http_service(
     path: &Path,
 ) -> impl Service<Request, Response = Response, Error = Infallible> {
-    let app = Router::new().sub("/", legacy::service(path));
+    let app = Router::new()
+        .post("/fly/health", StatusCode::OK)
+        .sub("/", legacy::service(path));
 
     (
         MapResponseBodyLayer::new(Body::new),
