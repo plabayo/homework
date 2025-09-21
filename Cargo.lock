@@ -1001,6 +1001,7 @@ name = "homework"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "const_format",
  "jemallocator",
  "mimalloc",
  "opentelemetry-otlp",
