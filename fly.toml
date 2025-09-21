@@ -1,26 +1,43 @@
+# fly.toml app configuration file generated for homework on 2025-09-21T19:39:47+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
 app = 'homework'
 primary_region = 'fra'
 
 [experimental]
-auto_rollback = true
+  auto_rollback = true
+
+[build]
 
 [env]
-  RUST_LOG = "info,homework=debug,rama_http=debug,rama_http_core=info"
+  RUST_LOG = 'info,homework=debug,rama_http=debug,rama_http_core=info'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[services]]
-protocol = "tcp"
-internal_port = 8080
+  protocol = 'tcp'
+  internal_port = 8080
 
-    [services.concurrency]
-    type = "connections"
-    soft_limit = 1000
-    hard_limit = 2000
-
-    [[services.ports]]
+  [[services.ports]]
     port = 80
 
-    [[services.tcp_checks]]
-    interval = "15s"
-    timeout  = "2s"
-    grace_period = "5s"
-    restart_limit = 0
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 2000
+    soft_limit = 1000
+
+  [[services.tcp_checks]]
+    interval = '15s'
+    timeout = '2s'
+    grace_period = '5s'
+
+[[vm]]
+  size = 'shared-cpu-1x'
