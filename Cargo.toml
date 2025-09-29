@@ -9,20 +9,12 @@ resolver = "3"
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 const_format = "0.2"
-opentelemetry-otlp = { version = "0.30", default-features = false, features = [
-    "http-proto",
-    "internal-logs",
-    "logs",
-    "metrics",
-    "trace",
-] }
 rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features = [
     "tcp",
     "http-full",
     "opentelemetry",
 ] }
 tokio = { version = "1.47", features = ["rt-multi-thread", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 [target.'cfg(unix)'.dependencies]
 jemallocator = "0.5"

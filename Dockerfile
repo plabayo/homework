@@ -15,7 +15,6 @@ WORKDIR /app
 
 # Get compiled binaries from builder's cargo install directory
 COPY --from=builder /usr/src/app/bin/homework /app/homework
-COPY --from=builder /usr/src/app/legacy/static/ /app/legacy
 
 # Run the app
-ENTRYPOINT ["/app/homework", "--legacy-dir", "/app/legacy"]
+ENTRYPOINT ["/app/homework"]

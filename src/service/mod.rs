@@ -26,12 +26,10 @@ use rama::{
 
 mod legacy;
 
-pub async fn load_http_service(
-    path: &Path,
-) -> impl Service<Request, Response = Response, Error = Infallible> {
+pub async fn load_http_service() -> impl Service<Request, Response = Response, Error = Infallible> {
     let app = Router::new()
         .post("/fly/health", StatusCode::OK)
-        .sub("/", legacy::service(path));
+        .sub("/", legacy::service());
 
     (
         MapResponseBodyLayer::new(Body::new),

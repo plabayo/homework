@@ -34,11 +34,11 @@ qa: qq test
 
 run *ARGS:
 	cargo run -- \
-	    --bind 127.0.0.1:8080 --legacy-dir ./legacy/static {{ARGS}}
+	    --bind 127.0.0.1:8080 {{ARGS}}
 
 watch-run *ARGS:
 	cargo watch -x \
-	    'run -- --bind 127.0.0.1:8080 --legacy-dir ./legacy/static {{ARGS}}'
+	    'run -- --bind 127.0.0.1:8080 {{ARGS}}'
 
 docker-build:
     docker build -t local/homework .

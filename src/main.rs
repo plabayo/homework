@@ -40,27 +40,20 @@ struct Cli {
     /// the HTTP interface to bind to
     #[arg(long, default_value_t = Interface::default_ipv4(8080))]
     bind: Interface,
-
-    #[arg(long, default_value = "./legacy/static")]
-    legacy_dir: PathBuf,
 }
 
 async fn run_server(cfg: Cli) -> Result<(), BoxError> {
     let shutdown = graceful::Shutdown::default();
 
-    spawn_service_http(shutdown.guard(), cfg.bind, &cfg.legacy_dir).await?;
+    spawn_service_http(shutdown.guard(), cfg.bind).await?;
 
     shutdown.shutdown_with_limit(Duration::from_secs(3)).await?;
     Ok(())
 }
 
 #[allow(clippy::exit)]
-async fn spawn_service_http(
-    guard: ShutdownGuard,
-    interface: Interface,
-    legacy_dir: &Path,
-) -> Result<(), BoxError> {
-    let svc = self::service::load_http_service(legacy_dir).await;
+async fn spawn_service_http(guard: ShutdownGuard, interface: Interface) -> Result<(), BoxError> {
+    let svc = self::service::load_http_service().await;
 
     let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
     let tcp_listener = TcpListener::bind(interface.clone()).await?;

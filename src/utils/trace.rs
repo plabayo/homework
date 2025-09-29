@@ -1,24 +1,25 @@
 use std::io::IsTerminal as _;
 
-use opentelemetry_otlp::{SpanExporter, WithHttpConfig};
-use tracing_subscriber::{
-    EnvFilter,
-    filter::{Directive, LevelFilter},
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-};
-
 use rama::{
     http::{client::EasyHttpWebClient, service::opentelemetry::OtelExporter},
     net::client::pool::http::HttpPooledConnectorConfig,
     telemetry::{
         opentelemetry::{
             KeyValue,
+            collector::{SpanExporter, WithHttpConfig},
             sdk::{Resource, trace::SdkTracerProvider},
             trace::TracerProvider,
         },
-        tracing::{self, layer},
+        tracing::{
+            self, layer,
+            subscriber::{
+                self, EnvFilter,
+                filter::{Directive, LevelFilter},
+                fmt,
+                layer::SubscriberExt,
+                util::SubscriberInitExt,
+            },
+        },
     },
 };
 
@@ -35,7 +36,7 @@ pub fn init_tracing() {
 }
 
 fn init_default(default_directive: impl Into<Directive>) {
-    tracing_subscriber::registry()
+    subscriber::registry()
         .with(fmt::layer())
         .with(
             EnvFilter::builder()
@@ -74,10 +75,10 @@ fn init_structured(default_directive: impl Into<Directive>) {
     let tracer = provider.tracer("homework");
     let telemetry = layer().with_tracer(tracer);
 
-    tracing_subscriber::registry()
+    subscriber::registry()
         .with(telemetry)
         .with(
-            tracing_subscriber::fmt::Layer::new()
+            subscriber::fmt::Layer::new()
                 .with_ansi(std::io::stderr().is_terminal())
                 .with_writer(std::io::stderr)
                 .json()
