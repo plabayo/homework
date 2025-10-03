@@ -96,6 +96,10 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
     let issuer =
         CertIssuerHttpClient::try_from_env().context("create CertIssuerHttpClient from env")?;
 
+    let executor = Executor::graceful(guard.clone());
+
+    issuer.prefetch_certs_in_background(&executor);
+
     let tls_server_config = ServerConfig::new(ServerAuth::CertIssuer(ServerCertIssuerData {
         kind: issuer.into(),
         cache_kind: CacheKind::default(),
@@ -106,7 +110,7 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
 
     let svc = self::service::load_https_service().await;
 
-    let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
+    let http_server = HttpServer::auto(executor).service(svc);
     let tcp_server = (
         HaProxyLayer::new().with_peek(true),
         TlsAcceptorLayer::new(acceptor_data),
