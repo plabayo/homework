@@ -101,7 +101,8 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
         cache_kind: CacheKind::default(),
     }));
 
-    let acceptor_data = TlsAcceptorData::try_from(tls_server_config).expect("create acceptor data");
+    let acceptor_data =
+        TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
     let svc = self::service::load_https_service().await;
 
