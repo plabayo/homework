@@ -9,16 +9,24 @@ use tokio::{sync::oneshot, time::Instant};
 
 use rama::{
     Context, Layer as _,
+    combinators::Either,
     error::{BoxError, ErrorContext as _, OpaqueError},
     graceful::{self, ShutdownGuard},
-    http::{layer::trace::TraceLayer, server::HttpServer, service::web::WebService},
+    http::{
+        layer::trace::TraceLayer, server::HttpServer, service::web::WebService,
+        tls::CertIssuerHttpClient,
+    },
+    layer::ConsumeErrLayer,
     net::{
         address::{Domain, SocketAddress},
         socket::Interface,
+        tls::server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
     },
+    proxy::haproxy::server::HaProxyLayer,
     rt::Executor,
     tcp::server::TcpListener,
-    telemetry::tracing::{self, instrument::WithSubscriber},
+    telemetry::tracing::{self, Level, instrument::WithSubscriber},
+    tls::boring::server::{TlsAcceptorData, TlsAcceptorLayer},
 };
 
 pub mod service;
@@ -39,28 +47,76 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 struct Cli {
     /// the HTTP interface to bind to
     #[arg(long, default_value_t = Interface::default_ipv4(8080))]
-    bind: Interface,
+    http: Interface,
+
+    /// the HTTP interface to bind to
+    #[arg(long)]
+    https: Option<Interface>,
 }
 
 async fn run_server(cfg: Cli) -> Result<(), BoxError> {
     let shutdown = graceful::Shutdown::default();
 
-    spawn_service_http(shutdown.guard(), cfg.bind).await?;
+    spawn_service_http(shutdown.guard(), cfg.http, cfg.https.is_some()).await?;
+    if let Some(https_bind) = cfg.https {
+        spawn_service_https(shutdown.guard(), https_bind).await?;
+    }
 
     shutdown.shutdown_with_limit(Duration::from_secs(3)).await?;
     Ok(())
 }
 
-#[allow(clippy::exit)]
-async fn spawn_service_http(guard: ShutdownGuard, interface: Interface) -> Result<(), BoxError> {
-    let svc = self::service::load_http_service().await;
+async fn spawn_service_http(
+    guard: ShutdownGuard,
+    interface: Interface,
+    https_enabled: bool,
+) -> Result<(), BoxError> {
+    // TODO: look in rama if we can use Either (or something alike)
+    // without being forced to migrate to BoxError in case all layers
+    // are the same error type (e.g. infallible).
+    let svc = ConsumeErrLayer::trace(Level::DEBUG).into_layer(if https_enabled {
+        Either::A(self::service::load_http_service().await)
+    } else {
+        Either::B(self::service::load_https_service().await)
+    });
 
     let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
+    let tcp_server = HaProxyLayer::new().with_peek(true).into_layer(http_server);
     let tcp_listener = TcpListener::bind(interface.clone()).await?;
 
     guard.into_spawn_task_fn(async move |guard| {
         tracing::info!("http server ({interface}) up and running");
-        tcp_listener.serve_graceful(guard, http_server).await;
+        tcp_listener.serve_graceful(guard, tcp_server).await;
+    });
+
+    Ok(())
+}
+
+async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Result<(), BoxError> {
+    let issuer =
+        CertIssuerHttpClient::try_from_env().context("create CertIssuerHttpClient from env")?;
+
+    let tls_server_config = ServerConfig::new(ServerAuth::CertIssuer(ServerCertIssuerData {
+        kind: issuer.into(),
+        cache_kind: CacheKind::default(),
+    }));
+
+    let acceptor_data = TlsAcceptorData::try_from(tls_server_config).expect("create acceptor data");
+
+    let svc = self::service::load_https_service().await;
+
+    let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
+    let tcp_server = (
+        HaProxyLayer::new().with_peek(true),
+        TlsAcceptorLayer::new(acceptor_data),
+    )
+        .into_layer(http_server);
+
+    let tcp_listener = TcpListener::bind(interface.clone()).await?;
+
+    guard.into_spawn_task_fn(async move |guard| {
+        tracing::info!("http server ({interface}) up and running");
+        tcp_listener.serve_graceful(guard, tcp_server).await;
     });
 
     Ok(())

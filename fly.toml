@@ -1,45 +1,54 @@
-# fly.toml app configuration file generated for homework on 2025-09-21T19:39:47+02:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = 'homework'
 primary_region = 'fra'
 
 [experimental]
-  auto_rollback = true
+auto_rollback = true
 
-[build]
+[processes]
+app = "--http 0.0.0.0:8080 --https 0.0.0.0:8443"
 
 [env]
-  RUST_LOG = 'info,homework=debug,rama_http=debug,rama_http_core=info'
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+RUST_LOG = 'info,homework=debug,rama_http=debug,rama_http_core=info'
 
 [[services]]
-  protocol = 'tcp'
-  internal_port = 8080
+protocol = "tcp"
+internal_port = 8080
+processes = ['app']
 
-  [[services.ports]]
-    port = 80
-
-  [services.concurrency]
-    type = 'connections'
-    hard_limit = 2000
+    [services.concurrency]
+    type = "connections"
     soft_limit = 1000
+    hard_limit = 2000
 
-  [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "POST"
-    timeout = "5s"
-    path = "/fly/health"
+    [[services.ports]]
+    port = 80
+    handlers = ["proxy_proto"]
+
+    [[services.tcp_checks]]
+    interval = "15s"
+    timeout  = "5s"
+    grace_period = "1s"
+    restart_limit = 0
+
+[[services]]
+protocol = "tcp"
+internal_port = 8443
+processes = ['app']
+
+    [services.concurrency]
+    type = "connections"
+    soft_limit = 1000
+    hard_limit = 2000
+
+    [[services.ports]]
+    port = 443
+    handlers = ["proxy_proto"]
+
+    [[services.tcp_checks]]
+    interval = "15s"
+    timeout  = "5s"
+    grace_period = "1500s"
+    restart_limit = 0
 
 [[vm]]
   size = 'shared-cpu-1x'

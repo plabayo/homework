@@ -1,5 +1,8 @@
 FROM rust:1-trixie AS builder
 
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y cmake clang
+
 WORKDIR /usr/src/app
 COPY . .
 # Will build and cache the binary and dependent crates in release mode
@@ -10,6 +13,10 @@ RUN --mount=type=cache,target=/usr/local/cargo,from=rust:latest,source=/usr/loca
 
 # Runtime image
 FROM debian:trixie-slim
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y ca-certificates
+
 
 WORKDIR /app
 

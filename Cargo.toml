@@ -12,6 +12,8 @@ const_format = "0.2"
 rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features = [
     "tcp",
     "http-full",
+    "boring",
+    "haproxy",
     "opentelemetry",
 ] }
 tokio = { version = "1.47", features = ["rt-multi-thread", "macros"] }
