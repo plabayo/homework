@@ -7,7 +7,6 @@ use rama::{
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
     http::{server::HttpServer, tls::CertIssuerHttpClient},
-    layer::ConsumeErrLayer,
     net::{
         socket::Interface,
         tls::server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
@@ -15,7 +14,7 @@ use rama::{
     proxy::haproxy::server::HaProxyLayer,
     rt::Executor,
     tcp::server::TcpListener,
-    telemetry::tracing::{self, Level},
+    telemetry::tracing,
     tls::boring::server::{TlsAcceptorData, TlsAcceptorLayer},
 };
 
@@ -61,14 +60,11 @@ async fn spawn_service_http(
     interface: Interface,
     https_enabled: bool,
 ) -> Result<(), BoxError> {
-    // TODO: look in rama if we can use Either (or something alike)
-    // without being forced to migrate to BoxError in case all layers
-    // are the same error type (e.g. infallible).
-    let svc = ConsumeErrLayer::trace(Level::DEBUG).into_layer(if https_enabled {
+    let svc = if https_enabled {
         Either::A(self::service::load_http_service().await)
     } else {
         Either::B(self::service::load_https_service().await)
-    });
+    };
 
     let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
     let tcp_server = HaProxyLayer::new().with_peek(true).into_layer(http_server);
