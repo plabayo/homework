@@ -1,34 +1,33 @@
-use std::{convert::Infallible, path::Path, time::Duration};
+use std::{convert::Infallible, time::Duration};
 
 use rama::{
-    Context, Layer as _, Service,
-    error::{BoxError, ErrorContext as _, OpaqueError},
+    Layer as _, Service,
     http::{
-        Body, BodyExtractExt, HeaderName, HeaderValue, Request, Response, StatusCode, header,
-        headers::{Authorization, ContentType, StrictTransportSecurity},
+        Body, HeaderName, HeaderValue, Request, Response, StatusCode, header,
+        headers::StrictTransportSecurity,
         layer::{
             cors, map_response_body::MapResponseBodyLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
             trace::TraceLayer,
         },
         service::{
-            client::HttpClientExt as _,
-            web::{
-                Router,
-                response::{Headers, IntoResponse as _},
-            },
+            fs::DirectoryServeMode,
+            web::{Router, response::IntoResponse as _},
         },
     },
     net::http::RequestContext,
     service::service_fn,
     telemetry::tracing,
+    utils::include_dir::include_dir,
 };
-
-mod legacy;
 
 pub async fn load_https_service() -> impl Service<Request, Response = Response, Error = Infallible>
 {
-    let app = Router::new().sub("/", legacy::service());
+    let app = Router::new().dir_embed_with_serve_mode(
+        "/",
+        include_dir!("$CARGO_MANIFEST_DIR/src/service/legacy"),
+        DirectoryServeMode::AppendIndexHtml,
+    );
 
     (
         MapResponseBodyLayer::new(Body::new),
@@ -57,10 +56,10 @@ pub async fn load_http_service() -> impl Service<Request, Response = Response, E
         ),
         cors::CorsLayer::permissive(),
     )
-        .into_layer(service_fn(async |ctx: Context, req: Request| {
+        .into_layer(service_fn(async |req: Request| {
             // TODO: replace code like this in near future with better
             // functional approach of rama 0.3
-            let req_ctx = match RequestContext::try_from((&ctx, &req)) {
+            let req_ctx = match RequestContext::try_from(&req) {
                 Ok(req_ctx) => req_ctx,
                 Err(err) => {
                     tracing::error!("failed to get request ctx for insecure incoming req: {err}");

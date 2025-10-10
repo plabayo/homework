@@ -1,31 +1,21 @@
 use clap::{Parser, command};
-use std::{
-    os,
-    path::{Path, PathBuf},
-    process::exit,
-    time::Duration,
-};
-use tokio::{sync::oneshot, time::Instant};
+use std::time::Duration;
 
 use rama::{
-    Context, Layer as _,
+    Layer as _,
     combinators::Either,
-    error::{BoxError, ErrorContext as _, OpaqueError},
+    error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
-    http::{
-        layer::trace::TraceLayer, server::HttpServer, service::web::WebService,
-        tls::CertIssuerHttpClient,
-    },
+    http::{server::HttpServer, tls::CertIssuerHttpClient},
     layer::ConsumeErrLayer,
     net::{
-        address::{Domain, SocketAddress},
         socket::Interface,
         tls::server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
     },
     proxy::haproxy::server::HaProxyLayer,
     rt::Executor,
     tcp::server::TcpListener,
-    telemetry::tracing::{self, Level, instrument::WithSubscriber},
+    telemetry::tracing::{self, Level},
     tls::boring::server::{TlsAcceptorData, TlsAcceptorLayer},
 };
 
