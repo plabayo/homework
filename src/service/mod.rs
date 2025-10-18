@@ -2,7 +2,7 @@ use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use rama::{
     Layer as _, Service,
-    combinators::Either,
+    combinators::Either3,
     error::{ErrorContext as _, OpaqueError},
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
@@ -18,8 +18,15 @@ use rama::{
     utils::include_dir::include_dir,
 };
 
-pub async fn load_https_service(
-    https_enabled: bool,
+#[derive(Debug, Clone, Copy)]
+pub enum ServiceMode {
+    Http,
+    HttpOnly,
+    Https,
+}
+
+pub async fn load_http_service(
+    mode: ServiceMode,
 ) -> Result<impl Service<Request, Response = Response, Error = Infallible>, OpaqueError> {
     let app = Router::new().dir_embed_with_serve_mode(
         "/",
@@ -39,17 +46,16 @@ pub async fn load_https_service(
             HeaderValue::from_static("fly.io"),
         ),
         cors::CorsLayer::permissive(),
-        UriMatchRedirectLayer::permanent(Arc::new(if https_enabled {
-            Either::A([
-                UriMatchReplaceRule::http_to_https(),
+        UriMatchRedirectLayer::permanent(Arc::new(match mode {
+            ServiceMode::Https => Either3::A(
                 UriMatchReplaceRule::try_new("https://www.*", "https://$1")
                     .context("create www to APEX redirect rule")?,
-            ])
-        } else {
-            Either::B(
+            ),
+            ServiceMode::Http => Either3::B(UriMatchReplaceRule::http_to_https()),
+            ServiceMode::HttpOnly => Either3::C(
                 UriMatchReplaceRule::try_new("http://www.*", "http://$1")
                     .context("create www to APEX redirect rule")?,
-            )
+            ),
         })),
     )
         .into_layer(app))

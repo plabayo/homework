@@ -6,9 +6,14 @@ use rama::{
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
     http::{server::HttpServer, tls::CertIssuerHttpClient},
+    layer::AddExtensionLayer,
     net::{
+        Protocol,
         socket::Interface,
-        tls::server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
+        tls::{
+            ApplicationProtocol,
+            server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
+        },
     },
     proxy::haproxy::server::HaProxyLayer,
     rt::Executor,
@@ -59,7 +64,14 @@ async fn spawn_service_http(
     interface: Interface,
     https_enabled: bool,
 ) -> Result<(), BoxError> {
-    let svc = self::service::load_https_service(https_enabled).await?;
+    let svc = AddExtensionLayer::new(Protocol::HTTP).into_layer(
+        self::service::load_http_service(if https_enabled {
+            self::service::ServiceMode::Http
+        } else {
+            self::service::ServiceMode::HttpOnly
+        })
+        .await?,
+    );
 
     let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
     let tcp_server = HaProxyLayer::new().with_peek(true).into_layer(http_server);
@@ -81,15 +93,22 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
 
     issuer.prefetch_certs_in_background(&executor);
 
-    let tls_server_config = ServerConfig::new(ServerAuth::CertIssuer(ServerCertIssuerData {
-        kind: issuer.into(),
-        cache_kind: CacheKind::default(),
-    }));
+    let tls_server_config = ServerConfig {
+        application_layer_protocol_negotiation: Some(vec![
+            ApplicationProtocol::HTTP_2,
+            ApplicationProtocol::HTTP_11,
+        ]),
+        ..ServerConfig::new(ServerAuth::CertIssuer(ServerCertIssuerData {
+            kind: issuer.into(),
+            cache_kind: CacheKind::default(),
+        }))
+    };
 
     let acceptor_data =
         TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
-    let svc = self::service::load_https_service(true).await?;
+    let svc = AddExtensionLayer::new(Protocol::HTTPS)
+        .into_layer(self::service::load_http_service(self::service::ServiceMode::Https).await?);
 
     let http_server = HttpServer::auto(executor).service(svc);
     let tcp_server = (
