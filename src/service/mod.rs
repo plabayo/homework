@@ -2,6 +2,7 @@ use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use rama::{
     Layer as _, Service,
+    combinators::Either,
     error::{ErrorContext as _, OpaqueError},
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
@@ -38,15 +39,18 @@ pub async fn load_https_service(
             HeaderValue::from_static("fly.io"),
         ),
         cors::CorsLayer::permissive(),
-        if https_enabled {
-            Some(UriMatchRedirectLayer::permanent(Arc::new([
+        UriMatchRedirectLayer::permanent(Arc::new(if https_enabled {
+            Either::A([
                 UriMatchReplaceRule::http_to_https(),
                 UriMatchReplaceRule::try_new("https://www.*", "https://$1")
                     .context("create www to APEX redirect rule")?,
-            ])))
+            ])
         } else {
-            None
-        },
+            Either::B(
+                UriMatchReplaceRule::try_new("http://www.*", "http://$1")
+                    .context("create www to APEX redirect rule")?,
+            )
+        })),
     )
         .into_layer(app))
 }
