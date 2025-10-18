@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use rama::{
     Layer as _,
-    combinators::Either,
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
     http::{server::HttpServer, tls::CertIssuerHttpClient},
@@ -60,11 +59,7 @@ async fn spawn_service_http(
     interface: Interface,
     https_enabled: bool,
 ) -> Result<(), BoxError> {
-    let svc = if https_enabled {
-        Either::A(self::service::load_http_service().await)
-    } else {
-        Either::B(self::service::load_https_service().await)
-    };
+    let svc = self::service::load_https_service(https_enabled).await?;
 
     let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
     let tcp_server = HaProxyLayer::new().with_peek(true).into_layer(http_server);
@@ -94,7 +89,7 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
     let acceptor_data =
         TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
-    let svc = self::service::load_https_service().await;
+    let svc = self::service::load_https_service(true).await?;
 
     let http_server = HttpServer::auto(executor).service(svc);
     let tcp_server = (

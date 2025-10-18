@@ -16,7 +16,7 @@ rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features 
     "haproxy",
     "opentelemetry",
 ] }
-tokio = { version = "1.47", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
 
 [target.'cfg(unix)'.dependencies]
 jemallocator = "0.5"
