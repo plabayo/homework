@@ -51,7 +51,11 @@ pub async fn load_http_service(
                 UriMatchReplaceRule::try_new("https://www.*", "https://$1")
                     .context("create www to APEX redirect rule")?,
             ),
-            ServiceMode::Http => Either3::B(UriMatchReplaceRule::http_to_https()),
+            ServiceMode::Http => Either3::B([
+                UriMatchReplaceRule::try_new("http://www.*", "https://$1")
+                    .context("create www to APEX + https upgrade redirect rule")?,
+                UriMatchReplaceRule::http_to_https(),
+            ]),
             ServiceMode::HttpOnly => Either3::C(
                 UriMatchReplaceRule::try_new("http://www.*", "http://$1")
                     .context("create www to APEX redirect rule")?,
