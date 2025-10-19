@@ -106,7 +106,7 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
         TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
     let svc = AddExtensionLayer::new(Protocol::HTTPS)
-        .into_layer(self::service::load_http_service().await?);
+        .into_layer(self::service::load_https_service().await?);
 
     let http_server = HttpServer::auto(executor).service(svc);
     let tcp_server = (
