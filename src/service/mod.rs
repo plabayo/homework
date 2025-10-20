@@ -1,8 +1,8 @@
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{convert::Infallible, time::Duration};
 
 use rama::{
     Layer as _, Service,
-    error::{ErrorContext as _, OpaqueError},
+    error::OpaqueError,
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
         headers::StrictTransportSecurity,
@@ -13,7 +13,7 @@ use rama::{
         },
         service::{fs::DirectoryServeMode, redirect::RedirectHttpToHttps, web::Router},
     },
-    net::http::uri::UriMatchReplaceRule,
+    net::http::uri::UriMatchReplaceDomain,
     utils::include_dir::include_dir,
 };
 
@@ -38,10 +38,8 @@ fn apply_common_middleware(
 
 pub async fn load_http_service()
 -> Result<impl Service<Request, Response = Response, Error = Infallible>, OpaqueError> {
-    let app = RedirectHttpToHttps::new().with_match_replace_uri_rule(
-        UriMatchReplaceRule::try_new("http://www.*", "https://www.$1")
-            .context("create APEX to root uri replace rule")?,
-    );
+    let app =
+        RedirectHttpToHttps::new().with_rewrite_uri_rule(UriMatchReplaceDomain::drop_prefix_www());
     Ok(apply_common_middleware(app))
 }
 
@@ -53,10 +51,7 @@ pub async fn load_https_service()
         DirectoryServeMode::AppendIndexHtml,
     );
 
-    let middlewares = UriMatchRedirectLayer::permanent(Arc::new(
-        UriMatchReplaceRule::try_new("https://www.*", "https://$1")
-            .context("create www to APEX redirect rule")?,
-    ));
+    let middlewares = UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www());
 
     Ok(apply_common_middleware(middlewares.into_layer(app)))
 }
