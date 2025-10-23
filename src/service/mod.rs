@@ -23,9 +23,6 @@ fn apply_common_middleware(
     (
         MapResponseBodyLayer::new(Body::new),
         TraceLayer::new_for_http(),
-        SetResponseHeaderLayer::if_not_present_typed(
-            StrictTransportSecurity::excluding_subdomains(Duration::from_secs(31536000)),
-        ),
         AddRequiredResponseHeadersLayer::default(),
         SetResponseHeaderLayer::overriding(
             HeaderName::from_static("x-sponsored-by"),
@@ -51,7 +48,12 @@ pub async fn load_https_service()
         DirectoryServeMode::AppendIndexHtml,
     );
 
-    let middlewares = UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www());
+    let middlewares = (
+        SetResponseHeaderLayer::if_not_present_typed(
+            StrictTransportSecurity::excluding_subdomains(Duration::from_secs(31536000)),
+        ),
+        UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www()),
+    );
 
     Ok(apply_common_middleware(middlewares.into_layer(app)))
 }
