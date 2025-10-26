@@ -54,7 +54,6 @@ docker *ARGS:
     just docker-run {{ARGS}}
 
 update-deps:
-    cargo upgrade
     cargo upgrades
     cargo update
 
