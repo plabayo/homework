@@ -146,7 +146,7 @@
 
 <body>
     <main>
-        <h1>rekendoos <code>➕➖✖️🟰</code></h1>
+        <h1>rekendoos <code>➕➖✖️➗🟰</code></h1>
         <p>
             <a href="/">🏠 Ga terug naar de thuispagina.</a>
         </p>
@@ -177,6 +177,9 @@
 
                 <input type="checkbox" id="practice-vermenigvuldigen" name="practice" value="vermenigvuldigen">
                 <label for="practice-vermenigvuldigen">vermenigvuldigen ✖️</label><br>
+
+                <input type="checkbox" id="practice-delen" name="practice" value="delen">
+                <label for="practice-delen">delen ➗</label><br>
 
                 <button type="submit">🟢 start met oefenen</button>
             </form>
@@ -413,6 +416,15 @@
                                                 </p>
                                             `;
                                         break;
+                                      case "delen":
+                                          exerciseFeedback += "<h3>maak de deling ➗</h3>";
+                                          exerciseFeedback += `
+                                                <p>
+                                                    <span>${exercise.a} ÷ ${exercise.b} =</span>
+                                                    <span class="box bad split-part">${exercise.answer}</span>
+                                                </p>
+                                            `;
+                                        break;
                                 }
                                 exerciseFeedback += '</div>';
                                 document.getElementById("review").innerHTML = exerciseFeedback;
@@ -447,11 +459,17 @@
                                 window.mathBoxState.exercise.b = Math.floor(Math.random() * window.mathBoxState.exercise.a);
                                 window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a - window.mathBoxState.exercise.b;
                                 break;
+                            case "delen":
                             case "vermenigvuldigen":
                                 while (!window.mathBoxState.exercise.answer || window.mathBoxState.exercise.answer > window.mathBoxState.countUntil) {
                                     window.mathBoxState.exercise.a = Math.floor(Math.random() * Math.floor(window.mathBoxState.countUntil / 2));
                                     window.mathBoxState.exercise.b = Math.floor(Math.random() * Math.floor(window.mathBoxState.countUntil / 2)) + 1;
                                     window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a * window.mathBoxState.exercise.b;
+                                }
+                                if (window.mathBoxState.exercise.exercise === "delen") {
+                                    const a = window.mathBoxState.exercise.answer;
+                                    window.mathBoxState.exercise.answer = window.mathBoxState.exercise.a;
+                                    window.mathBoxState.exercise.a = a;
                                 }
                                 break;
                         }
@@ -489,6 +507,17 @@
                             document.getElementById("form-exercise").innerHTML = `
                                     <p>
                                         <span>${window.mathBoxState.exercise.a} x ${window.mathBoxState.exercise.b} =</span>
+                                        <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
+                                    </p>
+                                    <button type="submit" id="button-check">👉 antwoord</button>
+                                    <button type="reset" id="button-skip" hidden>🤷 weet het niet</button>
+                                `;
+                            break;
+                        case "delen":
+                            document.getElementById("exercise-feedback").innerHTML = "maak de deling ➗";
+                            document.getElementById("form-exercise").innerHTML = `
+                                    <p>
+                                        <span>${window.mathBoxState.exercise.a} ÷ ${window.mathBoxState.exercise.b} =</span>
                                         <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="${window.mathBoxState.countUntil}" value="" required>
                                     </p>
                                     <button type="submit" id="button-check">👉 antwoord</button>
