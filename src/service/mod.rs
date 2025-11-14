@@ -5,7 +5,7 @@ use rama::{
     error::OpaqueError,
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
-        headers::StrictTransportSecurity,
+        headers::{HeaderEncode, StrictTransportSecurity, TypedHeader, exotic::XClacksOverhead},
         layer::{
             cors, map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
@@ -23,6 +23,9 @@ fn apply_common_middleware(
     (
         MapResponseBodyLayer::new(Body::new),
         TraceLayer::new_for_http(),
+        SetResponseHeaderLayer::if_not_present_fn(XClacksOverhead::name().clone(), || {
+            std::future::ready(XClacksOverhead::new().encode_to_value())
+        }),
         AddRequiredResponseHeadersLayer::default(),
         SetResponseHeaderLayer::overriding(
             HeaderName::from_static("x-sponsored-by"),
