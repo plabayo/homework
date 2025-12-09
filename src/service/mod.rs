@@ -18,8 +18,8 @@ use rama::{
 };
 
 fn apply_common_middleware(
-    service: impl Service<Request, Response = Response, Error = Infallible>,
-) -> impl Service<Request, Response = Response, Error = Infallible> {
+    service: impl Service<Request, Output = Response, Error = Infallible>,
+) -> impl Service<Request, Output = Response, Error = Infallible> {
     (
         MapResponseBodyLayer::new(Body::new),
         TraceLayer::new_for_http(),
@@ -35,14 +35,14 @@ fn apply_common_middleware(
 }
 
 pub async fn load_http_service()
--> Result<impl Service<Request, Response = Response, Error = Infallible>, OpaqueError> {
+-> Result<impl Service<Request, Output = Response, Error = Infallible>, OpaqueError> {
     let app =
         RedirectHttpToHttps::new().with_rewrite_uri_rule(UriMatchReplaceDomain::drop_prefix_www());
     Ok(apply_common_middleware(app))
 }
 
 pub async fn load_https_service()
--> Result<impl Service<Request, Response = Response, Error = Infallible>, OpaqueError> {
+-> Result<impl Service<Request, Output = Response, Error = Infallible>, OpaqueError> {
     let app = Router::new().with_dir_embed_and_serve_mode(
         "/",
         include_dir!("$CARGO_MANIFEST_DIR/src/service/legacy"),
