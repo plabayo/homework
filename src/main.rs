@@ -7,7 +7,7 @@ use rama::{
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
     http::{server::HttpServer, tls::CertIssuerHttpClient},
-    layer::AddExtensionLayer,
+    layer::AddInputExtensionLayer,
     net::{
         Protocol,
         socket::Interface,
@@ -105,7 +105,7 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
     let acceptor_data =
         TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
-    let svc = AddExtensionLayer::new(Protocol::HTTPS)
+    let svc = AddInputExtensionLayer::new(Protocol::HTTPS)
         .into_layer(self::service::load_https_service().await?);
 
     let http_server = HttpServer::auto(executor).service(svc);
