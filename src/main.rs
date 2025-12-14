@@ -1,4 +1,4 @@
-use clap::{Parser, command};
+use clap::Parser;
 use std::time::Duration;
 
 use rama::{
