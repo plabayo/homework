@@ -10,7 +10,7 @@ use rama::{
     layer::AddInputExtensionLayer,
     net::{
         Protocol,
-        socket::Interface,
+        address::SocketAddress,
         tls::{
             ApplicationProtocol,
             server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},
@@ -40,12 +40,12 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// the HTTP interface to bind to
-    #[arg(long, default_value_t = Interface::default_ipv4(8080))]
-    http: Interface,
+    #[arg(long, default_value_t = SocketAddress::default_ipv4(8080))]
+    http: SocketAddress,
 
     /// the HTTP interface to bind to
     #[arg(long)]
-    https: Option<Interface>,
+    https: Option<SocketAddress>,
 }
 
 async fn run_server(cfg: Cli) -> Result<(), BoxError> {
@@ -62,7 +62,7 @@ async fn run_server(cfg: Cli) -> Result<(), BoxError> {
 
 async fn spawn_service_http(
     guard: ShutdownGuard,
-    interface: Interface,
+    interface: SocketAddress,
     https_enabled: bool,
 ) -> Result<(), BoxError> {
     let svc = if https_enabled {
@@ -71,25 +71,29 @@ async fn spawn_service_http(
         Either::B(self::service::load_https_service().await?)
     };
 
-    let http_server = HttpServer::auto(Executor::graceful(guard.clone())).service(svc);
+    let exec = Executor::graceful(guard.clone());
+    let http_server = HttpServer::auto(exec.clone()).service(svc);
     let tcp_server = HaProxyLayer::new().with_peek(true).into_layer(http_server);
-    let tcp_listener = TcpListener::bind(interface.clone()).await?;
+    let tcp_listener = TcpListener::bind_address(interface, exec).await?;
 
-    guard.into_spawn_task_fn(async move |guard| {
+    guard.into_spawn_task_fn(async move |_guard| {
         tracing::info!("http server ({interface}) up and running");
-        tcp_listener.serve_graceful(guard, tcp_server).await;
+        tcp_listener.serve(tcp_server).await;
     });
 
     Ok(())
 }
 
-async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Result<(), BoxError> {
-    let issuer =
-        CertIssuerHttpClient::try_from_env().context("create CertIssuerHttpClient from env")?;
-
+async fn spawn_service_https(
+    guard: ShutdownGuard,
+    interface: SocketAddress,
+) -> Result<(), BoxError> {
     let executor = Executor::graceful(guard.clone());
 
-    issuer.prefetch_certs_in_background(&executor);
+    let issuer = CertIssuerHttpClient::try_from_env(executor.clone())
+        .context("create CertIssuerHttpClient from env")?;
+
+    issuer.prefetch_certs().await;
 
     let tls_server_config = ServerConfig {
         application_layer_protocol_negotiation: Some(vec![
@@ -108,18 +112,18 @@ async fn spawn_service_https(guard: ShutdownGuard, interface: Interface) -> Resu
     let svc = AddInputExtensionLayer::new(Protocol::HTTPS)
         .into_layer(self::service::load_https_service().await?);
 
-    let http_server = HttpServer::auto(executor).service(svc);
+    let http_server = HttpServer::auto(executor.clone()).service(svc);
     let tcp_server = (
         HaProxyLayer::new().with_peek(true),
         TlsAcceptorLayer::new(acceptor_data),
     )
         .into_layer(http_server);
 
-    let tcp_listener = TcpListener::bind(interface.clone()).await?;
+    let tcp_listener = TcpListener::bind_address(interface, executor).await?;
 
-    guard.into_spawn_task_fn(async move |guard| {
+    guard.into_spawn_task_fn(async move |_guard| {
         tracing::info!("http server ({interface}) up and running");
-        tcp_listener.serve_graceful(guard, tcp_server).await;
+        tcp_listener.serve(tcp_server).await;
     });
 
     Ok(())

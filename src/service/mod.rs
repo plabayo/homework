@@ -1,8 +1,8 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, sync::Arc};
 
 use rama::{
     Layer as _, Service,
-    error::OpaqueError,
+    error::extra::OpaqueError,
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
         headers::{StrictTransportSecurity, exotic::XClacksOverhead},
@@ -19,30 +19,32 @@ use rama::{
 
 fn apply_common_middleware(
     service: impl Service<Request, Output = Response, Error = Infallible>,
-) -> impl Service<Request, Output = Response, Error = Infallible> {
-    (
-        MapResponseBodyLayer::new(Body::new),
-        TraceLayer::new_for_http(),
-        SetResponseHeaderLayer::<XClacksOverhead>::if_not_present_default_typed(),
-        AddRequiredResponseHeadersLayer::default(),
-        SetResponseHeaderLayer::overriding(
-            HeaderName::from_static("x-sponsored-by"),
-            HeaderValue::from_static("fly.io"),
-        ),
-        cors::CorsLayer::permissive(),
+) -> impl Service<Request, Output = Response, Error = Infallible> + Clone {
+    Arc::new(
+        (
+            MapResponseBodyLayer::new(Body::new),
+            TraceLayer::new_for_http(),
+            SetResponseHeaderLayer::<XClacksOverhead>::if_not_present_default_typed(),
+            AddRequiredResponseHeadersLayer::default(),
+            SetResponseHeaderLayer::overriding(
+                HeaderName::from_static("x-sponsored-by"),
+                HeaderValue::from_static("fly.io"),
+            ),
+            cors::CorsLayer::permissive(),
+        )
+            .into_layer(service),
     )
-        .into_layer(service)
 }
 
 pub async fn load_http_service()
--> Result<impl Service<Request, Output = Response, Error = Infallible>, OpaqueError> {
+-> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
     let app =
         RedirectHttpToHttps::new().with_rewrite_uri_rule(UriMatchReplaceDomain::drop_prefix_www());
     Ok(apply_common_middleware(app))
 }
 
 pub async fn load_https_service()
--> Result<impl Service<Request, Output = Response, Error = Infallible>, OpaqueError> {
+-> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
     let app = Router::new().with_dir_embed_and_serve_mode(
         "/",
         include_dir!("$CARGO_MANIFEST_DIR/src/service/legacy"),
