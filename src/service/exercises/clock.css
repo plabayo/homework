@@ -1,0 +1,75 @@
+.clock {
+    --clock-size: 240px;
+    width: var(--clock-size);
+    aspect-ratio: 1;
+    margin-inline: auto;
+}
+@media (min-width: 600px) {
+    .clock { --clock-size: 300px; }
+}
+@media (min-width: 960px) {
+    .clock { --clock-size: 340px; }
+}
+.clock svg { display: block; width: 100%; height: 100%; }
+.clock .face { fill: var(--paper); stroke: color-mix(in srgb, currentColor 70%, transparent); stroke-width: 1.4; }
+.clock .tick { stroke: color-mix(in srgb, currentColor 55%, transparent); stroke-width: 0.9; }
+.clock .tick.major { stroke: currentColor; stroke-width: 1.6; }
+.clock .num {
+    font-size: 8.5px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    fill: currentColor;
+    font-family: system-ui, sans-serif;
+}
+.clock .hand-hour {
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    opacity: 0.7;
+}
+.clock .hand-minute {
+    stroke: var(--accent);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+}
+.clock .pivot { fill: var(--accent); }
+.clock.interactive { user-select: none; touch-action: none; cursor: grab; }
+.clock.interactive:active { cursor: grabbing; }
+.time-pair { display: flex; gap: 6px; align-items: baseline; }
+.time-pair input { width: 3.5em; }
+.time-readout { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
+.option-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    max-width: 360px;
+    margin-block-start: 10px;
+}
+.option-list button { font-size: 1.05rem; }
+.option-list button.selected {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+}
+.clock-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin-block-start: 8px;
+}
+.clock-control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: nowrap;
+}
+.clock-control-row .label {
+    font-size: 0.95rem;
+    color: var(--muted);
+    min-width: 4em;
+    text-align: end;
+}

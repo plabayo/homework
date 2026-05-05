@@ -1,0 +1,87 @@
+.dclock {
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    font-weight: 700;
+    font-size: 3rem;
+    background: #0a0a0a;
+    color: #ff5151;
+    padding: 14px 22px;
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    letter-spacing: 0.1em;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+@media (prefers-color-scheme: dark) {
+    .dclock {
+        background: #050505;
+        color: #ff6363;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    }
+}
+.dclock-label {
+    font-family: var(--font-base, sans-serif);
+    font-size: 1.4rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+}
+.option-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: 100%;
+    max-width: 360px;
+    margin-block-start: 10px;
+}
+.option-list button {
+    text-align: center;
+    font-size: 1rem;
+}
+.option-list button.selected {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+}
+.dclock-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.dclock-field {
+    background: transparent;
+    border: 1px dashed rgba(255, 100, 100, 0.45);
+    color: inherit;
+    font-family: inherit;
+    font-weight: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    text-align: center;
+    width: 1.8em;
+    padding: 4px 6px;
+    border-radius: 8px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.dclock-field::-webkit-outer-spin-button,
+.dclock-field::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.dclock-field:focus {
+    outline: 2px solid #ff6b6b;
+    outline-offset: 2px;
+    border-style: solid;
+}
+.dclock-field::placeholder { color: rgba(255, 80, 80, 0.35); }
+.dclock-colon { padding: 0 4px; }
+.dclock-words-input {
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+@media (min-width: 600px) {
+    .option-list { grid-template-columns: 1fr 1fr; }
+    .dclock { font-size: 3.6rem; }
+}

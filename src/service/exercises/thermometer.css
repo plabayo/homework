@@ -1,0 +1,88 @@
+.thermo-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+.thermo-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+.thermo {
+    --tube-color: color-mix(in srgb, var(--fg) 35%, transparent);
+    --tick-minor: color-mix(in srgb, var(--fg) 30%, transparent);
+    --tick-major: color-mix(in srgb, var(--fg) 70%, transparent);
+    --num-color: color-mix(in srgb, var(--fg) 80%, transparent);
+    --liquid-color: #3b82f6;
+    width: 130px;
+    max-width: 65vw;
+    aspect-ratio: 1 / 2.4;
+    max-height: 60vh;
+    color: var(--fg);
+    user-select: none;
+}
+.thermo svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+.thermo .glass {
+    fill: transparent;
+    stroke: var(--tube-color);
+    stroke-width: 1.4;
+}
+.thermo .bulb {
+    fill: color-mix(in srgb, var(--fg) 8%, transparent);
+    stroke: var(--tube-color);
+    stroke-width: 1.2;
+}
+.thermo .bulb-fill {
+    fill: var(--liquid-color);
+    opacity: 0.85;
+}
+.thermo .liquid {
+    fill: var(--liquid-color);
+    opacity: 0.85;
+}
+.thermo .tick {
+    stroke: var(--tick-minor);
+    stroke-width: 0.9;
+}
+.thermo .tick.major {
+    stroke: var(--tick-major);
+    stroke-width: 1.4;
+}
+.thermo .tick.neg {
+    stroke: color-mix(in srgb, var(--bad) 60%, transparent);
+}
+.thermo .tick.major.neg {
+    stroke: var(--bad);
+}
+.thermo .num {
+    font-size: 7.5px;
+    font-weight: 500;
+    fill: var(--num-color);
+    text-anchor: start;
+    dominant-baseline: middle;
+    font-family: system-ui, sans-serif;
+}
+.thermo .num.neg {
+    fill: var(--bad);
+    font-weight: 600;
+}
+.thermo-svg-host {
+    display: contents;
+}
+.thermo-svg-host.interactive {
+    cursor: pointer;
+}
+@media (min-width: 600px) {
+    .thermo {
+        width: 150px;
+    }
+}

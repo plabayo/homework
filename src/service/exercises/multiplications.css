@@ -1,0 +1,15 @@
+#tables {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+@media (min-width: 600px) {
+    #tables {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+#tables label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

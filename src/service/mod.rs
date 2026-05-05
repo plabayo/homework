@@ -11,11 +11,15 @@ use rama::{
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
             trace::TraceLayer,
         },
-        service::{fs::DirectoryServeMode, redirect::RedirectHttpToHttps, web::Router},
+        service::{redirect::RedirectHttpToHttps, web::Router},
     },
     net::http::uri::UriMatchReplaceDomain,
-    utils::include_dir::include_dir,
 };
+
+mod assets;
+mod exercises;
+mod layout;
+mod pages;
 
 fn apply_common_middleware(
     service: impl Service<Request, Output = Response, Error = Infallible>,
@@ -45,11 +49,20 @@ pub async fn load_http_service()
 
 pub async fn load_https_service()
 -> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
-    let app = Router::new().with_dir_embed_and_serve_mode(
-        "/",
-        include_dir!("$CARGO_MANIFEST_DIR/src/service/legacy"),
-        DirectoryServeMode::AppendIndexHtml,
-    );
+    let app = Router::new()
+        .with_get("/", pages::home::home)
+        .with_get("/offline", pages::offline::offline)
+        .with_get("/theme.css", assets::theme_css)
+        .with_get("/homework.js", assets::homework_js)
+        .with_get("/service-worker.js", assets::service_worker_js)
+        .with_get("/manifest.webmanifest", assets::manifest)
+        .with_get("/favicon.svg", assets::favicon_svg)
+        .with_get("/1/mathbox", exercises::mathbox::handler)
+        .with_get("/1/multiplications", exercises::multiplications::handler)
+        .with_get("/1/thermometer", exercises::thermometer::handler)
+        .with_get("/2/clock", exercises::clock::handler)
+        .with_get("/2/digital-clock", exercises::digital_clock::handler)
+        .with_not_found(pages::offline::offline);
 
     let middlewares = (
         SetResponseHeaderLayer::if_not_present_typed(

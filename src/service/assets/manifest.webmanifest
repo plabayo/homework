@@ -1,0 +1,19 @@
+{
+    "name": "Oefeningen Basisschool",
+    "short_name": "Oefeningen",
+    "description": "Gratis huiswerk middel voor de basisschool.",
+    "lang": "nl-BE",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2d6cdf",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

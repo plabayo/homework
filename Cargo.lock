@@ -1866,7 +1866,7 @@ dependencies = [
 [[package]]
 name = "rama"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "base64",
@@ -1933,7 +1933,7 @@ dependencies = [
 [[package]]
 name = "rama-core"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "asynk-strim",
@@ -1961,7 +1961,7 @@ dependencies = [
 [[package]]
 name = "rama-crypto"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "base64",
  "rama-core",
@@ -1975,7 +1975,7 @@ dependencies = [
 [[package]]
 name = "rama-dns"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "bindgen",
@@ -1994,12 +1994,12 @@ dependencies = [
 [[package]]
 name = "rama-error"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 
 [[package]]
 name = "rama-grpc"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "arc-swap",
  "base64",
@@ -2024,7 +2024,7 @@ dependencies = [
 [[package]]
 name = "rama-grpc-build"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "prettyplease",
  "proc-macro-crate",
@@ -2040,7 +2040,7 @@ dependencies = [
 [[package]]
 name = "rama-haproxy"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "rama-core",
  "rama-net",
@@ -2051,7 +2051,7 @@ dependencies = [
 [[package]]
 name = "rama-http"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "async-compression",
@@ -2075,6 +2075,7 @@ dependencies = [
  "radix_trie",
  "rama-core",
  "rama-http-headers",
+ "rama-http-macros",
  "rama-http-types",
  "rama-net",
  "rama-utils",
@@ -2090,7 +2091,7 @@ dependencies = [
 [[package]]
 name = "rama-http-backend"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "pin-project-lite",
  "rama-core",
@@ -2109,7 +2110,7 @@ dependencies = [
 [[package]]
 name = "rama-http-core"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "atomic-waker",
@@ -2134,7 +2135,7 @@ dependencies = [
 [[package]]
 name = "rama-http-headers"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "base64",
@@ -2152,9 +2153,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rama-http-macros"
+version = "0.3.0-rc1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "rama-http-types"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "bytes",
@@ -2182,7 +2194,7 @@ dependencies = [
 [[package]]
 name = "rama-macros"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2193,7 +2205,7 @@ dependencies = [
 [[package]]
 name = "rama-net"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "const_format",
@@ -2224,7 +2236,7 @@ dependencies = [
 [[package]]
 name = "rama-tcp"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "libc",
  "pin-project-lite",
@@ -2240,7 +2252,7 @@ dependencies = [
 [[package]]
 name = "rama-tls-boring"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "brotli",
@@ -2265,7 +2277,7 @@ dependencies = [
 [[package]]
 name = "rama-tls-rustls"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "pin-project-lite",
  "rama-core",
@@ -2284,7 +2296,7 @@ dependencies = [
 [[package]]
 name = "rama-ua"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "ahash",
  "itertools 0.14.0",
@@ -2301,7 +2313,7 @@ dependencies = [
 [[package]]
 name = "rama-unix"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "libc",
  "pin-project-lite",
@@ -2313,7 +2325,7 @@ dependencies = [
 [[package]]
 name = "rama-utils"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "const_format",
  "parking_lot",
@@ -2330,7 +2342,7 @@ dependencies = [
 [[package]]
 name = "rama-ws"
 version = "0.3.0-rc1"
-source = "git+https://github.com/plabayo/rama.git?branch=main#89a21e92c7ee02934edb4649a4b428c45566e0b1"
+source = "git+https://github.com/plabayo/rama.git?branch=main#5e9be15f35d41d91cf3084494c50a1d7af6bdf46"
 dependencies = [
  "flate2",
  "rama-core",
