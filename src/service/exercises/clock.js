@@ -46,6 +46,12 @@ function buildDeck(cfg) {
             m: entry.m,
             granularity: cfg.granularity,
             answerMode: cfg.answerMode || 'multiple',
+            promptStyle:
+                kind === 'zet-woorden'
+                    ? 'words'
+                    : kind === 'zet' && dutchPhrase(entry.h, entry.m) && Math.random() < 0.35
+                        ? 'words'
+                        : 'digits',
             choiceStyle:
                 kind === 'lees' &&
                 (cfg.answerMode || 'multiple') === 'multiple' &&
@@ -380,7 +386,7 @@ runExercise({
             return () => chosen;
         } else {
             // q.kind === 'zet' or 'zet-woorden'
-            const promptText = q.kind === 'zet-woorden'
+            const promptText = q.promptStyle === 'words'
                 ? `zet de klok op "${dutchPhrase(q.h, q.m)}" ⏰`
                 : `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
             document.getElementById('exercise-feedback').textContent = promptText;
@@ -416,7 +422,7 @@ runExercise({
         return given.h === q.h && given.m === q.m;
     },
     describe(q) {
-        if (q.kind === 'zet-woorden') {
+        if (q.kind === 'zet-woorden' || q.promptStyle === 'words') {
             const phrase = dutchPhrase(q.h, q.m) || timeLabel(q.h, q.m);
             return `zet "${phrase}"`;
         }
