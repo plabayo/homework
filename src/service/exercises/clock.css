@@ -39,6 +39,11 @@
 .time-pair { display: flex; gap: 6px; align-items: baseline; }
 .time-pair input { width: 3.5em; }
 .time-readout { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
+.clock-choice-label {
+    margin-block-start: 10px;
+    color: var(--muted);
+    text-align: center;
+}
 .option-list {
     display: grid;
     grid-template-columns: 1fr 1fr;

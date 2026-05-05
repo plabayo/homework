@@ -46,6 +46,13 @@ function buildDeck(cfg) {
             m: entry.m,
             granularity: cfg.granularity,
             answerMode: cfg.answerMode || 'multiple',
+            choiceStyle:
+                kind === 'lees' &&
+                (cfg.answerMode || 'multiple') === 'multiple' &&
+                dutchPhrase(entry.h, entry.m) &&
+                Math.random() < 0.4
+                    ? 'words'
+                    : 'digits',
         });
     }
     return out;
@@ -96,6 +103,41 @@ function dutchPhrase(h, m) {
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
+
+function buildWordOptions(q, minStep) {
+    const seenTimes = new Set();
+    const seenLabels = new Set();
+    const out = [];
+    const push = (h, m) => {
+        const label = dutchPhrase(h, m);
+        if (!label) return;
+        const key = `${h}:${m}`;
+        if (seenTimes.has(key) || seenLabels.has(label)) return;
+        seenTimes.add(key);
+        seenLabels.add(label);
+        out.push({ h, m, label });
+    };
+
+    push(q.h, q.m);
+    buildClockOptions(q, minStep).forEach((o) => push(o.h, o.m));
+
+    if (out.length < 4) {
+        const bag = [];
+        for (let h = 0; h < 12; h++) {
+            for (const m of [0, 15, 30, 45]) {
+                if (h === q.h && m === q.m) continue;
+                bag.push({ h, m });
+            }
+        }
+        shuffle(bag);
+        for (const o of bag) {
+            push(o.h, o.m);
+            if (out.length >= 4) break;
+        }
+    }
+
+    return shuffle(out.slice(0, 4));
+}
 
 function clockSvg(h, m, opts) {
     const interactive = !!opts.interactive;
@@ -308,11 +350,18 @@ runExercise({
                 };
             }
             // multiple-choice mode: pick the correct time from 4 plausible options
-            const options = buildClockOptions(q, minStep);
+            const wordChoices = q.choiceStyle === 'words' && !!dutchPhrase(q.h, q.m);
+            const options = wordChoices
+                ? buildWordOptions(q, minStep)
+                : buildClockOptions(q, minStep).map((o) => ({
+                    ...o,
+                    label: timeLabel(o.h, o.m),
+                }));
             root.innerHTML = `
                 ${clockSvg(q.h, q.m, { interactive: false })}
+                ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ''}
                 <div class="option-list" role="radiogroup">
-                    ${options.map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-h="${o.h}" data-m="${o.m}">${timeLabel(o.h, o.m)}</button>`).join('')}
+                    ${options.map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-h="${o.h}" data-m="${o.m}">${o.label}</button>`).join('')}
                 </div>
             `;
             let chosen = null;

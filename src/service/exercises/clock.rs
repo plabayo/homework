@@ -105,7 +105,12 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
                 " zet de klok vanuit een digitale tijd ⏰",
             ),
             label!(
-                input!(r#type = "checkbox", name = "ck", value = "zet-woorden"),
+                input!(
+                    r#type = "checkbox",
+                    name = "ck",
+                    value = "zet-woorden",
+                    checked? = true
+                ),
                 " zet de klok vanuit woorden (\"kwart voor vier\") 💬",
             ),
         ),

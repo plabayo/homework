@@ -164,6 +164,38 @@ function formatDate(ts) {
     }
 }
 
+function blurActiveElement() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && typeof active.blur === "function") {
+        active.blur();
+    }
+}
+
+function enableTouchSubmit(form) {
+    if (!form) return;
+    form.querySelectorAll('button[type="submit"]').forEach((btn) => {
+        let lastTouchSubmitAt = 0;
+        btn.addEventListener("pointerup", (e) => {
+            if (e.pointerType !== "touch" || btn.disabled) return;
+            e.preventDefault();
+            blurActiveElement();
+            lastTouchSubmitAt = Date.now();
+            if (typeof form.requestSubmit === "function") {
+                form.requestSubmit(btn);
+                return;
+            }
+            form.dispatchEvent(
+                new Event("submit", { bubbles: true, cancelable: true }),
+            );
+        });
+        btn.addEventListener("click", (e) => {
+            if (Date.now() - lastTouchSubmitAt < 500) {
+                e.preventDefault();
+            }
+        });
+    });
+}
+
 // ---------- offline / service worker ----------
 
 function setupOfflineIndicator() {
@@ -292,6 +324,7 @@ export function runExercise(spec) {
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
         result.hidden = which !== "result";
+        if (which !== "result") stopConfetti();
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
     }
@@ -467,14 +500,7 @@ export function runExercise(spec) {
         });
 
         const confetti = document.getElementById("confetti");
-        if (confetti) {
-            const active = score === total && total > 0;
-            confetti.dataset.active = active ? "true" : "false";
-            if (active && !confetti.dataset.started) {
-                confetti.dataset.started = "1";
-                startConfetti();
-            }
-        }
+        if (confetti) setConfettiActive(score === total && total > 0);
 
         if (!reviewable) return;
         let idx = 0;
@@ -590,6 +616,8 @@ export function runExercise(spec) {
     });
 
     loadSavedConfig();
+    enableTouchSubmit(formSetup);
+    enableTouchSubmit(formExercise);
     show("setup");
     setupHistoryView();
 }
@@ -723,12 +751,39 @@ async function setupHistoryView() {
 
 // ---------- confetti ----------
 
+const confettiState = {
+    canvas: null,
+    ctx: null,
+    parts: [],
+    rafId: 0,
+    resizeHandler: null,
+    running: false,
+    width: 0,
+    height: 0,
+};
+
+function setConfettiActive(active) {
+    const canvas = document.getElementById("confetti");
+    if (!canvas) return;
+    if (!active) {
+        stopConfetti();
+        return;
+    }
+    canvas.dataset.active = "true";
+    startConfetti();
+}
+
 export function startConfetti() {
     const canvas = document.getElementById("confetti");
     if (!canvas) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (confettiState.running) return;
     const ctx = canvas.getContext("2d");
-    let W = (canvas.width = window.innerWidth);
-    let H = (canvas.height = window.innerHeight);
+    if (!ctx) return;
+    confettiState.canvas = canvas;
+    confettiState.ctx = ctx;
+    confettiState.running = true;
+    canvas.dataset.active = "true";
     const colors = [
         "#ff7336",
         "#f9e038",
@@ -740,10 +795,17 @@ export function startConfetti() {
     ];
     const N = 30;
     const parts = [];
+    const resize = () => {
+        confettiState.width = canvas.width = window.innerWidth;
+        confettiState.height = canvas.height = window.innerHeight;
+    };
+    confettiState.resizeHandler = resize;
+    window.addEventListener("resize", resize);
+    resize();
     for (let i = 0; i < N; i++) {
         parts.push({
-            x: Math.random() * W,
-            y: Math.random() * H - H,
+            x: Math.random() * confettiState.width,
+            y: Math.random() * confettiState.height - confettiState.height,
             r: 11 + Math.random() * 22,
             d: Math.random() * N + 11,
             color: colors[Math.floor(Math.random() * colors.length)],
@@ -752,9 +814,11 @@ export function startConfetti() {
             tiltAngle: 0,
         });
     }
+    confettiState.parts = parts;
     function draw() {
-        requestAnimationFrame(draw);
-        ctx.clearRect(0, 0, W, H);
+        if (!confettiState.running) return;
+        confettiState.rafId = requestAnimationFrame(draw);
+        ctx.clearRect(0, 0, confettiState.width, confettiState.height);
         for (let i = 0; i < N; i++) {
             const p = parts[i];
             ctx.beginPath();
@@ -766,18 +830,42 @@ export function startConfetti() {
             p.tiltAngle += p.tiltAngleInc;
             p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
             p.tilt = Math.sin(p.tiltAngle - i / 3) * 15;
-            if (p.x > W + 30 || p.x < -30 || p.y > H) {
-                p.x = Math.random() * W;
+            if (
+                p.x > confettiState.width + 30 ||
+                p.x < -30 ||
+                p.y > confettiState.height
+            ) {
+                p.x = Math.random() * confettiState.width;
                 p.y = -30;
                 p.tilt = Math.floor(Math.random() * 10) - 20;
             }
         }
     }
-    window.addEventListener("resize", () => {
-        W = canvas.width = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-    });
     draw();
+}
+
+export function stopConfetti() {
+    if (confettiState.rafId) {
+        cancelAnimationFrame(confettiState.rafId);
+        confettiState.rafId = 0;
+    }
+    if (confettiState.resizeHandler) {
+        window.removeEventListener("resize", confettiState.resizeHandler);
+        confettiState.resizeHandler = null;
+    }
+    if (confettiState.ctx && confettiState.canvas) {
+        confettiState.ctx.clearRect(
+            0,
+            0,
+            confettiState.canvas.width,
+            confettiState.canvas.height,
+        );
+    }
+    if (confettiState.canvas) {
+        confettiState.canvas.dataset.active = "false";
+    }
+    confettiState.parts = [];
+    confettiState.running = false;
 }
 
 // ---------- bootstrap ----------
