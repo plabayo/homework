@@ -148,8 +148,6 @@ function attachInteractive(root, q) {
     const hourHand = svg.querySelector('.hand-hour');
     const minStep = GRAN[q.granularity] || 5;
     const state = { h: 0, m: 0 };
-    const minuteEl = root.querySelector('.readout-min');
-    const hourEl = root.querySelector('.readout-hour');
 
     const set = (h, m) => {
         // wrap
@@ -167,8 +165,6 @@ function attachInteractive(root, q) {
         };
         setHand(minHand, minuteAngle, 36);
         setHand(hourHand, hourAngle, 24);
-        if (minuteEl) minuteEl.textContent = pad(m);
-        if (hourEl) hourEl.textContent = pad(h === 0 ? 12 : h);
     };
     set(0, 0);
 
@@ -359,7 +355,6 @@ runExercise({
                         </div>
                     ` : ''}
                 </div>
-                <p class="time-readout"><span class="readout-hour">12</span>:<span class="readout-min">00</span></p>
             `;
             return attachInteractive(root, q);
         }
