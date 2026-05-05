@@ -1,6 +1,4 @@
-use rama::http::html::{
-    IntoHtml, button, div, form, h3, p, section,
-};
+use rama::http::html::{IntoHtml, button, div, form, h3, p, section};
 
 pub mod clock;
 pub mod digital_clock;
@@ -103,7 +101,11 @@ pub fn exercise_scaffold(
             hidden? = true,
             div!(
                 class = "button-row",
-                button!(r#type = "button", class = "button-reset", "begin opnieuw ↩️"),
+                button!(
+                    r#type = "button",
+                    class = "button-reset",
+                    "begin opnieuw ↩️"
+                ),
             ),
             p!(id = "exercise-title"),
             div!(
@@ -137,7 +139,11 @@ pub fn exercise_scaffold(
             hidden? = true,
             div!(
                 class = "button-row",
-                button!(r#type = "button", class = "button-reset", "begin opnieuw ↩️"),
+                button!(
+                    r#type = "button",
+                    class = "button-reset",
+                    "begin opnieuw ↩️"
+                ),
             ),
             div!(id = "result"),
         ),
@@ -153,7 +159,8 @@ fn history_block(info: ExerciseInfo) -> impl IntoHtml {
             class = "history-content",
             p!(
                 class = "history-intro",
-                "Hieronder staan de laatste oefensessies voor ", info.label,
+                "Hieronder staan de laatste oefensessies voor ",
+                info.label,
                 ". Open een sessie om te zien welke vragen moeilijk waren.",
             ),
             div!(

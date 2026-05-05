@@ -16,7 +16,6 @@ const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("digital_clock.css");
 const SCRIPT: &str = include_str!("digital_clock.js");
 
-
 pub async fn handler() -> impl IntoResponse {
     let body = (
         page_header("digitale klok ⏰"),
@@ -60,33 +59,63 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Welke tijden oefen je?"),
             label!(
-                input!(r#type = "checkbox", name = "kind", value = "uur", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "kind",
+                    value = "uur",
+                    checked? = true
+                ),
                 " volle uren (5 uur)",
             ),
             label!(
-                input!(r#type = "checkbox", name = "kind", value = "half", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "kind",
+                    value = "half",
+                    checked? = true
+                ),
                 " halve uren (half 6)",
             ),
             label!(
-                input!(r#type = "checkbox", name = "kind", value = "kwart", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "kind",
+                    value = "kwart",
+                    checked? = true
+                ),
                 " kwartieren (kwart over / kwart voor)",
             ),
         ),
         fieldset!(
             legend!("Wat oefen je?"),
             label!(
-                input!(r#type = "checkbox", name = "dir", value = "digital-to-words", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "dir",
+                    value = "digital-to-words",
+                    checked? = true
+                ),
                 " digitale tijd → in woorden",
             ),
             label!(
-                input!(r#type = "checkbox", name = "dir", value = "words-to-digital", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "dir",
+                    value = "words-to-digital",
+                    checked? = true
+                ),
                 " in woorden → digitale tijd",
             ),
         ),
         fieldset!(
             legend!("Bij \"in woorden → digitale tijd\""),
             label!(
-                input!(r#type = "radio", name = "answer", value = "multiple", checked? = true),
+                input!(
+                    r#type = "radio",
+                    name = "answer",
+                    value = "multiple",
+                    checked? = true
+                ),
                 " kies uit meerdere antwoorden",
             ),
             label!(

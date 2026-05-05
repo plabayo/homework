@@ -16,7 +16,6 @@ const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("clock.css");
 const SCRIPT: &str = include_str!("clock.js");
 
-
 pub async fn handler() -> impl IntoResponse {
     let body = (
         page_header("analoge klok 🕐"),
@@ -60,7 +59,12 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Hoe nauwkeurig?"),
             label!(
-                input!(r#type = "radio", name = "granularity", value = "hour", checked? = true),
+                input!(
+                    r#type = "radio",
+                    name = "granularity",
+                    value = "hour",
+                    checked? = true
+                ),
                 " volle uren (12:00)",
             ),
             label!(
@@ -83,11 +87,21 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Welke oefeningen?"),
             label!(
-                input!(r#type = "checkbox", name = "ck", value = "lees", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "ck",
+                    value = "lees",
+                    checked? = true
+                ),
                 " lees de klok 🕐",
             ),
             label!(
-                input!(r#type = "checkbox", name = "ck", value = "zet", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "ck",
+                    value = "zet",
+                    checked? = true
+                ),
                 " zet de klok vanuit een digitale tijd ⏰",
             ),
             label!(
@@ -98,7 +112,12 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Hoe antwoord je bij \"lees de klok\"?"),
             label!(
-                input!(r#type = "radio", name = "answer", value = "multiple", checked? = true),
+                input!(
+                    r#type = "radio",
+                    name = "answer",
+                    value = "multiple",
+                    checked? = true
+                ),
                 " kies uit meerdere antwoorden",
             ),
             label!(

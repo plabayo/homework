@@ -1,6 +1,6 @@
 use rama::http::html::{
-    IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta,
-    noscript, p, script, style, title,
+    IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
+    p, script, style, title,
 };
 use rama::http::service::web::response::IntoResponse;
 
@@ -44,7 +44,10 @@ pub fn page(
     html!(
         head!(
             meta!(charset = "UTF-8"),
-            meta!(name = "viewport", content = "width=device-width, initial-scale=1.0"),
+            meta!(
+                name = "viewport",
+                content = "width=device-width, initial-scale=1.0"
+            ),
             meta!(name = "color-scheme", content = "light dark"),
             meta!(name = "theme-color", content = "#2d6cdf"),
             meta!(name = "description", content = meta_data.description),
@@ -55,8 +58,14 @@ pub fn page(
             meta!("property" = "og:title", content = meta_data.title),
             meta!("property" = "og:locale", content = "nl_BE"),
             meta!("property" = "og:type", content = "website"),
-            meta!("property" = "og:description", content = meta_data.description),
-            meta!("property" = "og:site_name", content = "Oefeningen Basisschool"),
+            meta!(
+                "property" = "og:description",
+                content = meta_data.description
+            ),
+            meta!(
+                "property" = "og:site_name",
+                content = "Oefeningen Basisschool"
+            ),
             meta!("property" = "og:url", content = og_url),
             meta!(
                 "property" = "og:image",

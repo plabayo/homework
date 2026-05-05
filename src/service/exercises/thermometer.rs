@@ -16,7 +16,6 @@ const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("thermometer.css");
 const SCRIPT: &str = include_str!("thermometer.js");
 
-
 pub async fn handler() -> impl IntoResponse {
     let body = (
         page_header("thermometer 🌡️"),
@@ -60,14 +59,21 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Negatieve temperaturen"),
             label!(
-                input!(r#type = "checkbox", id = "allow-negative", name = "allow-negative"),
+                input!(
+                    r#type = "checkbox",
+                    id = "allow-negative",
+                    name = "allow-negative"
+                ),
                 " ook onder 0 °C oefenen ❄️",
             ),
             div!(
                 id = "vmin-neg-field",
                 class = "field",
                 hidden? = true,
-                label!(r#for = "vmin-neg", "Hoe diep onder 0 mag de thermometer gaan?"),
+                label!(
+                    r#for = "vmin-neg",
+                    "Hoe diep onder 0 mag de thermometer gaan?"
+                ),
                 input!(
                     inputmode = "numeric",
                     pattern = "[0-9]+",
@@ -96,11 +102,21 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
         fieldset!(
             legend!("Welke types?"),
             label!(
-                input!(r#type = "checkbox", name = "tk", value = "teken", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "tk",
+                    value = "teken",
+                    checked? = true
+                ),
                 " kleur de thermometer 🎨",
             ),
             label!(
-                input!(r#type = "checkbox", name = "tk", value = "schrijf", checked? = true),
+                input!(
+                    r#type = "checkbox",
+                    name = "tk",
+                    value = "schrijf",
+                    checked? = true
+                ),
                 " lees de temperatuur ✏️",
             ),
         ),

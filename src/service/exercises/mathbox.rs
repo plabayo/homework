@@ -16,7 +16,6 @@ const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("mathbox.css");
 const SCRIPT: &str = include_str!("mathbox.js");
 
-
 pub async fn handler() -> impl IntoResponse {
     let body = (
         page_header("rekendoos 🔢"),
