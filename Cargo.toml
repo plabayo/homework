@@ -7,8 +7,7 @@ rust-version = "1.93"
 resolver = "3"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
-const_format = "0.2"
+clap = { version = "4.6", features = ["derive"] }
 rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features = [
     "tcp",
     "http-full",
@@ -16,7 +15,7 @@ rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features 
     "haproxy",
     "opentelemetry",
 ] }
-tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros"] }
 
 [target.'cfg(unix)'.dependencies]
 jemallocator = "0.5"
@@ -26,6 +25,9 @@ mimalloc = "0.1"
 
 [build-dependencies]
 vergen-gitcl = { version = "1", features = ["build", "cargo"] }
+
+[dev-dependencies]
+thirtyfour = "0.36.3"
 
 [lints.rust]
 unused_imports = "warn"

@@ -28,9 +28,14 @@ doc:
 test:
 	cargo test --all-features
 
+test-e2e *ARGS:
+	cargo test --test e2e -- --ignored --test-threads=1 {{ARGS}}
+
 qq: lint check clippy doc
 
 qa: qq test
+
+qa-full: qa test-e2e
 
 run *ARGS:
 	cargo run -- \
@@ -54,8 +59,8 @@ docker *ARGS:
     just docker-run {{ARGS}}
 
 update-deps:
-    cargo upgrades
-    cargo update
+    @cargo install cargo-edit --locked
+    cargo upgrade && cargo update
 
 detect-unused-deps:
 	@cargo install cargo-machete

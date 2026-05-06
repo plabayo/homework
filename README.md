@@ -152,7 +152,16 @@ just watch-run
 
 # run all checks: fmt, sort, check, clippy, doc, test
 just qa
+
+# run the ignored browser smoke suite (requires Chrome/Chromium)
+just test-e2e
 ```
+
+The browser smoke tests use `thirtyfour`'s managed driver mode. With Chrome or
+Chromium installed, the crate auto-downloads a compatible driver on demand.
+If the browser is not in the default location for your OS, set
+`CHROME_BIN=/path/to/chrome`. `CHROMEDRIVER=/path/to/chromedriver` remains
+supported as an override for offline or pinned-driver environments.
 
 The dev server has no HTTPS by default. To run with TLS locally pass
 `--https <addr>` (it expects a `CertIssuer` configured via env
