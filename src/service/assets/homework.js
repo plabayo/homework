@@ -1122,6 +1122,7 @@ export function startConfetti() {
     confettiState.ctx = ctx;
     confettiState.running = true;
     canvas.dataset.active = "true";
+    canvas.style.opacity = "1";
     const colors = [
         "#ff7336",
         "#f9e038",
@@ -1131,7 +1132,8 @@ export function startConfetti() {
         "#b1245a",
         "#f2733f",
     ];
-    const N = 30;
+    // Fewer particles on small screens; still a full celebratory burst.
+    const N = window.innerWidth < 500 ? 40 : 60;
     const parts = [];
     const resize = () => {
         confettiState.width = canvas.width = window.innerWidth;
@@ -1141,20 +1143,36 @@ export function startConfetti() {
     window.addEventListener("resize", resize);
     resize();
     for (let i = 0; i < N; i++) {
+        const r = 8 + Math.random() * 16;
+        const d = Math.random() * N + 11;
         parts.push({
             x: Math.random() * confettiState.width,
             y: Math.random() * confettiState.height - confettiState.height,
-            r: 11 + Math.random() * 22,
-            d: Math.random() * N + 11,
+            r,
+            vy: (Math.cos(d) + 3 + r / 2) / 2, // precomputed — no cos() in the draw loop
             color: colors[Math.floor(Math.random() * colors.length)],
-            tilt: Math.floor(Math.random() * 33) - 11,
+            tilt: 0,
             tiltAngleInc: Math.random() * 0.07 + 0.05,
             tiltAngle: 0,
         });
     }
     confettiState.parts = parts;
+    // Confetti bursts for TOTAL ms then fades out over FADE ms and stops.
+    // No respawning — avoids an indefinite rAF loop draining the battery.
+    const TOTAL = 4000;
+    const FADE  = 700;
+    const t0 = Date.now();
     function draw() {
         if (!confettiState.running) return;
+        const elapsed = Date.now() - t0;
+        if (elapsed >= TOTAL) {
+            stopConfetti();
+            return;
+        }
+        // Smooth opacity fade-out during the last FADE ms.
+        canvas.style.opacity = elapsed < TOTAL - FADE
+            ? "1"
+            : String(1 - (elapsed - (TOTAL - FADE)) / FADE);
         confettiState.rafId = requestAnimationFrame(draw);
         ctx.clearRect(0, 0, confettiState.width, confettiState.height);
         for (let i = 0; i < N; i++) {
@@ -1166,17 +1184,8 @@ export function startConfetti() {
             ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 5);
             ctx.stroke();
             p.tiltAngle += p.tiltAngleInc;
-            p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
+            p.y += p.vy;
             p.tilt = Math.sin(p.tiltAngle - i / 3) * 15;
-            if (
-                p.x > confettiState.width + 30 ||
-                p.x < -30 ||
-                p.y > confettiState.height
-            ) {
-                p.x = Math.random() * confettiState.width;
-                p.y = -30;
-                p.tilt = Math.floor(Math.random() * 10) - 20;
-            }
         }
     }
     draw();
