@@ -1,7 +1,7 @@
 use rama::http::html::{div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{ExerciseInfo, exercise_scaffold};
+use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
 use crate::service::layout::{PageMeta, page, page_header};
 
 const INFO: ExerciseInfo = ExerciseInfo {
@@ -77,5 +77,6 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
                 " selecteer alle tafels van 1 tot en met 10",
             ),
         ),
+        time_mode_fieldset(),
     )
 }

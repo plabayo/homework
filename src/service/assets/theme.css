@@ -300,6 +300,34 @@ input.bad {
     flex: 1 1 auto;
     text-align: end;
 }
+.exercise-clock {
+    margin: 0;
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.exercise-clock .deadline {
+    color: var(--fg);
+}
+.exercise-clock .deadline.danger {
+    color: var(--bad);
+    font-weight: 700;
+}
+.badge.time {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+}
+.cycle-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
 #exercise-feedback {
     text-align: center;
     min-height: 1.6em;
@@ -325,6 +353,12 @@ input.bad {
     gap: 10px;
     flex-wrap: wrap;
     margin: 0;
+}
+#exercise-content.locked {
+    opacity: 0.5;
+    filter: saturate(0.6);
+    pointer-events: none;
+    user-select: none;
 }
 #exercise-content input {
     font-size: 1.25rem;

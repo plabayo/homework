@@ -1,4 +1,6 @@
-use rama::http::html::{IntoHtml, button, div, form, h3, p, section};
+use rama::http::html::{
+    IntoHtml, button, div, fieldset, form, h3, input, label, legend, p, section,
+};
 
 pub mod clock;
 pub mod digital_clock;
@@ -70,6 +72,48 @@ pub fn niveau_label(level: u8) -> &'static str {
     }
 }
 
+/// Shared "time mode" fieldset. When enabled, the framework shows a session
+/// timer during play and per-question elapsed time on the finish page; an
+/// optional per-question deadline can also be set. The framework picks
+/// these up automatically by ID — exercises just need to render the
+/// fieldset somewhere in their setup form.
+pub fn time_mode_fieldset() -> impl IntoHtml {
+    fieldset!(
+        legend!("Tijdsmodus ⏱️"),
+        label!(
+            input!(r#type = "checkbox", id = "time-mode", name = "time-mode",),
+            " toon een timer en hoe lang elke oefening duurde",
+        ),
+        div!(
+            id = "deadline-section",
+            hidden? = true,
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    id = "deadline-on",
+                    name = "deadline-on",
+                ),
+                " ⏰ ook een maximumtijd per oefening",
+            ),
+            div!(
+                id = "deadline-field",
+                class = "field",
+                hidden? = true,
+                label!(r#for = "deadline-seconds", "Hoeveel seconden per oefening?",),
+                input!(
+                    inputmode = "numeric",
+                    pattern = "[0-9]+",
+                    id = "deadline-seconds",
+                    name = "deadline-seconds",
+                    min = "1",
+                    max = "600",
+                    value = "10",
+                ),
+            ),
+        ),
+    )
+}
+
 /// Render the shared exercise scaffold:
 ///   - configure section with the given form fields
 ///   - empty play section (filled in by `homework.js`)
@@ -107,6 +151,12 @@ pub fn exercise_scaffold(
                     "begin opnieuw ↩️"
                 ),
                 p!(id = "exercise-title"),
+                // Filled in by homework.js when the session uses time mode.
+                p!(
+                    id = "exercise-clock",
+                    class = "exercise-clock",
+                    hidden? = true
+                ),
             ),
             div!(
                 id = "exercise",

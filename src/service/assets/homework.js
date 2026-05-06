@@ -300,14 +300,26 @@ function cycleSummaryLine(session, n) {
     if (wrong > 0) detail.push(`<span class="badge bad">${wrong} fout</span>`);
     if (tricky > 0) detail.push(`<span class="badge tricky">${tricky} moeilijk</span>`);
     if (detail.length === 0) detail.push('<span class="cycle-perfect">✨ vlekkeloos</span>');
+    const time = session.timeMode && session.durationMs
+        ? `<span class="cycle-time">⏱️ ${formatMillis(session.durationMs)}</span>`
+        : "";
     return `
         <div class="cycle-row">
             <span class="cycle-num">ronde ${n}</span>
             <span class="cycle-score">${session.correct}/${session.total}</span>
             ${modeLabel}
+            ${time}
             <span class="cycle-detail">${detail.join(" ")}</span>
         </div>
     `;
+}
+
+function formatMillis(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}m${String(r).padStart(2, "0")}s`;
 }
 
 function renderTrickyList(session) {
@@ -326,8 +338,12 @@ function renderTrickyList(session) {
                 q.attempts > 0
                     ? ` · ${q.attempts}× verkeerd geprobeerd`
                     : "";
-            const skipped = q.skipped ? " · overgeslagen" : "";
-            return `<li><span class="badge bad">fout</span> ${desc}${attempts}${skipped}</li>`;
+            const reason = q.timedOut
+                ? " · ⏰ te traag"
+                : q.skipped
+                  ? " · overgeslagen"
+                  : "";
+            return `<li><span class="badge bad">fout</span> ${desc}${attempts}${reason}</li>`;
         }
         return `<li><span class="badge tricky">${q.attempts}× fout vooraf</span> ${desc}</li>`;
     };
@@ -374,6 +390,7 @@ export function runExercise(spec) {
     const resultEl = document.getElementById("result");
     const errorEl = document.getElementById("config-error");
 
+    const clockEl = document.getElementById("exercise-clock");
     const state = {
         config: null,
         deck: [],
@@ -390,13 +407,69 @@ export function runExercise(spec) {
         // setup), every completed session — including retry-mistakes loops —
         // is appended here so the finish page can show the whole arc.
         cycles: [],
+        // Time-mode state
+        questionStartedAt: 0,
+        sessionTimerHandle: null,
+        deadlineTimerHandle: null,
     };
+
+    function timeModeOn() {
+        return !!state.config?.timeMode;
+    }
+    function deadlineSec() {
+        return state.config?.deadlineSeconds || 0;
+    }
+
+    function formatDuration(ms) {
+        const s = Math.max(0, Math.round(ms / 1000));
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${m}:${String(r).padStart(2, "0")}`;
+    }
+
+    function updateClock() {
+        if (!clockEl) return;
+        const elapsed = formatDuration(Date.now() - state.startedAt);
+        let html = `⏱️ ${elapsed}`;
+        if (deadlineSec()) {
+            const remain = Math.max(
+                0,
+                deadlineSec() * 1000 - (Date.now() - state.questionStartedAt),
+            );
+            const danger = remain < deadlineSec() * 250 ? " danger" : "";
+            html += ` &nbsp; <span class="deadline${danger}">⏰ ${formatDuration(remain)}</span>`;
+        }
+        clockEl.innerHTML = html;
+    }
+
+    function startSessionTimer() {
+        if (!timeModeOn() || !clockEl) return;
+        clockEl.hidden = false;
+        clearInterval(state.sessionTimerHandle);
+        state.sessionTimerHandle = setInterval(updateClock, 250);
+        updateClock();
+    }
+    function stopSessionTimer() {
+        clearInterval(state.sessionTimerHandle);
+        state.sessionTimerHandle = null;
+        clearTimeout(state.deadlineTimerHandle);
+        state.deadlineTimerHandle = null;
+        if (clockEl) clockEl.hidden = true;
+    }
+    function startDeadline() {
+        clearTimeout(state.deadlineTimerHandle);
+        if (!timeModeOn() || !deadlineSec()) return;
+        state.deadlineTimerHandle = setTimeout(() => {
+            onDeadlineExpired();
+        }, deadlineSec() * 1000);
+    }
 
     function show(which) {
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
         result.hidden = which !== "result";
         if (which !== "result") stopConfetti();
+        if (which !== "play") stopSessionTimer();
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
     }
@@ -409,7 +482,53 @@ export function runExercise(spec) {
                 localStorage.getItem("homework:" + spec.id) || "null",
             );
             if (saved && spec.loadConfig) spec.loadConfig(formSetup, saved);
+            if (saved) {
+                const tm = formSetup?.elements?.["time-mode"];
+                if (tm && typeof saved.timeMode === "boolean")
+                    tm.checked = saved.timeMode;
+                const dOn = formSetup?.elements?.["deadline-on"];
+                if (dOn && typeof saved.deadlineOn === "boolean")
+                    dOn.checked = saved.deadlineOn;
+                const ds = formSetup?.elements?.["deadline-seconds"];
+                if (ds && saved.deadlineSeconds) ds.value = saved.deadlineSeconds;
+            }
         } catch {}
+        // Sync visibility of both nested toggles to whatever was restored.
+        syncTimeModeFields();
+    }
+
+    // The time-mode block has two layers of disclosure:
+    //   1. "time-mode" checkbox reveals the deadline-on checkbox
+    //   2. "deadline-on" checkbox reveals the deadline-seconds input
+    function syncTimeModeFields() {
+        const tm = formSetup?.elements?.["time-mode"];
+        const dOn = formSetup?.elements?.["deadline-on"];
+        const section = document.getElementById("deadline-section");
+        const field = document.getElementById("deadline-field");
+        const timeOn = !!tm?.checked;
+        if (section) section.hidden = !timeOn;
+        if (!timeOn && dOn) dOn.checked = false;
+        if (field) field.hidden = !(timeOn && dOn?.checked);
+    }
+    formSetup
+        ?.elements?.["time-mode"]
+        ?.addEventListener("change", syncTimeModeFields);
+    formSetup
+        ?.elements?.["deadline-on"]
+        ?.addEventListener("change", syncTimeModeFields);
+
+    // Augment whatever the exercise's readConfig returns with the shared
+    // time-mode fields (read here, not in every exercise).
+    function readConfigWithTimeMode(form) {
+        const cfg = spec.readConfig(form);
+        const tm = form.elements?.["time-mode"];
+        const dOn = form.elements?.["deadline-on"];
+        const ds = form.elements?.["deadline-seconds"];
+        cfg.timeMode = !!tm?.checked;
+        cfg.deadlineOn = !!(cfg.timeMode && dOn?.checked);
+        cfg.deadlineSeconds =
+            cfg.deadlineOn && ds?.value ? Number(ds.value) : 0;
+        return cfg;
     }
 
     function persistConfig(cfg) {
@@ -438,6 +557,7 @@ export function runExercise(spec) {
         // continuation of the current run, so cycles accumulate.
         if (state.mode !== "mistakes") state.cycles = [];
         show("play");
+        startSessionTimer();
         nextQuestion();
     }
 
@@ -450,9 +570,16 @@ export function runExercise(spec) {
         state.currentQuestion = state.deck[state.currentIndex];
         state.currentAttempts = 0;
         state.currentGiven = null;
+        state.questionStartedAt = Date.now();
         feedbackEl.textContent = " ";
         feedbackEl.classList.remove("is-bad");
         if (skipBtn) skipBtn.hidden = true;
+
+        // Clean up any lock state left over from a previous timed-out question.
+        contentEl.classList.remove("locked");
+        const checkBtn = document.getElementById("button-check");
+        if (checkBtn) checkBtn.hidden = false;
+        document.getElementById("button-next")?.remove();
 
         titleEl.textContent = `oefening ${state.currentIndex + 1} van ${state.deck.length}`;
 
@@ -461,20 +588,64 @@ export function runExercise(spec) {
             kind: "play",
         });
 
+        startDeadline();
+        updateClock();
+
         const firstInput = contentEl.querySelector("input, [tabindex]");
         if (firstInput && typeof firstInput.focus === "function")
             firstInput.focus();
     }
 
-    function recordOutcome(correct, given, skipped) {
+    function recordOutcome(correct, given, skipped, opts = {}) {
         state.questions.push({
             question: state.currentQuestion,
             attempts: state.currentAttempts,
             skipped: !!skipped,
+            timedOut: !!opts.timedOut,
+            elapsedMs: Date.now() - state.questionStartedAt,
             given,
             correct,
             label: spec.describe ? spec.describe(state.currentQuestion) : null,
         });
+    }
+
+    function onDeadlineExpired() {
+        // Don't auto-advance — the kid should see the question they ran out
+        // of time on, in a clearly-locked state. They tap "volgende" to move
+        // on. The outcome is already recorded; the deadline timer is cleared
+        // so the live countdown stops ticking.
+        recordOutcome(false, state.currentGiven, true, { timedOut: true });
+        clearTimeout(state.deadlineTimerHandle);
+        state.deadlineTimerHandle = null;
+
+        contentEl.innerHTML = "";
+        spec.renderQuestion(state.currentQuestion, contentEl, {
+            kind: "review",
+            given: state.currentGiven,
+            correct: false,
+        });
+        contentEl.classList.add("locked");
+        feedbackEl.textContent = "⏰ te traag";
+        feedbackEl.classList.add("is-bad");
+
+        const checkBtn = document.getElementById("button-check");
+        if (checkBtn) checkBtn.hidden = true;
+        if (skipBtn) skipBtn.hidden = true;
+        const actions = formExercise.querySelector(".exercise-actions");
+        if (actions && !document.getElementById("button-next")) {
+            const next = document.createElement("button");
+            next.type = "button";
+            next.className = "primary";
+            next.id = "button-next";
+            next.textContent = "volgende ➡️";
+            next.addEventListener("click", (e) => {
+                e.preventDefault();
+                nextQuestion();
+            });
+            actions.appendChild(next);
+            next.focus();
+        }
+        updateClock();
     }
 
     function onWrongAttempt(given) {
@@ -496,8 +667,10 @@ export function runExercise(spec) {
     }
 
     function finish() {
+        stopSessionTimer();
         const total = state.questions.length;
         const correct = state.questions.filter((q) => q.correct).length;
+        const finishedAt = Date.now();
         const session = {
             id: state.sessionId,
             exerciseId: spec.id,
@@ -505,10 +678,12 @@ export function runExercise(spec) {
             mode: state.mode,
             config: state.config,
             startedAt: state.startedAt,
-            finishedAt: Date.now(),
+            finishedAt,
             total,
             correct,
             questions: state.questions,
+            timeMode: !!state.config?.timeMode,
+            durationMs: finishedAt - state.startedAt,
         };
         state.cycles.push(session);
         saveSession(session).then(() => {
@@ -542,9 +717,13 @@ export function runExercise(spec) {
 
         const reviewable = wrong.length > 0;
 
+        const sessionTime =
+            session.timeMode && session.durationMs
+                ? ` <small class="muted">in ⏱️ ${formatMillis(session.durationMs)}</small>`
+                : "";
         let html = `
             ${headline}
-            <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}</h3>
+            <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
             ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
             ${trickyList}
             <div class="result-actions">
@@ -621,7 +800,7 @@ export function runExercise(spec) {
         setError(null);
         let cfg;
         try {
-            cfg = spec.readConfig(formSetup);
+            cfg = readConfigWithTimeMode(formSetup);
         } catch (err) {
             setError(String(err.message || err));
             return;
@@ -685,7 +864,7 @@ export function runExercise(spec) {
         }
         const picked = await pickMistakes(spec, mistakes);
         if (!picked || picked.length === 0) return;
-        const cfg = spec.readConfig(formSetup);
+        const cfg = readConfigWithTimeMode(formSetup);
         startSession(shuffle(picked.slice()), cfg, "mistakes");
     });
 
@@ -758,8 +937,12 @@ async function setupHistoryView() {
                             q.attempts > 0
                                 ? ` · ${q.attempts}× verkeerd geprobeerd`
                                 : "";
-                        const skipped = q.skipped ? " · overgeslagen" : "";
-                        return `<li><span class="badge bad">fout</span> ${desc}${attempts}${skipped}</li>`;
+                        const reason = q.timedOut
+                            ? " · ⏰ te traag"
+                            : q.skipped
+                              ? " · overgeslagen"
+                              : "";
+                        return `<li><span class="badge bad">fout</span> ${desc}${attempts}${reason}</li>`;
                     }
                     return `<li><span class="badge tricky">${q.attempts}× fout vooraf</span> ${desc}</li>`;
                 };
@@ -767,13 +950,20 @@ async function setupHistoryView() {
                     ...wrong.map((q) => itemHtml(q, "wrong")),
                     ...tricky.map((q) => itemHtml(q, "tricky")),
                 ].join("");
+                const timeMeta = [];
+                if (s.timeMode && s.durationMs)
+                    timeMeta.push(`⏱️ ${formatMillis(s.durationMs)}`);
+                if (s.config?.deadlineSeconds)
+                    timeMeta.push(`⏰ ${s.config.deadlineSeconds}s`);
+                if (s.mode === "mistakes") timeMeta.push("foutenmodus");
+                const metaSuffix = timeMeta.length
+                    ? ` · ${timeMeta.join(" · ")}`
+                    : "";
                 return `
                     <article class="history-session">
                         <div class="history-session-header">
                             <span>${formatDate(s.finishedAt || s.startedAt)}</span>
-                            <span>${s.correct} / ${s.total}${
-                                s.mode === "mistakes" ? " · foutenmodus" : ""
-                            }</span>
+                            <span>${s.correct} / ${s.total}${metaSuffix}</span>
                         </div>
                         <div class="history-mistakes">
                             <div>${summary}</div>
