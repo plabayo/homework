@@ -1,14 +1,10 @@
-import { runExercise, shuffle } from "/homework.js";
-
-function pickKind(kinds) {
-    return kinds[Math.floor(Math.random() * kinds.length)];
-}
+import { runExercise, shuffle, read, load, pickRandom } from "/homework.js";
 
 function buildDeck(cfg) {
     const deck = [];
     const N = cfg.numExercises;
     while (deck.length < N) {
-        const kind = pickKind(cfg.kinds);
+        const kind = pickRandom(cfg.kinds);
         let a, b, answer;
         switch (kind) {
             case "som":
@@ -55,59 +51,41 @@ function buildDeck(cfg) {
     return deck;
 }
 
+const SPLIT_LEGS = `<svg class="split-legs" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><line x1="50" y1="2" x2="14" y2="28"/><line x1="50" y1="2" x2="86" y2="28"/></svg>`;
+
 function renderPlay(q) {
+    const fb = FEEDBACK[q.kind];
+    const input = `<input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required>`;
     switch (q.kind) {
         case "som":
-            return {
-                feedback: "maak de som ➕",
-                html: `<p><span>${q.a} + ${q.b} =</span><input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required></p>`,
-                expect: q.answer,
-            };
+            return { feedback: fb, html: `<p><span>${q.a} + ${q.b} =</span>${input}</p>` };
         case "verschil":
-            return {
-                feedback: "maak het verschil ➖",
-                html: `<p><span>${q.a} − ${q.b} =</span><input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required></p>`,
-                expect: q.answer,
-            };
+            return { feedback: fb, html: `<p><span>${q.a} − ${q.b} =</span>${input}</p>` };
         case "vermenigvuldigen":
-            return {
-                feedback: "maak de vermenigvuldiging ✖️",
-                html: `<p><span>${q.a} × ${q.b} =</span><input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required></p>`,
-                expect: q.answer,
-            };
+            return { feedback: fb, html: `<p><span>${q.a} × ${q.b} =</span>${input}</p>` };
         case "delen":
-            return {
-                feedback: "maak de deling ➗",
-                html: `<p><span>${q.a} ÷ ${q.b} =</span><input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required></p>`,
-                expect: q.answer,
-            };
+            return { feedback: fb, html: `<p><span>${q.a} ÷ ${q.b} =</span>${input}</p>` };
         case "splitsen": {
             const visibleVal = q.hide === "a" ? q.b : q.a;
-            const expectVal = q.hide === "a" ? q.a : q.b;
             const inputCell = `<input inputmode="numeric" pattern="[0-9]+" id="answer" class="split-part" min="0" max="100000" size="3" required>`;
             const visibleCell = `<span class="box split-part">${visibleVal}</span>`;
             const left = q.hide === "a" ? inputCell : visibleCell;
             const right = q.hide === "a" ? visibleCell : inputCell;
-            return {
-                feedback: "maak de splitsing 🔼",
-                html: `
-                    <div class="split-stack">
-                        <div class="split-top"><span class="box split-part">${q.answer}</span></div>
-                        <svg class="split-legs" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-                            <line x1="50" y1="2" x2="14" y2="28" />
-                            <line x1="50" y1="2" x2="86" y2="28" />
-                        </svg>
-                        <div class="split-bottom">${left}${right}</div>
-                    </div>
-                `,
-                expect: expectVal,
-            };
+            return { feedback: fb, html: `<div class="split-stack"><div class="split-top"><span class="box split-part">${q.answer}</span></div>${SPLIT_LEGS}<div class="split-bottom">${left}${right}</div></div>` };
         }
     }
 }
 
+const FEEDBACK = {
+    som: "maak de som ➕",
+    verschil: "maak het verschil ➖",
+    vermenigvuldigen: "maak de vermenigvuldiging ✖️",
+    delen: "maak de deling ➗",
+    splitsen: "maak de splitsing 🔼",
+};
+
 function renderReview(q) {
-    const fb = renderPlay(q).feedback;
+    const fb = FEEDBACK[q.kind];
     let body;
     switch (q.kind) {
         case "som":
@@ -145,24 +123,16 @@ runExercise({
     id: "mathbox",
     label: "rekendoos",
     loadConfig(form, saved) {
-        if (saved.countUntil)
-            form.elements["count-until"].value = saved.countUntil;
-        if (saved.numExercises)
-            form.elements["num-exercises"].value = saved.numExercises;
-        if (Array.isArray(saved.kinds)) {
-            form.querySelectorAll("input[name=practice]").forEach((cb) => {
-                cb.checked = saved.kinds.includes(cb.value);
-            });
-        }
+        load.number(form, 'count-until', saved.countUntil);
+        load.number(form, 'num-exercises', saved.numExercises);
+        load.checkboxes(form, 'practice', saved.kinds);
     },
     readConfig(form) {
-        const countUntil = Number(form.elements["count-until"].value);
-        const numExercises = Number(form.elements["num-exercises"].value);
-        const kinds = [];
-        form.querySelectorAll("input[name=practice]:checked").forEach((cb) =>
-            kinds.push(cb.value),
-        );
-        return { countUntil, numExercises, kinds };
+        return {
+            countUntil:   read.number(form, 'count-until'),
+            numExercises: read.number(form, 'num-exercises'),
+            kinds:        read.checkboxes(form, 'practice'),
+        };
     },
     validateConfig(cfg) {
         if (!cfg.kinds.length)
@@ -186,8 +156,10 @@ runExercise({
         return () => input.value;
     },
     isCorrect(q, given) {
-        const r = renderPlay(q);
-        return Number(given) === r.expect;
+        const expect = q.kind === "splitsen"
+            ? (q.hide === "a" ? q.a : q.b)
+            : q.answer;
+        return Number(given) === expect;
     },
     describe(q) {
         switch (q.kind) {

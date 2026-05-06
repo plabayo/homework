@@ -1,4 +1,4 @@
-import { runExercise, shuffle } from '/homework.js';
+import { runExercise, shuffle, pad, hourName, wireOptions, read, load, pickRandom, dutchTimePhrase, optionListHtml } from '/homework.js';
 
 // Granularity helpers
 const GRAN = {
@@ -30,7 +30,7 @@ function buildDeck(cfg) {
 
     let safety = cfg.numExercises * 4 + 20;
     while (out.length < cfg.numExercises && safety-- > 0) {
-        const kind = pickKind(cfg.kinds);
+        const kind = pickRandom(cfg.kinds.length ? cfg.kinds : ['lees', 'zet']);
         let entry;
         if (kind === 'zet-woorden') {
             if (wordsBag.length === 0) wordsBag = shuffle(wordsAllowed.slice());
@@ -49,13 +49,13 @@ function buildDeck(cfg) {
             promptStyle:
                 kind === 'zet-woorden'
                     ? 'words'
-                    : kind === 'zet' && dutchPhrase(entry.h, entry.m) && Math.random() < 0.35
+                    : kind === 'zet' && dutchTimePhrase(entry.h, entry.m) && Math.random() < 0.35
                         ? 'words'
                         : 'digits',
             choiceStyle:
                 kind === 'lees' &&
                 (cfg.answerMode || 'multiple') === 'multiple' &&
-                dutchPhrase(entry.h, entry.m) &&
+                dutchTimePhrase(entry.h, entry.m) &&
                 Math.random() < 0.4
                     ? 'words'
                     : 'digits',
@@ -90,32 +90,13 @@ function buildClockOptions(q, minStep) {
     return shuffle(out);
 }
 
-function pickKind(kinds) {
-    const list = kinds.length ? kinds : ['lees', 'zet'];
-    return list[Math.floor(Math.random() * list.length)];
-}
-
-function hourName(h) {
-    const names = ['twaalf','een','twee','drie','vier','vijf','zes','zeven','acht','negen','tien','elf'];
-    return names[((h % 12) + 12) % 12];
-}
-
-function dutchPhrase(h, m) {
-    if (m === 0) return `${hourName(h)} uur`;
-    if (m === 15) return `kwart over ${hourName(h)}`;
-    if (m === 30) return `half ${hourName(h + 1)}`;
-    if (m === 45) return `kwart voor ${hourName(h + 1)}`;
-    return null;
-}
-
-function pad(n) { return String(n).padStart(2, '0'); }
 
 function buildWordOptions(q, minStep) {
     const seenTimes = new Set();
     const seenLabels = new Set();
     const out = [];
     const push = (h, m) => {
-        const label = dutchPhrase(h, m);
+        const label = dutchTimePhrase(h, m);
         if (!label) return;
         const key = `${h}:${m}`;
         if (seenTimes.has(key) || seenLabels.has(label)) return;
@@ -315,28 +296,18 @@ runExercise({
     id: 'clock',
     label: 'analoge klok',
     loadConfig(form, saved) {
-        if (saved.numExercises) form.elements['num-exercises'].value = saved.numExercises;
-        if (saved.granularity) {
-            const r = form.querySelector(`input[name=granularity][value="${saved.granularity}"]`);
-            if (r) r.checked = true;
-        }
-        if (Array.isArray(saved.kinds)) {
-            form.querySelectorAll('input[name=ck]').forEach((cb) => {
-                cb.checked = saved.kinds.includes(cb.value);
-            });
-        }
-        if (saved.answerMode) {
-            const r = form.querySelector(`input[name=answer][value="${saved.answerMode}"]`);
-            if (r) r.checked = true;
-        }
+        load.number(form, 'num-exercises', saved.numExercises);
+        load.radio(form, 'granularity', saved.granularity);
+        load.checkboxes(form, 'ck', saved.kinds);
+        load.radio(form, 'answer', saved.answerMode);
     },
     readConfig(form) {
-        const numExercises = Number(form.elements['num-exercises'].value);
-        const granularity = (form.querySelector('input[name=granularity]:checked') || {}).value || 'five';
-        const kinds = [];
-        form.querySelectorAll('input[name=ck]:checked').forEach((cb) => kinds.push(cb.value));
-        const answerMode = (form.querySelector('input[name=answer]:checked') || {}).value || 'multiple';
-        return { numExercises, granularity, kinds, answerMode };
+        return {
+            numExercises: read.number(form, 'num-exercises'),
+            granularity:  read.radio(form, 'granularity', 'five'),
+            kinds:        read.checkboxes(form, 'ck'),
+            answerMode:   read.radio(form, 'answer', 'multiple'),
+        };
     },
     validateConfig(cfg) {
         if (!cfg.numExercises || cfg.numExercises < 1) return 'Gelieve een geldig aantal oefeningen op te geven.';
@@ -377,7 +348,7 @@ runExercise({
                 };
             }
             // multiple-choice mode: pick the correct time from 4 plausible options
-            const wordChoices = q.choiceStyle === 'words' && !!dutchPhrase(q.h, q.m);
+            const wordChoices = q.choiceStyle === 'words' && !!dutchTimePhrase(q.h, q.m);
             const options = wordChoices
                 ? buildWordOptions(q, minStep)
                 : buildClockOptions(q, minStep).map((o) => ({
@@ -387,28 +358,14 @@ runExercise({
             root.innerHTML = `
                 ${clockSvg(q.h, q.m, { interactive: false })}
                 ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ''}
-                <div class="option-list" role="radiogroup">
-                    ${options.map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-h="${o.h}" data-m="${o.m}">${o.label}</button>`).join('')}
-                </div>
+                ${optionListHtml(options, (o) => o.label, (o) => JSON.stringify({ h: o.h, m: o.m }))}
             `;
-            let chosen = null;
-            root.querySelectorAll('.option').forEach((btn) => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    root.querySelectorAll('.option').forEach((b) => {
-                        b.classList.remove('selected');
-                        b.setAttribute('aria-checked', 'false');
-                    });
-                    btn.classList.add('selected');
-                    btn.setAttribute('aria-checked', 'true');
-                    chosen = { h: Number(btn.dataset.h), m: Number(btn.dataset.m) };
-                });
-            });
-            return () => chosen;
+            const get = wireOptions(root);
+            return () => { const s = get(); return s ? JSON.parse(s) : null; };
         } else {
             // q.kind === 'zet' or 'zet-woorden'
             const promptText = q.promptStyle === 'words'
-                ? `zet de klok op "${dutchPhrase(q.h, q.m)}" ⏰`
+                ? `zet de klok op "${dutchTimePhrase(q.h, q.m)}" ⏰`
                 : `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
             document.getElementById('exercise-feedback').textContent = promptText;
             root.innerHTML = `
@@ -444,7 +401,7 @@ runExercise({
     },
     describe(q) {
         if (q.kind === 'zet-woorden' || q.promptStyle === 'words') {
-            const phrase = dutchPhrase(q.h, q.m) || timeLabel(q.h, q.m);
+            const phrase = dutchTimePhrase(q.h, q.m) || timeLabel(q.h, q.m);
             return `zet "${phrase}"`;
         }
         return `${q.kind === 'lees' ? 'lees' : 'zet'} ${timeLabel(q.h, q.m)}`;

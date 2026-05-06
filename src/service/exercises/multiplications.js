@@ -1,4 +1,4 @@
-import { runExercise, shuffle } from "/homework.js";
+import { runExercise, shuffle, read, load } from "/homework.js";
 
 function getSelectedTables(form) {
     const list = [];
@@ -40,8 +40,7 @@ runExercise({
     id: "multiplications",
     label: "maaltafels",
     loadConfig(form, saved) {
-        if (saved.numExercises)
-            form.elements["num-exercises"].value = saved.numExercises;
+        load.number(form, 'num-exercises', saved.numExercises);
         if (Array.isArray(saved.tables)) {
             saved.tables.forEach((t) => {
                 const cb = form.querySelector(`input[data-table="${t}"]`);
@@ -49,15 +48,14 @@ runExercise({
             });
         }
         const all = form.querySelector("#select-all");
-        const bs = Array.from(
-            form.querySelectorAll("#tables input[type=checkbox]"),
-        );
+        const bs = Array.from(form.querySelectorAll("#tables input[type=checkbox]"));
         all.checked = bs.length > 0 && bs.every((cb) => cb.checked);
     },
     readConfig(form) {
-        const numExercises = Number(form.elements["num-exercises"].value);
-        const tables = getSelectedTables(form);
-        return { numExercises, tables };
+        return {
+            numExercises: read.number(form, 'num-exercises'),
+            tables: getSelectedTables(form),
+        };
     },
     validateConfig(cfg) {
         if (!cfg.tables.length)

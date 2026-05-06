@@ -1,58 +1,22 @@
-import { runExercise, shuffle } from '/homework.js';
+import { runExercise, shuffle, pad, hourName, wireOptions, read, load, pickRandom, normalizePhrase, dutchTimePhrase, optionListHtml } from '/homework.js';
 
 // Dutch time expression utilities. Covers every 5-minute step that has a
 // standard Flemish/Dutch idiom:
 //
-//   :00  X uur
-//   :05  vijf over X
-//   :10  tien over X
-//   :15  kwart over X
-//   :20  tien voor half (X+1)
-//   :25  vijf voor half (X+1)
-//   :30  half (X+1)
-//   :35  vijf over half (X+1)
-//   :40  tien over half (X+1)
-//   :45  kwart voor (X+1)
-//   :50  tien voor (X+1)
-//   :55  vijf voor (X+1)
+//   :00  X uur          :30  half (X+1)
+//   :05  vijf over X    :35  vijf over half (X+1)
+//   :10  tien over X    :40  tien over half (X+1)
+//   :15  kwart over X   :45  kwart voor (X+1)
+//   :20  tien voor half :50  tien voor (X+1)
+//   :25  vijf voor half :55  vijf voor (X+1)
 
-function pad(n) { return String(n).padStart(2, '0'); }
-
-function hourName(h) {
-    const names = ['twaalf','een','twee','drie','vier','vijf','zes','zeven','acht','negen','tien','elf'];
-    return names[((h % 12) + 12) % 12];
+function digitalLabel(h, m, use24h) {
+    // In 12-hour mode render h=0 as 12 (noon/midnight shows "12:xx").
+    // In 24-hour mode keep the raw value so midnight shows "00:xx".
+    const display = (!use24h && h === 0) ? 12 : h;
+    return `${pad(display)}:${pad(m)}`;
 }
 
-function digitalLabel(h, m) {
-    // h is the raw hour we generated. In 12-hour mode we render h=0 as 12;
-    // in 24-hour mode we keep the literal 0..23 so the LED display reads
-    // 14:30 for "half drie 's middags".
-    if (h >= 13) return `${pad(h)}:${pad(m)}`;
-    if (h === 0) return `12:${pad(m)}`;
-    return `${pad(h)}:${pad(m)}`;
-}
-
-function dutchPhrase(h, m) {
-    // Dutch time expressions are 12-hour by convention — 14:30 is still
-    // "half drie", just in the afternoon. So we mod-12 before naming.
-    const h12 = ((h % 12) + 12) % 12;
-    const next = (h12 + 1) % 12;
-    switch (m) {
-        case 0:  return `${hourName(h12)} uur`;
-        case 5:  return `vijf over ${hourName(h12)}`;
-        case 10: return `tien over ${hourName(h12)}`;
-        case 15: return `kwart over ${hourName(h12)}`;
-        case 20: return `tien voor half ${hourName(next)}`;
-        case 25: return `vijf voor half ${hourName(next)}`;
-        case 30: return `half ${hourName(next)}`;
-        case 35: return `vijf over half ${hourName(next)}`;
-        case 40: return `tien over half ${hourName(next)}`;
-        case 45: return `kwart voor ${hourName(next)}`;
-        case 50: return `tien voor ${hourName(next)}`;
-        case 55: return `vijf voor ${hourName(next)}`;
-        default: return null;
-    }
-}
 
 function minutesForGranularity(granularity) {
     switch (granularity) {
@@ -75,7 +39,7 @@ function buildDeck(cfg) {
     const slice = candidates.slice(0, cfg.numExercises);
     return slice.map(({ h, m }) => ({
         // direction: 'digital-to-words' or 'words-to-digital'
-        dir: cfg.directions[Math.floor(Math.random() * cfg.directions.length)],
+        dir: pickRandom(cfg.directions),
         answerMode: cfg.answerMode || 'multiple',
         use24h: !!cfg.use24h,
         granularity: cfg.granularity,
@@ -83,14 +47,6 @@ function buildDeck(cfg) {
     }));
 }
 
-function normalizePhrase(s) {
-    return String(s || '')
-        .toLowerCase()
-        .normalize('NFKD')
-        .replace(/[̀-ͯ]/g, '')   // strip diacritics
-        .replace(/\s+/g, ' ')
-        .trim();
-}
 
 function buildDistractors(q, n) {
     // Plausible wrong options. We keep distractors in the same half-day as
@@ -130,33 +86,20 @@ runExercise({
     id: 'digital-clock',
     label: 'digitale klok',
     loadConfig(form, saved) {
-        if (saved.numExercises) form.elements['num-exercises'].value = saved.numExercises;
-        if (saved.granularity) {
-            const r = form.querySelector(`input[name=granularity][value="${saved.granularity}"]`);
-            if (r) r.checked = true;
-        }
-        if (Array.isArray(saved.directions)) {
-            form.querySelectorAll('input[name=dir]').forEach((cb) => {
-                cb.checked = saved.directions.includes(cb.value);
-            });
-        }
-        if (saved.answerMode) {
-            const r = form.querySelector(`input[name=answer][value="${saved.answerMode}"]`);
-            if (r) r.checked = true;
-        }
-        if (typeof saved.use24h === 'boolean') {
-            const cb = form.elements['use-24h'];
-            if (cb) cb.checked = saved.use24h;
-        }
+        load.number(form, 'num-exercises', saved.numExercises);
+        load.radio(form, 'granularity', saved.granularity);
+        load.checkboxes(form, 'dir', saved.directions);
+        load.radio(form, 'answer', saved.answerMode);
+        load.checkbox(form, 'use-24h', saved.use24h);
     },
     readConfig(form) {
-        const numExercises = Number(form.elements['num-exercises'].value);
-        const granularity = (form.querySelector('input[name=granularity]:checked') || {}).value || 'kwart';
-        const directions = [];
-        form.querySelectorAll('input[name=dir]:checked').forEach((cb) => directions.push(cb.value));
-        const answerMode = (form.querySelector('input[name=answer]:checked') || {}).value || 'multiple';
-        const use24h = !!form.elements['use-24h']?.checked;
-        return { numExercises, granularity, directions, answerMode, use24h };
+        return {
+            numExercises: read.number(form, 'num-exercises'),
+            granularity:  read.radio(form, 'granularity', 'kwart'),
+            directions:   read.checkboxes(form, 'dir'),
+            answerMode:   read.radio(form, 'answer', 'multiple'),
+            use24h:       read.checkbox(form, 'use-24h'),
+        };
     },
     validateConfig(cfg) {
         if (!cfg.numExercises || cfg.numExercises < 1) return 'Geef een geldig aantal oefeningen op.';
@@ -166,8 +109,8 @@ runExercise({
     buildDeck,
     renderQuestion(q, root, mode) {
         if (mode.kind === 'review') {
-            const dt = digitalLabel(q.h, q.m);
-            const phrase = dutchPhrase(q.h, q.m) || dt;
+            const dt = digitalLabel(q.h, q.m, q.use24h);
+            const phrase = dutchTimePhrase(q.h, q.m) || dt;
             root.innerHTML = `
                 <h3>${q.dir === 'digital-to-words' ? 'lees de digitale klok 🔢' : 'schrijf de tijd in cijfers 🔢'}</h3>
                 <div class="dclock">${dt}</div>
@@ -175,8 +118,8 @@ runExercise({
             `;
             return;
         }
-        const dt = digitalLabel(q.h, q.m);
-        const correctPhrase = dutchPhrase(q.h, q.m);
+        const dt = digitalLabel(q.h, q.m, q.use24h);
+        const correctPhrase = dutchTimePhrase(q.h, q.m);
         // Fill-in is only used for the words → digital direction. Going from
         // digital to free-typed Dutch phrases is too error-prone (typos,
         // alternative phrasings) so we always use multiple choice there.
@@ -185,15 +128,13 @@ runExercise({
         if (q.dir === 'digital-to-words') {
             document.getElementById('exercise-feedback').textContent = 'lees de digitale klok 🔢';
             const distractors = buildDistractors(q, 3)
-                .map((d) => dutchPhrase(d.h, d.m))
+                .map((d) => dutchTimePhrase(d.h, d.m))
                 .filter((p) => p && p !== correctPhrase);
             const options = shuffle([correctPhrase, ...distractors.slice(0, 3)]);
             root.innerHTML = `
                 <div class="dclock">${dt}</div>
                 <p class="dclock-label">welke zin past bij deze tijd?</p>
-                <div class="option-list" role="radiogroup">
-                    ${options.map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(o)}">${o}</button>`).join('')}
-                </div>
+                ${optionListHtml(options, (o) => o)}
             `;
             return wireOptions(root);
         } else {
@@ -224,34 +165,15 @@ runExercise({
             const options = shuffle([{ h: q.h, m: q.m }, ...distractors.slice(0, 3)]);
             root.innerHTML = `
                 <p class="dclock-label">${correctPhrase}</p>
-                <div class="option-list" role="radiogroup">
-                    ${options.map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(JSON.stringify(o))}">${digitalLabel(o.h, o.m)}</button>`).join('')}
-                </div>
+                ${optionListHtml(options, (o) => digitalLabel(o.h, o.m, q.use24h), (o) => JSON.stringify(o))}
             `;
             return wireOptions(root);
-        }
-
-        function wireOptions(scope) {
-            let chosen = null;
-            scope.querySelectorAll('.option').forEach((btn) => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    scope.querySelectorAll('.option').forEach((b) => {
-                        b.classList.remove('selected');
-                        b.setAttribute('aria-checked', 'false');
-                    });
-                    btn.classList.add('selected');
-                    btn.setAttribute('aria-checked', 'true');
-                    chosen = btn.dataset.value;
-                });
-            });
-            return () => (chosen ? decodeURIComponent(chosen) : null);
         }
     },
     isCorrect(q, given) {
         if (!given) return false;
         if (q.dir === 'digital-to-words') {
-            return normalizePhrase(given) === normalizePhrase(dutchPhrase(q.h, q.m));
+            return normalizePhrase(given) === normalizePhrase(dutchTimePhrase(q.h, q.m));
         }
         try {
             const obj = JSON.parse(given);
@@ -270,8 +192,8 @@ runExercise({
         }
     },
     describe(q) {
-        const dt = digitalLabel(q.h, q.m);
-        const phrase = dutchPhrase(q.h, q.m);
+        const dt = digitalLabel(q.h, q.m, q.use24h);
+        const phrase = dutchTimePhrase(q.h, q.m);
         const dayPart = q.use24h && q.h >= 12 ? " ('s middags)" : "";
         return q.dir === 'digital-to-words'
             ? `${dt} → ${phrase}${dayPart}`

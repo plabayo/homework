@@ -1,4 +1,4 @@
-import { runExercise } from "/homework.js";
+import { runExercise, read, load, pickRandom } from "/homework.js";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -120,10 +120,6 @@ function attachInteractive(root, q) {
 }
 
 const KINDS = ["teken", "teken", "schrijf", "schrijf"];
-function pickKind(allowed) {
-    const list = allowed.length ? allowed : KINDS;
-    return list[Math.floor(Math.random() * list.length)];
-}
 
 function buildDeck(cfg) {
     const deck = [];
@@ -132,7 +128,7 @@ function buildDeck(cfg) {
     for (let i = 0; i < tries && deck.length < cfg.numExercises; i++) {
         const v =
             cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
-        const kind = pickKind(cfg.kinds);
+        const kind = pickRandom(cfg.kinds.length ? cfg.kinds : KINDS);
         const key = `${kind}:${v}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -159,35 +155,24 @@ runExercise({
     id: "thermometer",
     label: "thermometer",
     loadConfig(form, saved) {
-        if (saved.vmax) form.elements["vmax"].value = saved.vmax;
-        if (saved.numExercises)
-            form.elements["num-exercises"].value = saved.numExercises;
-        if (typeof saved.allowNegative === "boolean")
-            form.elements["allow-negative"].checked = saved.allowNegative;
-        if (saved.vminNeg) form.elements["vmin-neg"].value = saved.vminNeg;
-        if (Array.isArray(saved.kinds)) {
-            form.querySelectorAll("input[name=tk]").forEach((cb) => {
-                cb.checked = saved.kinds.includes(cb.value);
-            });
-        }
+        load.number(form, 'vmax', saved.vmax);
+        load.number(form, 'num-exercises', saved.numExercises);
+        load.number(form, 'vmin-neg', saved.vminNeg);
+        load.checkbox(form, 'allow-negative', saved.allowNegative);
+        load.checkboxes(form, 'tk', saved.kinds);
         syncVminField();
     },
     readConfig(form) {
-        const vmax = Number(form.elements["vmax"].value);
-        const numExercises = Number(form.elements["num-exercises"].value);
-        const allowNegative = form.elements["allow-negative"].checked;
-        const vminNeg = Number(form.elements["vmin-neg"].value);
-        const kinds = [];
-        form.querySelectorAll("input[name=tk]:checked").forEach((cb) =>
-            kinds.push(cb.value),
-        );
+        const allowNegative = read.checkbox(form, 'allow-negative');
+        const vminNeg       = read.number(form, 'vmin-neg');
+        const kinds         = read.checkboxes(form, 'tk');
         return {
-            vmax,
-            vmin: allowNegative ? -Math.abs(vminNeg) : 0,
+            vmax:         read.number(form, 'vmax'),
+            numExercises: read.number(form, 'num-exercises'),
             allowNegative,
             vminNeg,
-            numExercises,
-            kinds: kinds.length ? kinds : ["teken", "schrijf"],
+            vmin:  allowNegative ? -Math.abs(vminNeg) : 0,
+            kinds: kinds.length ? kinds : ['teken', 'schrijf'],
         };
     },
     validateConfig(cfg) {

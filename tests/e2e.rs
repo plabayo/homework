@@ -11,7 +11,7 @@ use thirtyfour::prelude::{By, WebDriver, WebElement};
 type TestResult<T> = Result<T, BoxError>;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn home_page_and_all_exercise_routes_render() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -45,7 +45,7 @@ async fn home_page_and_all_exercise_routes_render() -> TestResult<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn multiplications_happy_path_reaches_finish() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -71,7 +71,7 @@ async fn multiplications_happy_path_reaches_finish() -> TestResult<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn timeout_locks_question_and_shows_correct_answer() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -124,7 +124,7 @@ async fn timeout_locks_question_and_shows_correct_answer() -> TestResult<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn wrong_answer_creates_reviewable_result_and_history() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -143,7 +143,6 @@ async fn wrong_answer_creates_reviewable_result_and_history() -> TestResult<()> 
     wait_for_css(driver, "#button-skip", Duration::from_secs(10)).await?;
     click(driver, "#button-skip").await?;
 
-    wait_for_css(driver, "#review", Duration::from_secs(10)).await?;
     wait_for_css(driver, "#review-button-repeat", Duration::from_secs(10)).await?;
 
     click(driver, "#page-result .button-reset").await?;
@@ -166,7 +165,7 @@ async fn wrong_answer_creates_reviewable_result_and_history() -> TestResult<()> 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn clock_set_mode_renders_interactive_widget() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -189,7 +188,7 @@ async fn clock_set_mode_renders_interactive_widget() -> TestResult<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn thermometer_draw_mode_renders_interactive_widget() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -216,7 +215,7 @@ async fn thermometer_draw_mode_renders_interactive_widget() -> TestResult<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires Chrome/ChromeDriver; run via `just test-e2e`"]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn cached_exercise_page_survives_server_shutdown() -> TestResult<()> {
     let mut app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;

@@ -127,6 +127,81 @@ function randomAnimal() {
     return ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
 }
 
+/** Zero-pad a number to 2 digits. */
+export function pad(n) { return String(n).padStart(2, '0'); }
+
+/**
+ * Read typed values out of a form.
+ *   read.number(form, 'num-exercises')          → Number
+ *   read.radio(form, 'granularity', 'five')     → string (fallback when nothing checked)
+ *   read.checkboxes(form, 'kinds')              → string[]
+ *   read.checkbox(form, 'use-24h')              → boolean
+ */
+export const read = {
+    number:     (form, name)           => Number(form.elements[name]?.value),
+    radio:      (form, name, fallback = '') =>
+                    form.querySelector(`input[name="${name}"]:checked`)?.value ?? fallback,
+    checkboxes: (form, name)           =>
+                    [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value),
+    checkbox:   (form, name)           => !!form.elements[name]?.checked,
+};
+
+/**
+ * Restore saved config values back into form fields.
+ * Every helper is a no-op when the saved value is null/undefined.
+ *   load.number(form, 'num-exercises', saved.numExercises)
+ *   load.radio(form, 'granularity', saved.granularity)
+ *   load.checkboxes(form, 'kinds', saved.kinds)
+ *   load.checkbox(form, 'use-24h', saved.use24h)
+ */
+export const load = {
+    number(form, name, val) {
+        if (val != null) form.elements[name].value = val;
+    },
+    radio(form, name, val) {
+        if (val == null) return;
+        const r = form.querySelector(`input[name="${name}"][value="${val}"]`);
+        if (r) r.checked = true;
+    },
+    checkboxes(form, name, vals) {
+        if (!Array.isArray(vals)) return;
+        form.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+            cb.checked = vals.includes(cb.value);
+        });
+    },
+    checkbox(form, name, val) {
+        if (val != null && form.elements[name]) form.elements[name].checked = !!val;
+    },
+};
+
+/** Dutch word for a clock hour (0/12 → "twaalf", 1 → "een", …). */
+export function hourName(h) {
+    const names = ['twaalf','een','twee','drie','vier','vijf','zes','zeven','acht','negen','tien','elf'];
+    return names[((h % 12) + 12) % 12];
+}
+
+/**
+ * Wire a group of `.option` buttons inside `scope` so only one can be
+ * selected at a time. Returns a getter `() => string | null` that yields
+ * the `data-value` of the selected button (URL-decoded), or null.
+ */
+export function wireOptions(scope) {
+    let chosen = null;
+    scope.querySelectorAll('.option').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            scope.querySelectorAll('.option').forEach((b) => {
+                b.classList.remove('selected');
+                b.setAttribute('aria-checked', 'false');
+            });
+            btn.classList.add('selected');
+            btn.setAttribute('aria-checked', 'true');
+            chosen = btn.dataset.value;
+        });
+    });
+    return () => (chosen != null ? decodeURIComponent(chosen) : null);
+}
+
 export function shuffle(arr) {
     let i = arr.length;
     while (i > 0) {
@@ -143,6 +218,57 @@ export function escapeHtml(s) {
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;");
+}
+
+/** Pick a random element from a non-empty array. */
+export function pickRandom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** Normalise a Dutch phrase for fuzzy comparison (strip diacritics, collapse whitespace). */
+export function normalizePhrase(s) {
+    return String(s || '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * Standard Dutch time phrase for any 5-minute step (12-hour convention).
+ * Returns null for times that don't land on a 5-minute boundary.
+ */
+export function dutchTimePhrase(h, m) {
+    const h12 = ((h % 12) + 12) % 12;
+    const next = (h12 + 1) % 12;
+    switch (m) {
+        case 0:  return `${hourName(h12)} uur`;
+        case 5:  return `vijf over ${hourName(h12)}`;
+        case 10: return `tien over ${hourName(h12)}`;
+        case 15: return `kwart over ${hourName(h12)}`;
+        case 20: return `tien voor half ${hourName(next)}`;
+        case 25: return `vijf voor half ${hourName(next)}`;
+        case 30: return `half ${hourName(next)}`;
+        case 35: return `vijf over half ${hourName(next)}`;
+        case 40: return `tien over half ${hourName(next)}`;
+        case 45: return `kwart voor ${hourName(next)}`;
+        case 50: return `tien voor ${hourName(next)}`;
+        case 55: return `vijf voor ${hourName(next)}`;
+        default: return null;
+    }
+}
+
+/**
+ * Build an option-list HTML string for multiple-choice exercises.
+ * Pairs with wireOptions(). labelFn provides button text; valueFn provides
+ * the encoded data-value (defaults to String).
+ */
+export function optionListHtml(options, labelFn, valueFn = String) {
+    const btns = options
+        .map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(valueFn(o))}">${escapeHtml(String(labelFn(o)))}</button>`)
+        .join('');
+    return `<div class="option-list" role="radiogroup">${btns}</div>`;
 }
 
 function uuid() {
