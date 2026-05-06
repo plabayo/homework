@@ -12,6 +12,37 @@
     gap: 8px;
     width: 100%;
 }
+/* Sign chip next to the answer field. Shows the current sign of the
+   typed number (`+` or `−`); tapping flips it. Only rendered when the
+   question's range allows negatives. */
+.sign-toggle {
+    flex: 0 0 auto;
+    width: 2.6em;
+    min-width: 2.6em;
+    height: 2.6em;
+    padding: 0;
+    font-weight: 800;
+    font-size: 1.6rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.sign-toggle[data-sign="+"] {
+    background: color-mix(in srgb, var(--good) 12%, var(--bg));
+    color: var(--good);
+    border-color: var(--good);
+}
+.sign-toggle[data-sign="-"] {
+    background: color-mix(in srgb, var(--bad) 12%, var(--bg));
+    color: var(--bad);
+    border-color: var(--bad);
+}
+.thermo-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
 .thermo {
     --tube-color: color-mix(in srgb, var(--fg) 35%, transparent);
     --tick-minor: color-mix(in srgb, var(--fg) 30%, transparent);

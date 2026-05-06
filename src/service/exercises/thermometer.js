@@ -235,17 +235,43 @@ runExercise({
             `;
             return attachInteractive(root, q);
         } else {
+            const allowNeg = q.vmin < 0;
+            // Mobile numeric keyboards don't have `-`, so when the answer
+            // can be negative we render an explicit sign chip on the left
+            // of the digit field. The chip shows the current sign of the
+            // answer (`+` or `−`) so the child literally reads how their
+            // number starts. Tapping toggles between the two.
+            const signBtn = allowNeg
+                ? `<button type="button" class="sign-toggle" id="answer-sign" aria-label="teken: positief of negatief" data-sign="+">+</button>`
+                : "";
+            const absMax = Math.max(Math.abs(q.vmin), Math.abs(q.vmax));
+            const hint = allowNeg
+                ? `<small class="thermo-hint">tik op het teken om te wisselen tussen <strong>+</strong> en <strong>−</strong></small>`
+                : "";
             root.innerHTML = `
                 <div class="thermo-wrap">
                     ${drawThermometer({ value: q.value, vmin: q.vmin, vmax: q.vmax, filled: true })}
                     <p class="thermo-input">
-                        <input inputmode="numeric" pattern="-?[0-9]+" id="answer" min="${q.vmin}" max="${q.vmax}" required>
+                        ${signBtn}
+                        <input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="${absMax}" required>
                         <span>℃</span>
                     </p>
+                    ${hint}
                 </div>
             `;
             const input = root.querySelector("#answer");
-            return () => input.value;
+            const sign = root.querySelector("#answer-sign");
+            sign?.addEventListener("click", () => {
+                const next = sign.dataset.sign === "+" ? "-" : "+";
+                sign.dataset.sign = next;
+                sign.textContent = next === "-" ? "−" : "+";
+                input.focus();
+            });
+            return () => {
+                if (input.value === "") return "";
+                const negative = sign?.dataset.sign === "-";
+                return (negative ? "-" : "") + input.value;
+            };
         }
     },
     isCorrect(q, given) {
