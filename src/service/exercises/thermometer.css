@@ -18,10 +18,11 @@
     --tick-major: color-mix(in srgb, var(--fg) 70%, transparent);
     --num-color: color-mix(in srgb, var(--fg) 80%, transparent);
     --liquid-color: #3b82f6;
-    width: 130px;
-    max-width: 65vw;
+    /* Width gated by viewport width AND height (the thermo is 2.4× as
+       tall as it is wide, so on a short viewport the height term wins
+       and shrinks the whole element). */
+    width: min(40vw, calc(60dvh / 2.4), 130px);
     aspect-ratio: 1 / 2.4;
-    max-height: 60vh;
     color: var(--fg);
     user-select: none;
 }
@@ -83,6 +84,6 @@
 }
 @media (min-width: 600px) {
     .thermo {
-        width: 150px;
+        width: min(30vw, calc(65dvh / 2.4), 150px);
     }
 }

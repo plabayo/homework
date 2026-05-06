@@ -100,14 +100,14 @@ pub fn exercise_scaffold(
             id = "page-exercises",
             hidden? = true,
             div!(
-                class = "button-row",
+                class = "exercise-meta",
                 button!(
                     r#type = "button",
                     class = "button-reset",
                     "begin opnieuw ↩️"
                 ),
+                p!(id = "exercise-title"),
             ),
-            p!(id = "exercise-title"),
             div!(
                 id = "exercise",
                 class = "box",
@@ -138,7 +138,7 @@ pub fn exercise_scaffold(
             id = "page-result",
             hidden? = true,
             div!(
-                class = "button-row",
+                class = "exercise-meta",
                 button!(
                     r#type = "button",
                     class = "button-reset",

@@ -276,11 +276,29 @@ input.bad {
 }
 #exercise {
     margin-block: 8px 0;
-    padding: calc(var(--space) * 1.25);
+    padding: var(--space);
 }
 #exercise-title {
     text-align: center;
     color: var(--muted);
+    margin: 0;
+}
+/* Single tight row at the top of the play / result page that holds the
+   "begin opnieuw" button and the "oefening N van M" label, so they don't
+   stack and eat ~80px of vertical space on a phone. */
+.exercise-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    flex-wrap: wrap;
+}
+.exercise-meta button {
+    flex: 0 0 auto;
+}
+.exercise-meta #exercise-title {
+    flex: 1 1 auto;
+    text-align: end;
 }
 #exercise-feedback {
     text-align: center;
@@ -295,8 +313,8 @@ input.bad {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    font-size: 1.4rem;
+    gap: 10px;
+    font-size: 1.25rem;
     margin-block: 4px;
     max-width: 100%;
 }
@@ -309,7 +327,7 @@ input.bad {
     margin: 0;
 }
 #exercise-content input {
-    font-size: 1.4rem;
+    font-size: 1.25rem;
     text-align: center;
     width: 4em;
     max-width: 6em;
@@ -675,7 +693,7 @@ body.is-offline .offline-banner {
     overflow: hidden;
 }
 #confetti[data-active="true"] {
-    height: 100vh;
+    height: 100dvh;
 }
 
 /* ---------- tablet upgrade ---------- */
@@ -685,6 +703,9 @@ body.is-offline .offline-banner {
     }
     .page-header h1 {
         font-size: 1.8rem;
+    }
+    #exercise {
+        padding: calc(var(--space) * 1.25);
     }
     #exercise-feedback {
         font-size: 1.2rem;

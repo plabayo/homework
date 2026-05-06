@@ -1,14 +1,18 @@
 .clock {
-    --clock-size: 240px;
+    /* Pick whichever is smallest of: 72% of viewport width, 50% of the
+       dynamic viewport height, and an absolute cap. That way a tall+narrow
+       phone clamps width, while a short/landscape viewport clamps height —
+       no max-width media query needed. */
+    --clock-size: min(72vw, 50dvh, 240px);
     width: var(--clock-size);
     aspect-ratio: 1;
     margin-inline: auto;
 }
 @media (min-width: 600px) {
-    .clock { --clock-size: 300px; }
+    .clock { --clock-size: min(55vw, 55dvh, 300px); }
 }
 @media (min-width: 960px) {
-    .clock { --clock-size: 340px; }
+    .clock { --clock-size: min(45vw, 60dvh, 340px); }
 }
 .clock svg { display: block; width: 100%; height: 100%; }
 .clock .face { fill: var(--paper); stroke: color-mix(in srgb, currentColor 70%, transparent); stroke-width: 1.4; }

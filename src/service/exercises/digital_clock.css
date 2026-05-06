@@ -1,10 +1,12 @@
 .dclock {
     font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
     font-weight: 700;
-    font-size: 3rem;
+    /* Scale the LED face with the viewport so HH:MM never overflows on
+       a 320-px-wide phone, while still looking large on tablets. */
+    font-size: clamp(2.2rem, 11vw, 3rem);
     background: #0a0a0a;
     color: #ff5151;
-    padding: 14px 22px;
+    padding: 12px 18px;
     border-radius: var(--radius);
     border: 2px solid var(--border);
     letter-spacing: 0.1em;
@@ -83,5 +85,5 @@
 }
 @media (min-width: 600px) {
     .option-list { grid-template-columns: 1fr 1fr; }
-    .dclock { font-size: 3.6rem; }
+    .dclock { font-size: clamp(3rem, 7vw, 3.6rem); padding: 14px 22px; }
 }
