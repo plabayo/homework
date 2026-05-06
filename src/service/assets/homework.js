@@ -699,8 +699,8 @@ export function runExercise(spec) {
         feedbackEl.classList.remove("is-bad");
         if (skipBtn) skipBtn.hidden = true;
 
-        // Clean up any lock state left over from a previous timed-out question.
-        contentEl.classList.remove("locked");
+        // Clean up any lock/animation state left over from a previous question.
+        contentEl.classList.remove("locked", "is-wrong", "question-enter");
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = false;
         document.getElementById("button-next")?.remove();
@@ -711,6 +711,9 @@ export function runExercise(spec) {
         state.getAnswer = spec.renderQuestion(state.currentQuestion, contentEl, {
             kind: "play",
         });
+        // Trigger entrance animation after content is in the DOM.
+        void contentEl.offsetWidth;
+        contentEl.classList.add("question-enter");
 
         startDeadline();
         updateClock();
@@ -776,7 +779,12 @@ export function runExercise(spec) {
         state.currentAttempts += 1;
         state.currentGiven = given;
         feedbackEl.textContent = `${randomAnimal()} probeer het nog eens.`;
+        // Remove then re-add so the animation re-fires on repeated wrong answers.
+        feedbackEl.classList.remove("is-bad");
+        contentEl.classList.remove("is-wrong", "question-enter");
+        void contentEl.offsetWidth; // one forced reflow re-arms both animations
         feedbackEl.classList.add("is-bad");
+        contentEl.classList.add("is-wrong");
         if (skipBtn) skipBtn.hidden = false;
     }
 
