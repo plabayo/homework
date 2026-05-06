@@ -4,11 +4,42 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use rama::error::BoxError;
+use support::a11y::check_a11y;
 use support::app::TestApp;
 use support::browser::BrowserHarness;
 use thirtyfour::prelude::{By, WebDriver, WebElement};
 
 type TestResult<T> = Result<T, BoxError>;
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn accessibility_on_key_pages() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Home page
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    check_a11y(driver).await?;
+
+    // Exercise setup form (multiplications — representative of all exercises)
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    check_a11y(driver).await?;
+
+    // Exercise play page
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    // Let the page-in animation (220 ms) finish before axe measures contrast ratios.
+    sleep(Duration::from_millis(300));
+    check_a11y(driver).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]

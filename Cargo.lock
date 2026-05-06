@@ -1098,6 +1098,7 @@ dependencies = [
  "jemallocator",
  "mimalloc",
  "rama",
+ "serde_json",
  "thirtyfour",
  "tokio",
  "vergen-gitcl",

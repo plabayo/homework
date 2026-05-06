@@ -1,6 +1,4 @@
-use rama::http::html::{
-    IntoHtml, button, div, fieldset, form, h3, input, label, legend, p, section,
-};
+use rama::http::html::{IntoHtml, button, div, fieldset, form, input, label, legend, p, section};
 
 pub mod clock;
 pub mod digital_clock;
@@ -161,7 +159,12 @@ pub fn exercise_scaffold(
             div!(
                 id = "exercise",
                 class = "box",
-                h3!(id = "exercise-feedback", " "),
+                p!(
+                    id = "exercise-feedback",
+                    role = "status",
+                    "aria-live" = "polite",
+                    " "
+                ),
                 form!(
                     id = "form-exercise",
                     action = "javascript:void(0)",

@@ -42,6 +42,7 @@ pub fn page(
     let og_url = format!("https://elementary.training{}", meta_data.og_path);
 
     html!(
+        lang = "nl",
         head!(
             meta!(charset = "UTF-8"),
             meta!(
@@ -78,7 +79,7 @@ pub fn page(
             },
         ),
         body!(
-            canvas!(id = "confetti"),
+            canvas!(id = "confetti", "aria-hidden" = "true"),
             div!(
                 class = "page",
                 div!(

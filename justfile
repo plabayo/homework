@@ -1,4 +1,4 @@
-set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-ExecutionPolicy", "Bypass", "-Command"]
 
 export RUSTFLAGS := "-D warnings"
 export RUSTDOCFLAGS := "-D rustdoc::broken-intra-doc-links"
@@ -30,6 +30,27 @@ test:
 
 test-e2e *ARGS:
 	cargo test --test e2e -- --ignored --test-threads=1 {{ARGS}}
+
+# Lighthouse accessibility audit — requires the server to be running (`just run` in another terminal)
+[unix]
+lighthouse URL="http://localhost:8080":
+	npx --yes lighthouse@12 {{URL}} \
+		--only-categories=accessibility \
+		--output=json \
+		--chrome-flags="--headless=new" \
+		--quiet \
+		| python3 -c "import json,sys; a=json.load(sys.stdin)['categories']['accessibility']; print('score:', a['score'], '('+a['title']+')')"
+
+[windows]
+lighthouse URL="http://localhost:8080":
+	$b = @( \
+	    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", \
+	    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", \
+	    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe" \
+	) | Where-Object { Test-Path $_ } | Select-Object -First 1; \
+	if (-not $b) { Write-Error 'No Chrome or Edge found'; exit 1 }; \
+	$r = npx --yes lighthouse@12 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
+	Write-Host "score: $($r.categories.accessibility.score) ($($r.categories.accessibility.title))"
 
 qq: lint check clippy doc
 

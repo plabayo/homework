@@ -515,6 +515,7 @@ export function runExercise(spec) {
     const errorEl = document.getElementById("config-error");
 
     const clockEl = document.getElementById("exercise-clock");
+    const exerciseEl = document.getElementById("exercise");
     const state = {
         config: null,
         deck: [],
@@ -535,6 +536,8 @@ export function runExercise(spec) {
         questionStartedAt: 0,
         sessionTimerHandle: null,
         deadlineTimerHandle: null,
+        // Consecutive first-try correct answers; drives the glow intensity.
+        streak: 0,
     };
 
     function timeModeOn() {
@@ -677,6 +680,7 @@ export function runExercise(spec) {
         state.startedAt = Date.now();
         state.sessionId = uuid();
         state.mode = mode || "normal";
+        state.streak = 0;
         // A "normal" session starts a fresh run; a "mistakes" session is a
         // continuation of the current run, so cycles accumulate.
         if (state.mode !== "mistakes") state.cycles = [];
@@ -710,6 +714,10 @@ export function runExercise(spec) {
         contentEl.innerHTML = "";
         state.getAnswer = spec.renderQuestion(state.currentQuestion, contentEl, {
             kind: "play",
+        });
+        // Label any unlabeled answer inputs so screen readers know their purpose.
+        contentEl.querySelectorAll('input:not([aria-label]):not([aria-labelledby])').forEach((input) => {
+            input.setAttribute('aria-label', 'jouw antwoord');
         });
         // Trigger entrance animation after content is in the DOM.
         void contentEl.offsetWidth;
@@ -751,6 +759,7 @@ export function runExercise(spec) {
             given: state.currentGiven,
             correct: false,
         });
+        state.streak = 0;
         contentEl.classList.add("locked");
         feedbackEl.textContent = "⏰ te traag";
         feedbackEl.classList.add("is-bad");
@@ -778,6 +787,7 @@ export function runExercise(spec) {
     function onWrongAttempt(given) {
         state.currentAttempts += 1;
         state.currentGiven = given;
+        state.streak = 0;
         feedbackEl.textContent = `${randomAnimal()} probeer het nog eens.`;
         // Remove then re-add so the animation re-fires on repeated wrong answers.
         feedbackEl.classList.remove("is-bad");
@@ -788,12 +798,30 @@ export function runExercise(spec) {
         if (skipBtn) skipBtn.hidden = false;
     }
 
+    // Brief green glow on the exercise card; intensity scales with streak.
+    function flashCorrect(streak) {
+        if (!exerciseEl) return;
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        exerciseEl.classList.remove("is-correct", "is-streak-mid", "is-streak-high");
+        void exerciseEl.offsetWidth;
+        exerciseEl.classList.add("is-correct");
+        if (streak >= 5) exerciseEl.classList.add("is-streak-high");
+        else if (streak >= 3) exerciseEl.classList.add("is-streak-mid");
+        setTimeout(() => {
+            exerciseEl.classList.remove("is-correct", "is-streak-mid", "is-streak-high");
+        }, 450);
+    }
+
     function onCorrect(given) {
         recordOutcome(true, given, false);
+        if (state.currentAttempts === 0) state.streak++;
+        else state.streak = 0;
+        flashCorrect(state.streak);
         nextQuestion();
     }
 
     function onSkip() {
+        state.streak = 0;
         recordOutcome(false, state.currentGiven, true);
         nextQuestion();
     }
