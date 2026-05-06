@@ -183,6 +183,11 @@ function clockSvg(h, m, opts) {
                 ${numbers.join('')}
                 <line class="hand-hour" x1="50" y1="50" x2="${hh.x2}" y2="${hh.y2}" />
                 <line class="hand-minute" x1="50" y1="50" x2="${mm.x2}" y2="${mm.y2}" />
+                ${interactive ? `
+                    <!-- Wider invisible hit-zones for grabbing each hand. -->
+                    <line class="hand-hit" data-hand="hour"   x1="50" y1="50" x2="${hh.x2}" y2="${hh.y2}" />
+                    <line class="hand-hit" data-hand="minute" x1="50" y1="50" x2="${mm.x2}" y2="${mm.y2}" />
+                ` : ''}
                 <circle class="pivot" cx="50" cy="50" r="2.5" />
             </svg>
         </div>
@@ -194,8 +199,12 @@ function attachInteractive(root, q) {
     const svg = wrap.querySelector('svg');
     const minHand = svg.querySelector('.hand-minute');
     const hourHand = svg.querySelector('.hand-hour');
+    const hitMin = svg.querySelector('.hand-hit[data-hand="minute"]');
+    const hitHour = svg.querySelector('.hand-hit[data-hand="hour"]');
     const minStep = GRAN[q.granularity] || 5;
-    const state = { h: 0, m: 0 };
+    // Start at 06:00 — both hands sit on the 12/6 axis but on opposite ends,
+    // so neither is hidden under the other and either can be grabbed.
+    const state = { h: 6, m: 0 };
 
     const set = (h, m) => {
         // wrap
@@ -206,15 +215,20 @@ function attachInteractive(root, q) {
         wrap.dataset.m = m;
         const minuteAngle = (m / 60) * 360;
         const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
-        const setHand = (el, deg, len) => {
+        const setHand = (els, deg, len) => {
             const a = (deg - 90) * Math.PI / 180;
-            el.setAttribute('x2', 50 + len * Math.cos(a));
-            el.setAttribute('y2', 50 + len * Math.sin(a));
+            const x2 = 50 + len * Math.cos(a);
+            const y2 = 50 + len * Math.sin(a);
+            for (const el of els) {
+                if (!el) continue;
+                el.setAttribute('x2', x2);
+                el.setAttribute('y2', y2);
+            }
         };
-        setHand(minHand, minuteAngle, 36);
-        setHand(hourHand, hourAngle, 24);
+        setHand([minHand, hitMin], minuteAngle, 36);
+        setHand([hourHand, hitHour], hourAngle, 24);
     };
-    set(0, 0);
+    set(state.h, state.m);
 
     const pointToTime = (clientX, clientY) => {
         const rect = svg.getBoundingClientRect();
@@ -233,8 +247,15 @@ function attachInteractive(root, q) {
     const onDown = (e) => {
         e.preventDefault();
         const t = e.target;
-        if (t.classList.contains('hand-hour')) dragging = 'hour';
-        else dragging = 'minute';
+        // The wide invisible hit-zones carry data-hand. Fall back to the
+        // visible hand class for a direct hit, otherwise default to the
+        // minute hand (most common case for free clicks on the face).
+        const hand =
+            (t.dataset && t.dataset.hand) ||
+            (t.classList && t.classList.contains('hand-hour') ? 'hour' :
+             t.classList && t.classList.contains('hand-minute') ? 'minute' :
+             null);
+        dragging = hand || 'minute';
         onMove(e);
     };
     const onMove = (e) => {

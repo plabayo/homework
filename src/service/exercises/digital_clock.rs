@@ -57,33 +57,39 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
             ),
         ),
         fieldset!(
-            legend!("Welke tijden oefen je?"),
+            legend!("Hoe nauwkeurig?"),
             label!(
-                input!(
-                    r#type = "checkbox",
-                    name = "kind",
-                    value = "uur",
-                    checked? = true
-                ),
+                input!(r#type = "radio", name = "granularity", value = "uur"),
                 " volle uren (5 uur)",
             ),
             label!(
-                input!(
-                    r#type = "checkbox",
-                    name = "kind",
-                    value = "half",
-                    checked? = true
-                ),
-                " halve uren (half 6)",
+                input!(r#type = "radio", name = "granularity", value = "half"),
+                " half uur (half 6)",
             ),
             label!(
                 input!(
-                    r#type = "checkbox",
-                    name = "kind",
+                    r#type = "radio",
+                    name = "granularity",
                     value = "kwart",
-                    checked? = true
+                    checked? = true,
                 ),
                 " kwartieren (kwart over / kwart voor)",
+            ),
+            label!(
+                input!(r#type = "radio", name = "granularity", value = "vijf"),
+                " vijf minuten (vijf over, tien voor half, …)",
+            ),
+        ),
+        fieldset!(
+            legend!("Tijdnotatie"),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    name = "use-24h",
+                    id = "use-24h",
+                    checked? = true,
+                ),
+                " ook 24-uurs notatie (14:30 = half drie 's middags)",
             ),
         ),
         fieldset!(

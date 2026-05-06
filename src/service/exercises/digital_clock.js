@@ -1,13 +1,20 @@
 import { runExercise, shuffle } from '/homework.js';
 
-// Dutch time expression utilities. We support these standard expressions:
-//   - "X uur"           for HH:00
-//   - "kwart over X"    for HH:15
-//   - "half (X+1)"      for HH:30
-//   - "kwart voor (X+1)"for HH:45
+// Dutch time expression utilities. Covers every 5-minute step that has a
+// standard Flemish/Dutch idiom:
 //
-// (5/10/20/25 minute expressions like "tien voor half drie" are intentionally
-// left out for simplicity — they can be added later as a harder mode.)
+//   :00  X uur
+//   :05  vijf over X
+//   :10  tien over X
+//   :15  kwart over X
+//   :20  tien voor half (X+1)
+//   :25  vijf voor half (X+1)
+//   :30  half (X+1)
+//   :35  vijf over half (X+1)
+//   :40  tien over half (X+1)
+//   :45  kwart voor (X+1)
+//   :50  tien voor (X+1)
+//   :55  vijf voor (X+1)
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -17,27 +24,51 @@ function hourName(h) {
 }
 
 function digitalLabel(h, m) {
-    const hh = h === 0 ? 12 : h;
-    return `${pad(hh)}:${pad(m)}`;
+    // h is the raw hour we generated. In 12-hour mode we render h=0 as 12;
+    // in 24-hour mode we keep the literal 0..23 so the LED display reads
+    // 14:30 for "half drie 's middags".
+    if (h >= 13) return `${pad(h)}:${pad(m)}`;
+    if (h === 0) return `12:${pad(m)}`;
+    return `${pad(h)}:${pad(m)}`;
 }
 
 function dutchPhrase(h, m) {
-    if (m === 0) return `${hourName(h)} uur`;
-    if (m === 15) return `kwart over ${hourName(h)}`;
-    if (m === 30) return `half ${hourName(h + 1)}`;
-    if (m === 45) return `kwart voor ${hourName(h + 1)}`;
-    return null;
+    // Dutch time expressions are 12-hour by convention — 14:30 is still
+    // "half drie", just in the afternoon. So we mod-12 before naming.
+    const h12 = ((h % 12) + 12) % 12;
+    const next = (h12 + 1) % 12;
+    switch (m) {
+        case 0:  return `${hourName(h12)} uur`;
+        case 5:  return `vijf over ${hourName(h12)}`;
+        case 10: return `tien over ${hourName(h12)}`;
+        case 15: return `kwart over ${hourName(h12)}`;
+        case 20: return `tien voor half ${hourName(next)}`;
+        case 25: return `vijf voor half ${hourName(next)}`;
+        case 30: return `half ${hourName(next)}`;
+        case 35: return `vijf over half ${hourName(next)}`;
+        case 40: return `tien over half ${hourName(next)}`;
+        case 45: return `kwart voor ${hourName(next)}`;
+        case 50: return `tien voor ${hourName(next)}`;
+        case 55: return `vijf voor ${hourName(next)}`;
+        default: return null;
+    }
+}
+
+function minutesForGranularity(granularity) {
+    switch (granularity) {
+        case "uur":   return [0];
+        case "half":  return [0, 30];
+        case "kwart": return [0, 15, 30, 45];
+        case "vijf":  return [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+        default:      return [0, 15, 30, 45];
+    }
 }
 
 function buildDeck(cfg) {
-    // Allowed minutes per granularity setting (mirrors what dutchPhrase covers)
-    const minutes = [];
-    if (cfg.kinds.includes('uur')) minutes.push(0);
-    if (cfg.kinds.includes('half')) minutes.push(30);
-    if (cfg.kinds.includes('kwart')) minutes.push(15, 45);
-
+    const minutes = minutesForGranularity(cfg.granularity);
+    const hourMax = cfg.use24h ? 24 : 12;
     const candidates = [];
-    for (let h = 0; h < 12; h++) {
+    for (let h = 0; h < hourMax; h++) {
         for (const m of minutes) candidates.push({ h, m });
     }
     shuffle(candidates);
@@ -46,6 +77,8 @@ function buildDeck(cfg) {
         // direction: 'digital-to-words' or 'words-to-digital'
         dir: cfg.directions[Math.floor(Math.random() * cfg.directions.length)],
         answerMode: cfg.answerMode || 'multiple',
+        use24h: !!cfg.use24h,
+        granularity: cfg.granularity,
         h, m,
     }));
 }
@@ -60,24 +93,31 @@ function normalizePhrase(s) {
 }
 
 function buildDistractors(q, n) {
-    // Generate plausible wrong options around q.
+    // Plausible wrong options. We keep distractors in the same half-day as
+    // the question (AM or PM in 24h mode) so a 14:30 question doesn't get
+    // a 02:30 sibling shown — that's not a "wrong answer" since it's the
+    // same Dutch phrase; it would just confuse the kid.
+    const minutes = minutesForGranularity(q.granularity);
+    const hourMax = q.use24h ? 24 : 12;
+    const hourBase = q.use24h && q.h >= 12 ? 12 : 0;
+    const wrap = (h) =>
+        q.use24h
+            ? (((h - hourBase) % 12) + 12) % 12 + hourBase
+            : ((h % 12) + 12) % 12;
     const taken = new Set();
-    const correct = JSON.stringify({ h: q.h, m: q.m });
-    taken.add(correct);
-    const out = [];
+    taken.add(`${q.h % 12}:${q.m}`); // exclude same-phrase too
     const variants = [];
-    for (let dh = -2; dh <= 2; dh++) {
-        for (const dm of [-30, -15, 0, 15, 30, 45]) {
-            const h = ((q.h + dh) % 12 + 12) % 12;
-            let m = q.m + dm;
-            if (m < 0 || m > 45) continue;
-            if (![0, 15, 30, 45].includes(m)) continue;
+    for (let dh = -3; dh <= 3; dh++) {
+        for (const m of minutes) {
+            const h = wrap(q.h + dh);
+            if (h >= hourMax) continue;
             variants.push({ h, m });
         }
     }
     shuffle(variants);
+    const out = [];
     for (const v of variants) {
-        const key = JSON.stringify(v);
+        const key = `${v.h % 12}:${v.m}`;
         if (taken.has(key)) continue;
         taken.add(key);
         out.push(v);
@@ -91,10 +131,9 @@ runExercise({
     label: 'digitale klok',
     loadConfig(form, saved) {
         if (saved.numExercises) form.elements['num-exercises'].value = saved.numExercises;
-        if (Array.isArray(saved.kinds)) {
-            form.querySelectorAll('input[name=kind]').forEach((cb) => {
-                cb.checked = saved.kinds.includes(cb.value);
-            });
+        if (saved.granularity) {
+            const r = form.querySelector(`input[name=granularity][value="${saved.granularity}"]`);
+            if (r) r.checked = true;
         }
         if (Array.isArray(saved.directions)) {
             form.querySelectorAll('input[name=dir]').forEach((cb) => {
@@ -105,19 +144,22 @@ runExercise({
             const r = form.querySelector(`input[name=answer][value="${saved.answerMode}"]`);
             if (r) r.checked = true;
         }
+        if (typeof saved.use24h === 'boolean') {
+            const cb = form.elements['use-24h'];
+            if (cb) cb.checked = saved.use24h;
+        }
     },
     readConfig(form) {
         const numExercises = Number(form.elements['num-exercises'].value);
-        const kinds = [];
-        form.querySelectorAll('input[name=kind]:checked').forEach((cb) => kinds.push(cb.value));
+        const granularity = (form.querySelector('input[name=granularity]:checked') || {}).value || 'kwart';
         const directions = [];
         form.querySelectorAll('input[name=dir]:checked').forEach((cb) => directions.push(cb.value));
         const answerMode = (form.querySelector('input[name=answer]:checked') || {}).value || 'multiple';
-        return { numExercises, kinds, directions, answerMode };
+        const use24h = !!form.elements['use-24h']?.checked;
+        return { numExercises, granularity, directions, answerMode, use24h };
     },
     validateConfig(cfg) {
         if (!cfg.numExercises || cfg.numExercises < 1) return 'Geef een geldig aantal oefeningen op.';
-        if (!cfg.kinds.length) return 'Kies minstens één soort tijd.';
         if (!cfg.directions.length) return 'Kies minstens één oefen-richting.';
         return null;
     },
@@ -209,13 +251,20 @@ runExercise({
     isCorrect(q, given) {
         if (!given) return false;
         if (q.dir === 'digital-to-words') {
-            // Both multiple-choice (full phrase) and fill-in (typed phrase)
-            // funnel through here as a string. Normalize both before compare.
             return normalizePhrase(given) === normalizePhrase(dutchPhrase(q.h, q.m));
         }
         try {
             const obj = JSON.parse(given);
-            return Number(obj.h) === q.h && Number(obj.m) === q.m;
+            const h = Number(obj.h);
+            const m = Number(obj.m);
+            // For multiple choice we generated only same-half-day distractors,
+            // so a strict match works. For fill-in we accept any hour that
+            // shares the question's mod-12 (so "half drie" → 02:30 and 14:30
+            // are both fine), since both genuinely describe the same phrase.
+            if (q.answerMode === 'fill') {
+                return h % 12 === q.h % 12 && m === q.m;
+            }
+            return h === q.h && m === q.m;
         } catch {
             return false;
         }
@@ -223,6 +272,9 @@ runExercise({
     describe(q) {
         const dt = digitalLabel(q.h, q.m);
         const phrase = dutchPhrase(q.h, q.m);
-        return q.dir === 'digital-to-words' ? `${dt} → ${phrase}` : `${phrase} → ${dt}`;
+        const dayPart = q.use24h && q.h >= 12 ? " ('s middags)" : "";
+        return q.dir === 'digital-to-words'
+            ? `${dt} → ${phrase}${dayPart}`
+            : `${phrase}${dayPart} → ${dt}`;
     },
 });

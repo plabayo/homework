@@ -97,19 +97,22 @@ async function listSessions(exerciseId, limit = 20) {
 }
 
 async function recentMistakes(exerciseId, limit = 30) {
-    // Include both real "fouts" (final answer wrong / skipped) and "trickies"
-    // (eventually correct but only after one or more wrong attempts) — both
-    // benefit from being practised again.
+    // A question counts as a "recent mistake" if its MOST RECENT encounter
+    // was a mistake — either wrong/skipped, or correct but only after one
+    // or more wrong attempts. Once the child has answered it cleanly (correct
+    // on the first try) it drops out of the deck, even if it was a mistake
+    // long ago. listSessions returns newest-first, so the first encounter
+    // of a question key wins.
     const sessions = await listSessions(exerciseId, 25);
     const mistakes = [];
     const seen = new Set();
     for (const s of sessions) {
         for (const item of s.questions || []) {
-            const isMistake = !item.correct || (item.attempts || 0) > 0;
-            if (!isMistake) continue;
             const key = JSON.stringify(item.question);
             if (seen.has(key)) continue;
             seen.add(key);
+            const isMistake = !item.correct || (item.attempts || 0) > 0;
+            if (!isMistake) continue;
             mistakes.push(item.question);
             if (mistakes.length >= limit) return mistakes;
         }
@@ -213,6 +216,75 @@ function registerServiceWorker() {
     navigator.serviceWorker
         .register("/service-worker.js")
         .catch((err) => console.warn("sw register failed", err));
+}
+
+// ---------- mistake picker dialog ----------
+
+/**
+ * Show a modal picker so the user can curate which recent mistakes to
+ * actually practise. By default everything is selected. Returns the
+ * filtered question list, or null if the user cancelled.
+ */
+function pickMistakes(spec, mistakes) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement("dialog");
+        dlg.className = "mistake-picker";
+        const items = mistakes
+            .map((q, i) => {
+                const desc = spec.describe
+                    ? spec.describe(q)
+                    : JSON.stringify(q);
+                return `<li><label><input type="checkbox" data-i="${i}" checked> ${escapeHtml(desc)}</label></li>`;
+            })
+            .join("");
+        dlg.innerHTML = `
+            <form method="dialog" class="mistake-picker-form">
+                <h2>Welke fouten herhalen?</h2>
+                <p class="muted">${mistakes.length} oefening${mistakes.length === 1 ? "" : "en"} — vink uit wat je niet wil.</p>
+                <label class="all-toggle"><input type="checkbox" id="picker-all" checked> alles in/uit</label>
+                <ul class="picker-list">${items}</ul>
+                <div class="button-row">
+                    <button type="submit" value="cancel">annuleer</button>
+                    <button type="submit" class="primary" value="start" id="picker-start">🟢 start</button>
+                </div>
+            </form>
+        `;
+        document.body.appendChild(dlg);
+        const list = dlg.querySelectorAll("input[data-i]");
+        const all = dlg.querySelector("#picker-all");
+        const startBtn = dlg.querySelector("#picker-start");
+        const syncStartEnabled = () => {
+            startBtn.disabled = !Array.from(list).some((cb) => cb.checked);
+        };
+        all.addEventListener("change", () => {
+            list.forEach((cb) => (cb.checked = all.checked));
+            syncStartEnabled();
+        });
+        list.forEach((cb) =>
+            cb.addEventListener("change", () => {
+                all.checked = Array.from(list).every((c) => c.checked);
+                syncStartEnabled();
+            }),
+        );
+        dlg.addEventListener("close", () => {
+            const action = dlg.returnValue;
+            const selected = [];
+            list.forEach((cb) => {
+                if (cb.checked) selected.push(mistakes[Number(cb.dataset.i)]);
+            });
+            dlg.remove();
+            resolve(action === "start" ? selected : null);
+        });
+        if (typeof dlg.showModal === "function") {
+            dlg.showModal();
+        } else {
+            // Fallback: synthesise a non-modal show; resolve immediately if
+            // <dialog> is not supported (very old browsers) — we just run
+            // with the full list.
+            dlg.remove();
+            resolve(mistakes.slice());
+        }
+    });
 }
 
 // ---------- result page helpers ----------
@@ -611,8 +683,10 @@ export function runExercise(spec) {
             }
             return;
         }
+        const picked = await pickMistakes(spec, mistakes);
+        if (!picked || picked.length === 0) return;
         const cfg = spec.readConfig(formSetup);
-        startSession(shuffle(mistakes.slice()), cfg, "mistakes");
+        startSession(shuffle(picked.slice()), cfg, "mistakes");
     });
 
     loadSavedConfig();

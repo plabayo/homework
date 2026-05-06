@@ -33,6 +33,17 @@
     stroke-width: 1.8;
     stroke-linecap: round;
 }
+/* Invisible thicker overlay used purely for hit testing — much easier
+   to grab a hand with a finger or imprecise click than the 1.8/2.2-unit
+   visible strokes. */
+.clock .hand-hit {
+    stroke: transparent;
+    stroke-width: 9;
+    stroke-linecap: round;
+    pointer-events: stroke;
+    cursor: grab;
+}
+.clock.interactive:active .hand-hit { cursor: grabbing; }
 .clock .pivot { fill: var(--accent); }
 .clock.interactive { user-select: none; touch-action: none; cursor: grab; }
 .clock.interactive:active { cursor: grabbing; }
