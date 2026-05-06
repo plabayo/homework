@@ -334,18 +334,16 @@ function renderTrickyList(session) {
             ? escapeHtml(q.label)
             : escapeHtml(JSON.stringify(q.question));
         if (kind === "wrong") {
-            const attempts =
-                q.attempts > 0
-                    ? ` · ${q.attempts}× verkeerd geprobeerd`
-                    : "";
-            const reason = q.timedOut
-                ? " · ⏰ te traag"
-                : q.skipped
-                  ? " · overgeslagen"
-                  : "";
-            return `<li><span class="badge bad">fout</span> ${desc}${attempts}${reason}</li>`;
+            const metaParts = [];
+            if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
+            if (q.timedOut) metaParts.push("⏰ te traag");
+            else if (q.skipped) metaParts.push("overgeslagen");
+            const metaLine = metaParts.length
+                ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
+                : "";
+            return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
         }
-        return `<li><span class="badge tricky">${q.attempts}× fout vooraf</span> ${desc}</li>`;
+        return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
     };
     const items = [
         ...wrong.map((q) => li(q, "wrong")),
@@ -725,19 +723,11 @@ export function runExercise(spec) {
             ${headline}
             <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
             ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
-            ${trickyList}
             <div class="result-actions">
                 ${reviewable ? `<button type="button" class="primary" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
                 <button type="button" class="button-reset">🆕 nieuwe oefening</button>
             </div>
-            ${reviewable ? `
-                <h3 class="section-title">${randomAnimal()} bekijk goed</h3>
-                <div class="button-pair">
-                    <button type="button" id="review-button-back">⬅️ vorige</button>
-                    <button type="button" id="review-button-next">volgende ➡️</button>
-                </div>
-                <div id="review"></div>
-            ` : ""}
+            ${trickyList}
         `;
         resultEl.innerHTML = html;
 
@@ -754,43 +744,12 @@ export function runExercise(spec) {
         if (confetti) setConfettiActive(score === total && total > 0);
 
         if (!reviewable) return;
-        let idx = 0;
-        const reviewEl = document.getElementById("review");
-        const backBtn = document.getElementById("review-button-back");
-        const nextBtn = document.getElementById("review-button-next");
-        const repeatBtn = document.getElementById("review-button-repeat");
 
-        function renderItem() {
-            const item = wrong[idx];
-            reviewEl.innerHTML = "";
-            const root = document.createElement("div");
-            root.className = "box exercise-feedback";
-            spec.renderQuestion(item.question, root, {
-                kind: "review",
-                given: item.given,
-                correct: false,
-            });
-            reviewEl.appendChild(root);
-            backBtn.disabled = idx === 0;
-            nextBtn.disabled = idx === wrong.length - 1;
-        }
-        backBtn.addEventListener("click", () => {
-            if (idx > 0) {
-                idx -= 1;
-                renderItem();
-            }
-        });
-        nextBtn.addEventListener("click", () => {
-            if (idx < wrong.length - 1) {
-                idx += 1;
-                renderItem();
-            }
-        });
+        const repeatBtn = document.getElementById("review-button-repeat");
         repeatBtn?.addEventListener("click", () => {
             const deck = shuffle(wrong.map((w) => w.question));
             startSession(deck, state.config, "mistakes");
         });
-        renderItem();
     }
 
     // --- form wiring ---
@@ -911,64 +870,45 @@ async function setupHistoryView() {
                 const tricky = questions.filter(
                     (q) => q.correct && q.attempts > 0,
                 );
-                let summary;
-                if (wrong.length === 0 && tricky.length === 0) {
-                    summary = "✨ alles vlekkeloos";
-                } else {
-                    const parts = [];
-                    if (wrong.length > 0) {
-                        parts.push(
-                            `${wrong.length} fout${wrong.length === 1 ? "" : "en"}`,
-                        );
-                    }
-                    if (tricky.length > 0) {
-                        parts.push(
-                            `${tricky.length} moeilijk${tricky.length === 1 ? "" : "e"}`,
-                        );
-                    }
-                    summary = parts.join(" · ");
-                }
+                const hasMistakes = wrong.length > 0 || tricky.length > 0;
                 const itemHtml = (q, kind) => {
                     const desc = q.label
                         ? escapeHtml(q.label)
                         : escapeHtml(JSON.stringify(q.question));
                     if (kind === "wrong") {
-                        const attempts =
-                            q.attempts > 0
-                                ? ` · ${q.attempts}× verkeerd geprobeerd`
-                                : "";
-                        const reason = q.timedOut
-                            ? " · ⏰ te traag"
-                            : q.skipped
-                              ? " · overgeslagen"
-                              : "";
-                        return `<li><span class="badge bad">fout</span> ${desc}${attempts}${reason}</li>`;
+                        const metaParts = [];
+                        if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
+                        if (q.timedOut) metaParts.push("⏰ te traag");
+                        else if (q.skipped) metaParts.push("overgeslagen");
+                        const metaLine = metaParts.length
+                            ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
+                            : "";
+                        return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
                     }
-                    return `<li><span class="badge tricky">${q.attempts}× fout vooraf</span> ${desc}</li>`;
+                    return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
                 };
                 const items = [
                     ...wrong.map((q) => itemHtml(q, "wrong")),
                     ...tricky.map((q) => itemHtml(q, "tricky")),
                 ].join("");
-                const timeMeta = [];
+
+                const scoreParts = [`${s.correct} / ${s.total}`];
                 if (s.timeMode && s.durationMs)
-                    timeMeta.push(`⏱️ ${formatMillis(s.durationMs)}`);
+                    scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
                 if (s.config?.deadlineSeconds)
-                    timeMeta.push(`⏰ ${s.config.deadlineSeconds}s`);
-                if (s.mode === "mistakes") timeMeta.push("foutenmodus");
-                const metaSuffix = timeMeta.length
-                    ? ` · ${timeMeta.join(" · ")}`
-                    : "";
+                    scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
+                if (s.mode === "mistakes") scoreParts.push("foutenmodus");
+
                 return `
                     <article class="history-session">
                         <div class="history-session-header">
                             <span>${formatDate(s.finishedAt || s.startedAt)}</span>
-                            <span>${s.correct} / ${s.total}${metaSuffix}</span>
+                            <span>${scoreParts.join(" · ")}</span>
                         </div>
-                        <div class="history-mistakes">
-                            <div>${summary}</div>
-                            ${items ? `<ul>${items}</ul>` : ""}
-                        </div>
+                        ${hasMistakes
+                            ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
+                            : `<p class="history-perfect">✨ alles vlekkeloos</p>`
+                        }
                     </article>
                 `;
             })
