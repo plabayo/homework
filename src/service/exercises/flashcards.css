@@ -305,13 +305,17 @@
 #card-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.9rem;
 }
 
 .card-row {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem 0.55rem;
+    background: color-mix(in srgb, currentColor 2%, transparent);
 }
 
 .card-row-main {
@@ -831,6 +835,18 @@
     .result-detail-list li.item-lenient {
         border-left-color: #a78bfa;
     }
+}
+
+/* ---------- Deck-item highlight (after save / import) ---------- */
+
+@keyframes fc-deck-new {
+    0%   { box-shadow: 0 0 0 3px #2d6cdf; }
+    65%  { box-shadow: 0 0 0 3px #2d6cdf; }
+    100% { box-shadow: none; }
+}
+
+.deck-item-new {
+    animation: fc-deck-new 1.4s ease-out forwards;
 }
 
 /* ---------- Card wave animation ---------- */

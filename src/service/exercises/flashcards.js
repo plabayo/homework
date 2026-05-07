@@ -222,6 +222,31 @@ function deckMode(deck) {
     return deck.cards.some((c) => c.back) ? "two-sided" : "one-sided";
 }
 
+// Canonical JSON key for comparing deck *content* independent of ID / createdAt /
+// editor-only fields such as thumbUrl.  Two decks with the same key are identical.
+function deckContentKey(deck) {
+    return JSON.stringify({
+        name: (deck.name || "").trim(),
+        mode: deck.mode === "one-sided" ? "one-sided" : "two-sided",
+        bidirectional: deck.bidirectional === true,
+        cards: (deck.cards || []).map((c) => {
+            if (c.wikimedia) {
+                const card = { wikimedia: c.wikimedia.trim() };
+                if (c.back) card.back = c.back;
+                if (c.hint) card.hint = c.hint;
+                return card;
+            }
+            const card = { front: c.front };
+            if (c.back) card.back = c.back;
+            if (c.parts) card.parts = c.parts;
+            if (c.partsRequired != null) card.partsRequired = c.partsRequired;
+            if (c.hint) card.hint = c.hint;
+            if (c.hintReverse) card.hintReverse = c.hintReverse;
+            return card;
+        }),
+    });
+}
+
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -442,7 +467,8 @@ let managerRoot = null;
 let hiddenDeckInput = null;
 let selectedDeckId = null;
 let editorState = null; // null | { mode: 'new' } | { mode: 'edit', id: string }
-let importPending = null; // { name, cards } | null
+let importPending = null; // { name, cards, _conflictId? } | null
+let _highlightNewDeck = false; // true → animate selected deck item on next renderList()
 
 function renderManager() {
     if (!managerRoot) return;
@@ -508,6 +534,18 @@ function renderList() {
     document.getElementById("page-setup")?.removeAttribute("data-editing");
 
     managerRoot.innerHTML = html;
+
+    // Briefly highlight the deck that was just saved / imported.
+    if (_highlightNewDeck && selectedDeckId) {
+        const item = managerRoot.querySelector(`[data-deck-id="${selectedDeckId}"]`);
+        if (item) {
+            // Force a reflow before adding the class so the animation always starts fresh.
+            void item.offsetWidth;
+            item.classList.add("deck-item-new");
+        }
+        _highlightNewDeck = false;
+    }
+
     managerRoot.querySelectorAll("[data-action]").forEach((el) => {
         el.addEventListener("click", handleDeckAction);
     });
@@ -1077,6 +1115,7 @@ function saveDeckFromEditor(existingId) {
     selectedDeckId = savedId;
     if (hiddenDeckInput) hiddenDeckInput.value = savedId;
     editorState = null;
+    _highlightNewDeck = true;
     renderManager();
 }
 
@@ -1122,6 +1161,64 @@ function showToast(message) {
 
 // ---------- Import view ----------
 
+// Shared save logic used by both the normal confirm and the conflict resolution buttons.
+// `name` is the final deck name; `replaceId` (optional) replaces an existing deck.
+async function doImport(name, replaceId) {
+    const deck = importPending;
+    const isTwo = deckMode(deck) === "two-sided";
+    const imageCount = deck.cards.filter((c) => c.wikimedia).length;
+
+    // Disable all action buttons in the import box while saving.
+    managerRoot.querySelectorAll(".fc-import-box button").forEach((b) => { b.disabled = true; });
+    if (imageCount > 0) {
+        const primary = managerRoot.querySelector(".fc-import-box .primary");
+        if (primary) primary.textContent = "⏳ Afbeeldingen laden…";
+    }
+
+    const decks = loadDecks();
+    let id;
+    if (replaceId) {
+        const idx = decks.findIndex((d) => d.id === replaceId);
+        if (idx >= 0) {
+            decks[idx] = {
+                ...decks[idx],
+                name,
+                mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
+                bidirectional: deck.bidirectional || false,
+                cards: deck.cards,
+            };
+            id = replaceId;
+        }
+    }
+    if (!id) {
+        id = generateId();
+        decks.push({
+            id,
+            name,
+            mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
+            bidirectional: deck.bidirectional || false,
+            cards: deck.cards,
+            createdAt: Date.now(),
+        });
+    }
+    saveDecks(decks);
+    selectedDeckId = id;
+    if (hiddenDeckInput) hiddenDeckInput.value = id;
+    importPending = null;
+    history.replaceState({}, "", location.pathname);
+
+    if (imageCount > 0) {
+        const { failed } = await wmPreloadDeck({ cards: deck.cards });
+        showToast(failed.length > 0
+            ? `Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`
+            : `Deck "${name}" is geïmporteerd! 🎉`);
+    } else {
+        showToast(`Deck "${name}" is geïmporteerd! 🎉`);
+    }
+    _highlightNewDeck = true;
+    renderManager();
+}
+
 function renderImport() {
     // Hide the start button, time-mode fieldset, and history while importing.
     document.getElementById("page-setup")?.setAttribute("data-editing", "");
@@ -1130,58 +1227,62 @@ function renderImport() {
     const isTwo = deckMode(deck) === "two-sided";
     const isBidir = isTwo && deck.bidirectional;
     const count = deck.cards.length;
-    const imageCount = deck.cards.filter(c => c.wikimedia).length;
+    const imageCount = deck.cards.filter((c) => c.wikimedia).length;
     const modeLabel = !isTwo ? "uit het hoofd" : isBidir ? "twee richtingen" : "voor-achterkant";
     const imageNote = imageCount > 0 ? ` · ${imageCount} afbeelding${imageCount === 1 ? "" : "en"}` : "";
-
-    managerRoot.innerHTML = `
-        <div class="fc-import-box">
-            <h3>Deck importeren?</h3>
-            <p>Je hebt een gedeeld deck ontvangen:</p>
-            <div class="deck-preview">
-                <strong>${escapeHtml(deck.name)}</strong>
-                <span>${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}${imageNote}</span>
-            </div>
-            ${imageCount > 0 ? `<p class="fc-import-image-note">📥 Afbeeldingen worden na import automatisch gedownload.</p>` : ""}
-            <div class="button-row">
-                <button type="button" id="fc-confirm-import" class="primary">📥 Importeer dit deck</button>
-                <button type="button" id="fc-cancel-import">Annuleer</button>
-            </div>
+    const imageNoteParagraph = imageCount > 0
+        ? `<p class="fc-import-image-note">📥 Afbeeldingen worden na import automatisch gedownload.</p>`
+        : "";
+    const deckPreview = `
+        <div class="deck-preview">
+            <strong>${escapeHtml(deck.name)}</strong>
+            <span>${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}${imageNote}</span>
         </div>`;
 
-    managerRoot.querySelector("#fc-confirm-import").addEventListener("click", async (e) => {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        if (imageCount > 0) btn.textContent = "⏳ Afbeeldingen laden…";
+    const hasConflict = !!deck._conflictId;
 
-        const decks = loadDecks();
-        const id = generateId();
-        decks.push({
-            id,
-            name: deck.name,
-            mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
-            bidirectional: deck.bidirectional || false,
-            cards: deck.cards,
-            createdAt: Date.now(),
+    if (hasConflict) {
+        managerRoot.innerHTML = `
+            <div class="fc-import-box">
+                <h3>Deck al aanwezig</h3>
+                <p>Je hebt al een deck genaamd <strong>${escapeHtml(deck.name)}</strong>, maar de inhoud verschilt. Kies wat je wil doen:</p>
+                ${deckPreview}
+                ${imageNoteParagraph}
+                <div class="field">
+                    <label for="fc-import-name">Naam voor nieuw deck</label>
+                    <input type="text" id="fc-import-name" value="${escapeHtml(deck.name)}" autocomplete="off">
+                </div>
+                <div class="button-row">
+                    <button type="button" id="fc-overwrite-import" class="primary">♻️ Overschrijf bestaand</button>
+                    <button type="button" id="fc-saveas-import">💾 Opslaan als nieuw</button>
+                    <button type="button" id="fc-cancel-import">Annuleer</button>
+                </div>
+            </div>`;
+
+        managerRoot.querySelector("#fc-overwrite-import").addEventListener("click", () => {
+            doImport(deck.name, deck._conflictId);
         });
-        saveDecks(decks);
-        selectedDeckId = id;
-        if (hiddenDeckInput) hiddenDeckInput.value = id;
-        importPending = null;
-        history.replaceState({}, "", location.pathname);
+        managerRoot.querySelector("#fc-saveas-import").addEventListener("click", () => {
+            const name = (managerRoot.querySelector("#fc-import-name")?.value || "").trim() || deck.name;
+            doImport(name, null);
+        });
+    } else {
+        managerRoot.innerHTML = `
+            <div class="fc-import-box">
+                <h3>Deck importeren?</h3>
+                <p>Je hebt een gedeeld deck ontvangen:</p>
+                ${deckPreview}
+                ${imageNoteParagraph}
+                <div class="button-row">
+                    <button type="button" id="fc-confirm-import" class="primary">📥 Importeer dit deck</button>
+                    <button type="button" id="fc-cancel-import">Annuleer</button>
+                </div>
+            </div>`;
 
-        if (imageCount > 0) {
-            const { failed } = await wmPreloadDeck({ cards: deck.cards });
-            if (failed.length > 0) {
-                showToast(`Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`);
-            } else {
-                showToast(`Deck "${deck.name}" is geïmporteerd! 🎉`);
-            }
-        } else {
-            showToast(`Deck "${deck.name}" is geïmporteerd! 🎉`);
-        }
-        renderManager();
-    });
+        managerRoot.querySelector("#fc-confirm-import").addEventListener("click", () => {
+            doImport(deck.name, null);
+        });
+    }
 
     managerRoot.querySelector("#fc-cancel-import").addEventListener("click", () => {
         importPending = null;
@@ -1197,6 +1298,17 @@ async function initManager() {
     hiddenDeckInput = document.getElementById("selected-deck-id");
     if (!managerRoot) return;
 
+    // While the editor or import UI is open the outer #form-setup submit button
+    // is hidden via CSS, but browsers still fire implicit form submission when
+    // the user presses Enter inside a text input.  Block that here so editing a
+    // card name never accidentally starts a new exercise session.
+    managerRoot.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" || e.target.tagName === "TEXTAREA") return;
+        if (managerRoot.querySelector(".deck-editor, .fc-import-box")) {
+            e.preventDefault();
+        }
+    });
+
     ensureExamples();
 
     const importParam = new URLSearchParams(location.search).get("import");
@@ -1204,18 +1316,19 @@ async function initManager() {
         try {
             const data = await decodeDeckParam(importParam);
             history.replaceState({}, "", location.pathname);
-            const existing = loadDecks().find(
-                (d) =>
-                    d.name === data.name &&
-                    d.cards.length === data.cards.length &&
-                    d.cards[0]?.front === data.cards[0]?.front,
-            );
-            if (existing) {
-                selectedDeckId = existing.id;
-                if (hiddenDeckInput) hiddenDeckInput.value = existing.id;
+            const incomingKey = deckContentKey(data);
+            const decks = loadDecks();
+            const exactMatch = decks.find((d) => deckContentKey(d) === incomingKey);
+            if (exactMatch) {
+                // Identical content already in collection — just select it.
+                selectedDeckId = exactMatch.id;
+                if (hiddenDeckInput) hiddenDeckInput.value = exactMatch.id;
                 showToast("Dit deck staat al in je collectie! ✅");
             } else {
-                importPending = data;
+                const nameConflict = decks.find((d) => d.name.trim() === data.name.trim());
+                // Store conflict id on the pending object so renderImport() can offer
+                // overwrite vs. save-as-new options.
+                importPending = nameConflict ? { ...data, _conflictId: nameConflict.id } : data;
             }
         } catch (e) {
             console.warn("Import decode failed", e);

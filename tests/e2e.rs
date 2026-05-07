@@ -296,30 +296,33 @@ async fn inject_deck_json(driver: &WebDriver, deck_json: &str) -> TestResult<()>
 /// Use the browser's native CompressionStream to encode a deck the same way
 /// flashcards.js does, and return the resulting URL `?import=…` parameter value.
 async fn generate_import_param(driver: &WebDriver) -> TestResult<String> {
-    let result = driver
-        .execute_async(
-            r#"
-            const done = arguments[arguments.length - 1];
-            const deck = {
-                name: "Gedeeld deck",
-                mode: "two-sided",
-                bidirectional: false,
-                cards: [{front: "huis", back: "maison"}]
-            };
-            const json = JSON.stringify(deck);
-            const cs = new CompressionStream("deflate-raw");
-            const writer = cs.writable.getWriter();
-            writer.write(new TextEncoder().encode(json));
-            writer.close();
-            new Response(cs.readable).arrayBuffer().then(buf => {
-                let bin = "";
-                for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
-                done(btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, ""));
-            });
-            "#,
-            vec![],
-        )
-        .await?;
+    encode_deck_for_import(
+        driver,
+        r#"{name:"Gedeeld deck",mode:"two-sided",bidirectional:false,cards:[{front:"huis",back:"maison"}]}"#,
+    )
+    .await
+}
+
+/// Encode an arbitrary deck JS literal (not JSON — property names need no quotes in JS)
+/// via the browser's CompressionStream, matching flashcards.js's `encodeDeck`.
+async fn encode_deck_for_import(driver: &WebDriver, deck_js: &str) -> TestResult<String> {
+    let script = format!(
+        r#"
+        const done = arguments[arguments.length - 1];
+        const deck = {deck_js};
+        const json = JSON.stringify(deck);
+        const cs = new CompressionStream("deflate-raw");
+        const writer = cs.writable.getWriter();
+        writer.write(new TextEncoder().encode(json));
+        writer.close();
+        new Response(cs.readable).arrayBuffer().then(buf => {{
+            let bin = "";
+            for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+            done(btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, ""));
+        }});
+        "#
+    );
+    let result = driver.execute_async(&script, vec![]).await?;
     Ok(result.json().as_str().unwrap_or("").to_owned())
 }
 
@@ -652,6 +655,139 @@ async fn flashcards_import_via_url_is_client_side() -> TestResult<()> {
     // Confirm import and verify the deck is now selected.
     click(driver, "#fc-confirm-import").await?;
     wait_for_css(driver, ".deck-item.selected", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_import_exact_duplicate_selects_existing() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Pre-inject a deck whose content exactly matches what generate_import_param encodes.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-dup","name":"Gedeeld deck","mode":"two-sided","bidirectional":false,
+            "cards":[{"front":"huis","back":"maison"}],"createdAt":1}"#,
+    )
+    .await?;
+
+    let param = generate_import_param(driver).await?;
+    driver
+        .goto(app.url(&format!("/extra/flashcards?import={param}")))
+        .await?;
+
+    // No import dialog should appear: content is identical, so the existing deck
+    // is auto-selected with a toast instead.
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-dup'].selected",
+        Duration::from_secs(10),
+    )
+    .await?;
+    let import_boxes = driver.find_all(By::Css(".fc-import-box")).await?;
+    assert!(
+        import_boxes.is_empty(),
+        "import dialog must not appear for a deck with identical content"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_import_name_conflict_overwrite() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Pre-inject a deck with the same name but different cards.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-conf-ow","name":"Gedeeld deck","mode":"two-sided","bidirectional":false,
+            "cards":[{"front":"chat","back":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+
+    let param = generate_import_param(driver).await?;
+    driver
+        .goto(app.url(&format!("/extra/flashcards?import={param}")))
+        .await?;
+
+    // The conflict UI must appear with both resolution buttons.
+    wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
+    wait_for_css(driver, "#fc-overwrite-import", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#fc-saveas-import", Duration::from_secs(5)).await?;
+
+    // Click overwrite — the existing deck entry is replaced in-place.
+    click(driver, "#fc-overwrite-import").await?;
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-conf-ow'].selected",
+        Duration::from_secs(10),
+    )
+    .await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_import_name_conflict_save_as_new() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Pre-inject a deck with the same name but different cards.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-conf-new","name":"Gedeeld deck","mode":"two-sided","bidirectional":false,
+            "cards":[{"front":"chat","back":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+
+    let param = generate_import_param(driver).await?;
+    driver
+        .goto(app.url(&format!("/extra/flashcards?import={param}")))
+        .await?;
+
+    // The conflict UI must appear.
+    wait_for_css(driver, "#fc-saveas-import", Duration::from_secs(10)).await?;
+    wait_for_css(driver, "#fc-import-name", Duration::from_secs(5)).await?;
+
+    // Change the proposed name and save as a new deck.
+    set_input_value(driver, "#fc-import-name", "Gedeeld deck (kopie)").await?;
+    click(driver, "#fc-saveas-import").await?;
+
+    // The newly created deck (with the renamed title) must be selected.
+    wait_for_css(driver, ".deck-item.selected", Duration::from_secs(10)).await?;
+    let selected_name = text_of(driver, ".deck-item.selected .deck-name").await?;
+    assert_eq!(
+        selected_name, "Gedeeld deck (kopie)",
+        "the new deck must carry the user-supplied name"
+    );
+
+    // The original conflicting deck must still be present in the list.
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-conf-new']",
+        Duration::from_secs(5),
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())
