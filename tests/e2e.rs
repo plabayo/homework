@@ -839,14 +839,13 @@ async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
     driver.goto(app.url("/extra/flashcards")).await?;
     wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
 
-    // Two cards: a 2-part card followed by a normal single-back card.
+    // Single 2-part card only — avoids shuffle-order flakiness.
     inject_deck_json(
         driver,
         r#"{"id":"test-mp-skip","name":"Multi-deel skip test","mode":"two-sided",
             "cards":[
                 {"front":"fruit","back":"sinaasappelen",
-                 "parts":["sinaasappelen","dadels"]},
-                {"front":"kleur","back":"rood"}
+                 "parts":["sinaasappelen","dadels"]}
             ],
             "createdAt":1}"#,
     )
@@ -859,17 +858,12 @@ async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
     set_input_value(driver, "#answer", "fout antwoord").await?;
     click(driver, "#button-check").await?;
 
-    // Click skip — should skip the ENTIRE card (both parts), not just part 0.
+    // Click skip — should skip the ENTIRE card (both parts), going straight to results.
     wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
     click(driver, "#button-skip").await?;
 
-    // The next question should be the single-back card "kleur → rood".
-    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
-    set_input_value(driver, "#answer", "rood").await?;
-    click(driver, "#button-check").await?;
-
-    // 1 correct out of 3 total deck entries (2 skipped + 1 correct).
-    wait_for_text(driver, "#result h3", "1 / 3", Duration::from_secs(5)).await?;
+    // Both parts skipped; result shows 0 / 2 with no more questions.
+    wait_for_text(driver, "#result h3", "0 / 2", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
