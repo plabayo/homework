@@ -43,6 +43,58 @@ function fuzzyEqual(given, expected) {
     return levenshtein(a, b) <= tolerance;
 }
 
+// ---------- Phrase fuzzy matching (multi-part answers) ----------
+
+// Dutch stopwords to skip when checking content-word coverage of a phrase.
+const PHRASE_STOPWORDS = new Set([
+    "van", "de", "het", "een", "en", "in", "op", "of", "met", "te",
+    "aan", "bij", "tot", "voor", "door", "als", "die", "dat", "om",
+    "er", "zijn", "naar", "dan", "nog", "al", "zo", "af", "uit",
+    "is", "was", "waren", "heeft", "hebben", "had", "worden", "je", "ze", "we",
+]);
+
+// Accept a given phrase for an expected multi-word answer.
+// First tries exact/Levenshtein fuzzy on the whole phrase; if that fails,
+// checks that ≥60% of content words (non-stopwords) are fuzzily present.
+function fuzzyMatchPhrase(given, expected) {
+    if (fuzzyEqual(given, expected)) return true;
+    const bWords = normalize(expected).split(" ").filter((w) => w.length > 0);
+    const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
+    if (contentWords.length === 0) return false;
+    const aWords = normalize(given).split(" ").filter((w) => w.length > 0);
+    let matched = 0;
+    for (const cw of contentWords) {
+        if (aWords.some((aw) => fuzzyEqual(aw, cw))) matched++;
+    }
+    return matched / contentWords.length >= 0.6;
+}
+
+// Split raw input into individual answer tokens on comma, semicolon, slash,
+// newline, or the word " en " — for "all at once" multi-part detection.
+function splitAnswerTokens(raw) {
+    return raw
+        .split(/[,;\n/]|\ben\b/i)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+}
+
+// Try to match one or more tokens from `given` against unmatched parts.
+// Returns a Set of newly matched part strings.
+function tryMatchParts(given, allParts, alreadyMatched) {
+    const tokens = splitAnswerTokens(given);
+    const newlyMatched = new Set();
+    const remaining = allParts.filter((p) => !alreadyMatched.has(p));
+    for (const token of tokens) {
+        for (const part of remaining) {
+            if (!newlyMatched.has(part) && fuzzyMatchPhrase(token, part)) {
+                newlyMatched.add(part);
+                break;
+            }
+        }
+    }
+    return newlyMatched;
+}
+
 // ---------- Storage ----------
 
 const STORAGE_KEY = "homework_flashcard_decks";
@@ -98,7 +150,12 @@ async function decompress(bytes) {
 }
 
 async function encodeDeck(deck) {
-    const json = JSON.stringify({ name: deck.name, cards: deck.cards });
+    const json = JSON.stringify({
+        name: deck.name,
+        mode: deck.mode,
+        bidirectional: deck.bidirectional || false,
+        cards: deck.cards,
+    });
     const buf = await compress(json);
     let bin = "";
     for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
@@ -190,7 +247,8 @@ function renderList() {
     } else {
         html += `<ul class="deck-list" role="list">`;
         for (const deck of decks) {
-            const modeLabel = deckMode(deck) === "two-sided" ? "voor-achterkant" : "uit het hoofd";
+            const isTwo = deckMode(deck) === "two-sided";
+            const modeLabel = !isTwo ? "uit het hoofd" : deck.bidirectional ? "twee richtingen" : "voor-achterkant";
             const count = deck.cards.length;
             const sel = deck.id === selectedDeckId;
             html += `<li class="deck-item${sel ? " selected" : ""}" data-deck-id="${escapeHtml(deck.id)}">
@@ -303,23 +361,60 @@ function handleDeckAction(e) {
 
 // ---------- Deck editor view ----------
 
-function cardRowHtml(card, i, isTwoSided) {
+function cardRowHtml(card, i, isTwoSided, isBidirectional) {
+    const hintVal = escapeHtml(card?.hint || "");
+    const hintRevVal = escapeHtml(card?.hintReverse || "");
+    const rawParts = card?.parts || (card?.back ? [card.back] : []);
+    const backVal = escapeHtml(rawParts.join("\n"));
+    const partsCount = rawParts.length;
+    const hasMinRequired = partsCount > 1 && card?.partsRequired != null && card.partsRequired < partsCount;
+    const minRequiredVal = hasMinRequired ? card.partsRequired : partsCount;
     return `
         <div class="card-row" data-index="${i}">
-            <div class="card-fields${isTwoSided ? "" : " one-sided"}">
-                <div class="card-field">
-                    <label for="card-front-${i}">Voorkant</label>
-                    <input type="text" id="card-front-${i}" class="card-front"
-                        value="${escapeHtml(card?.front || "")}" placeholder="Tekst op de voorkant" autocomplete="off">
+            <div class="card-row-main">
+                <div class="card-fields${isTwoSided ? "" : " one-sided"}">
+                    <div class="card-field">
+                        <label for="card-front-${i}">Voorkant</label>
+                        <input type="text" id="card-front-${i}" class="card-front"
+                            value="${escapeHtml(card?.front || "")}" placeholder="Tekst op de voorkant" autocomplete="off">
+                    </div>
+                    <div class="card-field card-back-field">
+                        <label for="card-back-${i}">Achterkant <span class="optional">(één per regel)</span></label>
+                        <textarea id="card-back-${i}" class="card-back" rows="2" wrap="off"
+                            placeholder="Antwoord — meerdere regels = meerdere onderdelen"
+                            autocomplete="off">${backVal}</textarea>
+                        <div class="card-parts-required"${partsCount > 1 ? "" : " hidden"}>
+                            <label class="fc-parts-min-label">
+                                <input type="checkbox" class="card-parts-min-check"${hasMinRequired ? " checked" : ""}>
+                                Minimaal:
+                                <input type="number" class="card-parts-min-count" min="1"
+                                    max="${partsCount}" value="${minRequiredVal}"${hasMinRequired ? "" : " disabled"}>
+                                van <span class="card-parts-total">${partsCount}</span> onderdelen
+                            </label>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-field card-back-field">
-                    <label for="card-back-${i}">Achterkant</label>
-                    <input type="text" id="card-back-${i}" class="card-back"
-                        value="${escapeHtml(card?.back || "")}" placeholder="Tekst op de achterkant" autocomplete="off">
+                <button type="button" class="fc-btn-sm fc-btn-delete" data-action="remove-card"
+                    data-index="${i}" aria-label="Verwijder kaart ${i + 1}">🗑️</button>
+            </div>
+            <div class="card-hints"${isTwoSided ? "" : " hidden"}>
+                <div class="card-hint-row">
+                    <label class="fc-hint-label">
+                        <input type="checkbox" class="card-hint-check" data-dir="fwd"${card?.hint ? " checked" : ""}>
+                        ? hint
+                    </label>
+                    <input type="text" class="card-hint-input" data-dir="fwd"
+                        value="${hintVal}" placeholder="hint voor de achterkant…"${card?.hint ? "" : " hidden"}>
+                </div>
+                <div class="card-hint-row card-hint-row-reverse"${isBidirectional ? "" : " hidden"}>
+                    <label class="fc-hint-label">
+                        <input type="checkbox" class="card-hint-check" data-dir="bwd"${card?.hintReverse ? " checked" : ""}>
+                        ? hint (omgekeerd)
+                    </label>
+                    <input type="text" class="card-hint-input" data-dir="bwd"
+                        value="${hintRevVal}" placeholder="hint voor de voorkant…"${card?.hintReverse ? "" : " hidden"}>
                 </div>
             </div>
-            <button type="button" class="fc-btn-sm fc-btn-delete" data-action="remove-card"
-                data-index="${i}" aria-label="Verwijder kaart ${i + 1}">🗑️</button>
         </div>`;
 }
 
@@ -339,8 +434,9 @@ function renderEditor() {
 
     const currentMode = deckMode(deck);
     const isTwoSided = currentMode === "two-sided";
+    const isBidirectional = isTwoSided && deck.bidirectional === true;
     const title = editorState.mode === "new" ? "Nieuw deck" : "Deck bewerken";
-    const cardsHtml = deck.cards.map((card, i) => cardRowHtml(card, i, isTwoSided)).join("");
+    const cardsHtml = deck.cards.map((card, i) => cardRowHtml(card, i, isTwoSided, isBidirectional)).join("");
 
     managerRoot.innerHTML = `
         <div class="deck-editor">
@@ -360,6 +456,12 @@ function renderEditor() {
                     <input type="radio" name="deck-type" value="two-sided"${isTwoSided ? " checked" : ""}>
                     Koppelen — voorkant + achterkant
                 </label>
+                <div id="fc-bidir-option" class="fc-bidir-option${isTwoSided ? "" : " hidden"}">
+                    <label class="fc-mode-radio">
+                        <input type="checkbox" id="deck-bidirectional"${isBidirectional ? " checked" : ""}>
+                        Twee richtingen (ook achterkant → voorkant)
+                    </label>
+                </div>
             </fieldset>
             <div id="card-list">${cardsHtml}</div>
             <div class="button-row">
@@ -371,15 +473,20 @@ function renderEditor() {
             </div>
         </div>`;
 
-    // Toggle back fields when mode radio changes.
+    // Toggle back fields, bidir option and hint rows when mode radio changes.
     managerRoot.querySelectorAll("input[name='deck-type']").forEach((radio) => {
         radio.addEventListener("change", () => {
             const twoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']").checked;
             managerRoot.querySelectorAll(".card-fields").forEach((cf) => {
                 cf.classList.toggle("one-sided", !twoSided);
             });
+            managerRoot.querySelector("#fc-bidir-option")?.classList.toggle("hidden", !twoSided);
+            syncCardHints();
         });
     });
+
+    // Toggle reverse-hint rows when bidirectional checkbox changes.
+    managerRoot.querySelector("#deck-bidirectional")?.addEventListener("change", syncCardHints);
 
     managerRoot.querySelector("#fc-add-card").addEventListener("click", addCardRow);
     managerRoot.querySelector("#fc-save-deck").addEventListener("click", () =>
@@ -390,6 +497,8 @@ function renderEditor() {
         renderManager();
     });
     bindRemoveButtons();
+    bindHintCheckboxes();
+    managerRoot.querySelectorAll(".card-row").forEach(bindCardPartHandlers);
 
     const nameInput = managerRoot.querySelector("#deck-name-input");
     if (!nameInput.value) {
@@ -397,6 +506,75 @@ function renderEditor() {
     } else {
         const emptyFront = managerRoot.querySelector(".card-front");
         if (emptyFront && !emptyFront.value) emptyFront.focus();
+    }
+}
+
+// Show/hide hint rows based on current deck-type and bidirectional state.
+function syncCardHints() {
+    const isTwoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
+    const isBidir = isTwoSided && managerRoot.querySelector("#deck-bidirectional")?.checked;
+    managerRoot.querySelectorAll(".card-hints").forEach((h) => { h.hidden = !isTwoSided; });
+    managerRoot.querySelectorAll(".card-hint-row-reverse").forEach((row) => { row.hidden = !isBidir; });
+}
+
+// Wire hint checkboxes so they show/hide their text input.
+function bindHintCheckboxes() {
+    managerRoot.querySelectorAll(".card-hint-check").forEach((cb) => {
+        const hintRow = cb.closest(".card-hint-row");
+        const input = hintRow?.querySelector(".card-hint-input");
+        if (!input) return;
+        cb.addEventListener("change", () => {
+            input.hidden = !cb.checked;
+            if (cb.checked) input.focus();
+        });
+    });
+}
+
+function autoResizeTextarea(ta) {
+    // Vertical: collapse then expand to content.
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+
+    // Horizontal: with wrap="off", scrollWidth reflects true content width.
+    // If it overflows the current column, switch the card-fields grid to a single
+    // full-width column so the back field can take the whole row ("plop down").
+    const cardFields = ta.closest(".card-fields");
+    if (!cardFields) return;
+    cardFields.classList.remove("wide-back"); // reset to measure at half-width
+    if (ta.scrollWidth > ta.clientWidth) {
+        cardFields.classList.add("wide-back");
+    }
+}
+
+// Wire the textarea back field so it auto-resizes and the parts-required section
+// shows/hides automatically as the user adds or removes lines.
+function bindCardPartHandlers(row) {
+    const textarea = row.querySelector(".card-back");
+    const reqDiv = row.querySelector(".card-parts-required");
+    if (!textarea || !reqDiv) return;
+    const minCheck = row.querySelector(".card-parts-min-check");
+    const minCount = row.querySelector(".card-parts-min-count");
+    const totalSpan = row.querySelector(".card-parts-total");
+
+    const syncPartsUI = () => {
+        autoResizeTextarea(textarea);
+        const parts = textarea.value.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+        const n = parts.length;
+        reqDiv.hidden = n <= 1;
+        if (totalSpan) totalSpan.textContent = n;
+        if (minCount) {
+            minCount.max = n;
+            if (Number(minCount.value) > n) minCount.value = n;
+        }
+    };
+    textarea.addEventListener("input", syncPartsUI);
+    autoResizeTextarea(textarea); // set initial height to fit existing content
+
+    if (minCheck && minCount) {
+        minCheck.addEventListener("change", () => {
+            minCount.disabled = !minCheck.checked;
+            if (minCheck.checked) minCount.focus();
+        });
     }
 }
 
@@ -410,13 +588,24 @@ function addCardRow() {
     const list = managerRoot.querySelector("#card-list");
     const i = list.querySelectorAll(".card-row").length;
     const isTwoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
+    const isBidirectional = isTwoSided && managerRoot.querySelector("#deck-bidirectional")?.checked;
     const div = document.createElement("div");
-    div.innerHTML = cardRowHtml(null, i, isTwoSided);
+    div.innerHTML = cardRowHtml(null, i, isTwoSided, isBidirectional);
     const row = div.firstElementChild;
     row.querySelector("[data-action='remove-card']").addEventListener("click", () =>
         removeCardRow(i),
     );
+    row.querySelectorAll(".card-hint-check").forEach((cb) => {
+        const hintRow = cb.closest(".card-hint-row");
+        const input = hintRow?.querySelector(".card-hint-input");
+        if (!input) return;
+        cb.addEventListener("change", () => {
+            input.hidden = !cb.checked;
+            if (cb.checked) input.focus();
+        });
+    });
     list.appendChild(row);
+    bindCardPartHandlers(row);
     row.querySelector(".card-front").focus();
 }
 
@@ -448,18 +637,56 @@ function saveDeckFromEditor(existingId) {
 
     const isTwoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
     const mode = isTwoSided ? "two-sided" : "one-sided";
+    const isBidirectional = isTwoSided && managerRoot.querySelector("#deck-bidirectional")?.checked;
 
     const cards = [];
+    let hintErrorInput = null;
     managerRoot.querySelectorAll(".card-row").forEach((row) => {
+        if (hintErrorInput) return;
         const front = row.querySelector(".card-front")?.value.trim();
         if (!front) return;
+        const card = { front };
         if (isTwoSided) {
-            const back = row.querySelector(".card-back")?.value.trim();
-            cards.push(back ? { front, back } : { front });
-        } else {
-            cards.push({ front });
+            const backRaw = row.querySelector(".card-back")?.value || "";
+            const parts = backRaw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+            if (parts.length > 1) {
+                card.parts = parts;
+                card.back = parts[0]; // backward compat fallback
+                const minCheck = row.querySelector(".card-parts-min-check");
+                if (minCheck?.checked) {
+                    const minVal = Number(row.querySelector(".card-parts-min-count")?.value) || parts.length;
+                    card.partsRequired = Math.min(Math.max(1, minVal), parts.length);
+                }
+            } else if (parts.length === 1) {
+                card.back = parts[0];
+            }
+
+            const hintCheck = row.querySelector(".card-hint-check[data-dir='fwd']");
+            const hintInput = row.querySelector(".card-hint-input[data-dir='fwd']");
+            if (hintCheck?.checked) {
+                const val = hintInput?.value.trim();
+                if (!val) { hintErrorInput = hintInput; return; }
+                card.hint = val;
+            }
+
+            if (isBidirectional) {
+                const hintRevCheck = row.querySelector(".card-hint-check[data-dir='bwd']");
+                const hintRevInput = row.querySelector(".card-hint-input[data-dir='bwd']");
+                if (hintRevCheck?.checked) {
+                    const val = hintRevInput?.value.trim();
+                    if (!val) { hintErrorInput = hintRevInput; return; }
+                    card.hintReverse = val;
+                }
+            }
         }
+        cards.push(card);
     });
+
+    if (hintErrorInput) {
+        alert("Vul de hint tekst in, of verwijder het vinkje.");
+        hintErrorInput.focus();
+        return;
+    }
 
     if (cards.length === 0) {
         alert("Een deck moet minstens één kaart hebben met een voorkant.");
@@ -471,13 +698,13 @@ function saveDeckFromEditor(existingId) {
     if (existingId) {
         const idx = decks.findIndex((d) => d.id === existingId);
         if (idx >= 0) {
-            decks[idx] = { ...decks[idx], name, mode, cards };
+            decks[idx] = { ...decks[idx], name, mode, bidirectional: isBidirectional, cards };
             savedId = existingId;
         }
     }
     if (!savedId) {
         savedId = generateId();
-        decks.push({ id: savedId, name, mode, cards, createdAt: Date.now() });
+        decks.push({ id: savedId, name, mode, bidirectional: isBidirectional, cards, createdAt: Date.now() });
     }
     saveDecks(decks);
 
@@ -534,8 +761,10 @@ function renderImport() {
     document.getElementById("page-setup")?.setAttribute("data-editing", "");
 
     const deck = importPending;
-    const hasBack = deck.cards.some((c) => c.back);
+    const isTwo = deck.cards.some((c) => c.back) || deck.mode === "two-sided";
+    const isBidir = isTwo && deck.bidirectional;
     const count = deck.cards.length;
+    const modeLabel = !isTwo ? "uit het hoofd" : isBidir ? "twee richtingen" : "voor-achterkant";
 
     managerRoot.innerHTML = `
         <div class="fc-import-box">
@@ -543,7 +772,7 @@ function renderImport() {
             <p>Je hebt een gedeeld deck ontvangen:</p>
             <div class="deck-preview">
                 <strong>${escapeHtml(deck.name)}</strong>
-                <span>${count} kaart${count === 1 ? "" : "en"} · ${hasBack ? "voor-achterkant" : "uit het hoofd"}</span>
+                <span>${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}</span>
             </div>
             <div class="button-row">
                 <button type="button" id="fc-confirm-import" class="primary">📥 Importeer dit deck</button>
@@ -554,7 +783,14 @@ function renderImport() {
     managerRoot.querySelector("#fc-confirm-import").addEventListener("click", () => {
         const decks = loadDecks();
         const id = generateId();
-        decks.push({ id, name: deck.name, cards: deck.cards, createdAt: Date.now() });
+        decks.push({
+            id,
+            name: deck.name,
+            mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
+            bidirectional: deck.bidirectional || false,
+            cards: deck.cards,
+            createdAt: Date.now(),
+        });
         saveDecks(decks);
         selectedDeckId = id;
         if (hiddenDeckInput) hiddenDeckInput.value = id;
@@ -705,6 +941,79 @@ function renderFillInReview(q, root, correct) {
     root.innerHTML = html;
 }
 
+// ---------- Multi-part question renderer ----------
+
+function renderMultiPartQuestion(q, root, mode) {
+    const { allParts, sharedState, requiredCount } = q;
+    const matched = sharedState.matched;
+    const skipBtn = document.getElementById("button-skip");
+    const checkBtn = document.getElementById("button-check");
+
+    // Review mode: show all parts with matched/missed status.
+    if (mode.kind === "review") {
+        const partsHtml = allParts
+            .map((p) => {
+                const ok = matched.has(p);
+                return `<div class="mp-part ${ok ? "mp-matched" : "mp-missed"}">${ok ? "✅" : "❌"} ${escapeHtml(p)}</div>`;
+            })
+            .join("");
+        const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
+        root.innerHTML = `
+            <div class="flash-review">
+                <div class="flash-side flash-front-side">
+                    <span class="flash-side-label">${shownLabel}</span>
+                    <p class="flash-text">${escapeHtml(q.front)}</p>
+                </div>
+                <div class="flash-side flash-back-side">
+                    <span class="flash-side-label">onderdelen</span>
+                    <div class="mp-parts-list">${partsHtml}</div>
+                    <p class="mp-required-label">${matched.size}/${requiredCount} gevonden</p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    // Already satisfied from a prior "all at once" answer — auto-advance.
+    if (matched.size >= requiredCount) {
+        root.innerHTML = `
+            <div class="flash-question">
+                <p class="flash-text">${escapeHtml(q.front)}</p>
+                <p class="fc-mp-done">✅ onderdelen gevonden</p>
+            </div>`;
+        if (skipBtn) skipBtn.hidden = true;
+        setTimeout(() => document.getElementById("form-exercise")?.requestSubmit(), 200);
+        return () => "__matched__";
+    }
+
+    // Normal play: show already-matched parts and an input for the next one.
+    if (skipBtn) skipBtn.hidden = true;
+    if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
+
+    const matchedHtml = [...matched]
+        .map((p) => `<div class="mp-part mp-matched">✅ ${escapeHtml(p)}</div>`)
+        .join("");
+
+    root.innerHTML = `
+        <div class="flash-question">
+            <p class="flash-text">${escapeHtml(q.front)}</p>
+            ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
+            <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+            <p class="fc-mp-progress">${matched.size}/${requiredCount} gevonden</p>
+            ${matchedHtml}
+            <input type="text" id="answer" autocomplete="off"
+                placeholder="geef een onderdeel…" aria-label="jouw antwoord">
+        </div>`;
+
+    root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
+        const hintText = root.querySelector(".fc-hint-text");
+        if (hintText) hintText.hidden = !hintText.hidden;
+    });
+
+    const input = root.querySelector("#answer");
+    input?.focus();
+    return () => input?.value ?? "";
+}
+
 // ---------- Exercise spec ----------
 
 runExercise({
@@ -756,10 +1065,35 @@ runExercise({
         const isOneSided = deckMode(deck) === "one-sided";
 
         if (!isOneSided) {
-            // Two-sided: shuffle and return cards directly.
-            const shuffled = cards.map((c) => ({ front: c.front, back: c.back }));
-            shuffle(shuffled);
-            return shuffled;
+            // Two-sided: create per-card groups (multi-part cards → N entries sharing state),
+            // shuffle the groups so a multi-part card's entries stay consecutive.
+            const isBidirectional = deck.bidirectional === true;
+            const cardGroups = cards.map((c) => {
+                if (isBidirectional && Math.random() < 0.5) {
+                    // Backward: show back (or first part), expect front.
+                    return [{ front: c.back || (c.parts?.[0] ?? ""), back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
+                }
+                // Forward direction — check for multi-part.
+                const isMultiPart = c.parts && c.parts.length > 1;
+                if (isMultiPart) {
+                    const requiredCount = c.partsRequired != null
+                        ? Math.min(Math.max(1, c.partsRequired), c.parts.length)
+                        : c.parts.length;
+                    const sharedState = { matched: new Set() };
+                    return Array.from({ length: requiredCount }, (_, pi) => ({
+                        front: c.front,
+                        allParts: c.parts,
+                        requiredCount,
+                        sharedState,
+                        partIndex: pi,
+                        hint: c.hint || null,
+                        direction: "fwd",
+                    }));
+                }
+                return [{ front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
+            });
+            shuffle(cardGroups);
+            return cardGroups.flat();
         }
 
         // One-sided fill-in mode.
@@ -789,6 +1123,9 @@ runExercise({
     },
 
     renderQuestion(q, root, mode) {
+        // Multi-part two-sided question — delegate entirely.
+        if (q.allParts) return renderMultiPartQuestion(q, root, mode);
+
         const isTwoSided = !!q.back;
         const skipBtn = document.getElementById("button-skip");
         const checkBtn = document.getElementById("button-check");
@@ -800,14 +1137,17 @@ runExercise({
                 return;
             }
             if (isTwoSided) {
+                // For bidirectional cards, show labels that reflect which side was asked.
+                const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
+                const answerLabel = q.direction === "bwd" ? "voorkant" : "achterkant";
                 root.innerHTML = `
                     <div class="flash-review">
                         <div class="flash-side flash-front-side">
-                            <span class="flash-side-label">voorkant</span>
+                            <span class="flash-side-label">${shownLabel}</span>
                             <p class="flash-text">${escapeHtml(q.front)}</p>
                         </div>
                         <div class="flash-side flash-back-side">
-                            <span class="flash-side-label">achterkant</span>
+                            <span class="flash-side-label">${answerLabel}</span>
                             <p class="flash-text">${escapeHtml(q.back)}</p>
                         </div>
                     </div>`;
@@ -829,16 +1169,33 @@ runExercise({
         root.innerHTML = `
             <div class="flash-question">
                 <p class="flash-text">${escapeHtml(q.front)}</p>
+                ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
+                <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
                 <input type="text" id="answer" autocomplete="off"
                     placeholder="jouw antwoord…" aria-label="jouw antwoord">
             </div>`;
         if (skipBtn) skipBtn.hidden = true;
         if (checkBtn) checkBtn.textContent = "👉 antwoord";
+        root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
+            const hintText = root.querySelector(".fc-hint-text");
+            if (hintText) hintText.hidden = !hintText.hidden;
+        });
         const input = root.querySelector("#answer");
         return () => input.value;
     },
 
     isCorrect(q, given) {
+        // Multi-part: match against unmatched parts (all-at-once detection via splitAnswerTokens).
+        if (q.allParts) {
+            if (given === "__matched__") return q.sharedState.matched.size >= q.requiredCount;
+            const { sharedState, allParts } = q;
+            const newlyMatched = tryMatchParts(given, allParts, sharedState.matched);
+            if (newlyMatched.size > 0) {
+                for (const p of newlyMatched) sharedState.matched.add(p);
+                return true;
+            }
+            return false;
+        }
         if (!q.back && q.allCards) {
             // Order-independent: accept if the answer matches any remaining unmatched blank.
             for (const idx of q.blankIndices) {
@@ -857,6 +1214,7 @@ runExercise({
     },
 
     describe(q) {
+        if (q.allParts) return `${q.front} → [${q.allParts.join(" / ")}]`;
         return q.back ? `${q.front} → ${q.back}` : q.front;
     },
 });

@@ -45,6 +45,17 @@ fn detect_browser() -> Option<BrowserKind> {
     // Edge ships with every Windows install — let managed() find/download msedgedriver.
     #[cfg(windows)]
     return Some(BrowserKind::Edge);
+    // On macOS Chrome and Firefox are often installed without their driver in PATH.
+    // WebDriver::managed() auto-downloads the matching driver binary.
+    #[cfg(target_os = "macos")]
+    {
+        if std::path::Path::new("/Applications/Google Chrome.app").exists() {
+            return Some(BrowserKind::Chrome);
+        }
+        if std::path::Path::new("/Applications/Firefox.app").exists() {
+            return Some(BrowserKind::Firefox);
+        }
+    }
     None
 }
 

@@ -148,6 +148,12 @@
 
 .card-row {
     display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.card-row-main {
+    display: flex;
     align-items: flex-start;
     gap: 0.5rem;
 }
@@ -168,6 +174,10 @@
 
 .card-fields.one-sided .card-back-field {
     display: none;
+}
+
+.card-fields.wide-back {
+    grid-template-columns: 1fr;
 }
 
 .fc-deck-type-fieldset {
@@ -228,6 +238,55 @@
     margin-top: 0.25rem;
 }
 
+/* Bidirectional sub-option inside deck-type fieldset */
+
+.fc-bidir-option {
+    margin-top: 0.35rem;
+    padding-left: 1.4rem;
+    border-left: 2px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.fc-bidir-option.hidden {
+    display: none;
+}
+
+/* Card hint rows in editor */
+
+.card-hints {
+    padding-left: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.card-hint-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.fc-hint-label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    opacity: 0.65;
+    user-select: none;
+    white-space: nowrap;
+}
+.fc-hint-label:hover {
+    opacity: 1;
+}
+
+.card-hint-input {
+    flex: 1;
+    min-width: 7rem;
+    font-size: 0.85rem !important;
+    padding: 0.2rem 0.4rem !important;
+}
+
 /* Import confirmation */
 
 .fc-import-box {
@@ -257,6 +316,33 @@
 
 .deck-preview strong {
     font-size: 1rem;
+}
+
+/* ---- Hint toggle button (play phase) ---- */
+
+.fc-hint-toggle {
+    background: none;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-radius: 999px;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s, background 0.15s;
+    font-family: inherit;
+    color: inherit;
+}
+.fc-hint-toggle:hover {
+    opacity: 1;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.fc-hint-text {
+    font-size: 0.9rem;
+    font-style: italic;
+    opacity: 0.7;
+    margin: 0;
+    text-align: center;
 }
 
 /* ---- Exercise question (play phase) ---- */
@@ -482,4 +568,93 @@
     padding: 0.2rem 0.4rem;
     font-size: 0.9rem;
     font-family: inherit;
+}
+
+/* ---- Multi-part card editor ---- */
+
+.card-field textarea.card-back {
+    resize: none;
+    overflow: hidden;
+    min-height: 2.5rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 0.35rem 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.card-parts-required {
+    margin-top: 0.2rem;
+}
+
+.fc-parts-min-label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+    cursor: default;
+}
+
+.fc-parts-min-label input[type="number"] {
+    width: 3.5rem;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.8rem;
+    font-family: inherit;
+}
+
+/* ---- Multi-part play mode ---- */
+
+.fc-mp-progress {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    margin: 0.25rem 0 0;
+    text-align: center;
+}
+
+.fc-mp-done {
+    font-size: 1rem;
+    opacity: 0.8;
+    text-align: center;
+    margin: 0.5rem 0;
+}
+
+.mp-parts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    width: 100%;
+    margin: 0.25rem 0;
+}
+
+.mp-part {
+    font-size: 1rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.mp-matched, .mp-part-matched {
+    background: color-mix(in srgb, #15803d 12%, transparent);
+    color: #15803d;
+}
+
+@media (prefers-color-scheme: dark) {
+    .mp-matched, .mp-part-matched { color: #4ade80; }
+}
+
+.mp-missed {
+    background: color-mix(in srgb, #ef4444 12%, transparent);
+    color: #ef4444;
+}
+
+@media (prefers-color-scheme: dark) {
+    .mp-missed { color: #f87171; }
+}
+
+.mp-required-label {
+    font-size: 0.8rem;
+    opacity: 0.65;
+    margin: 0.25rem 0 0;
+    text-align: center;
 }

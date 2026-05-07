@@ -285,6 +285,44 @@ async fn inject_deck(driver: &WebDriver, id: &str, name: &str, cards_json: &str)
     Ok(())
 }
 
+/// Inject a fully-specified deck JSON object (allows setting mode, bidirectional, hints, …).
+async fn inject_deck_json(driver: &WebDriver, deck_json: &str) -> TestResult<()> {
+    let script =
+        format!("localStorage.setItem('homework_flashcard_decks', JSON.stringify([{deck_json}]));");
+    driver.execute(&script, vec![]).await?;
+    Ok(())
+}
+
+/// Use the browser's native CompressionStream to encode a deck the same way
+/// flashcards.js does, and return the resulting URL `?import=…` parameter value.
+async fn generate_import_param(driver: &WebDriver) -> TestResult<String> {
+    let result = driver
+        .execute_async(
+            r#"
+            const done = arguments[arguments.length - 1];
+            const deck = {
+                name: "Gedeeld deck",
+                mode: "two-sided",
+                bidirectional: false,
+                cards: [{front: "huis", back: "maison"}]
+            };
+            const json = JSON.stringify(deck);
+            const cs = new CompressionStream("deflate-raw");
+            const writer = cs.writable.getWriter();
+            writer.write(new TextEncoder().encode(json));
+            writer.close();
+            new Response(cs.readable).arrayBuffer().then(buf => {
+                let bin = "";
+                for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+                done(btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, ""));
+            });
+            "#,
+            vec![],
+        )
+        .await?;
+    Ok(result.json().as_str().unwrap_or("").to_owned())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_setup_shows_example_decks() -> TestResult<()> {
@@ -474,6 +512,285 @@ async fn flashcards_create_two_sided_deck_and_practice() -> TestResult<()> {
     click(driver, "#button-check").await?;
 
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_bidirectional_deck_completes_session() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    // Two-sided bidirectional deck: same front and back so the answer is correct
+    // regardless of which direction the exercise picks.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-bidir","name":"Test twee richtingen","mode":"two-sided","bidirectional":true,"cards":[{"front":"appel","back":"appel"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-bidir']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-bidir'] .deck-select-btn",
+    )
+    .await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "appel").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_hint_button_appears_and_reveals_hint() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-hint","name":"Test hint","mode":"two-sided","bidirectional":false,"cards":[{"front":"chat","back":"kat","hint":"een dier dat miauw zegt"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-hint']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-hint'] .deck-select-btn",
+    )
+    .await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    // Hint toggle button must be present.
+    wait_for_css(driver, ".fc-hint-toggle", Duration::from_secs(5)).await?;
+
+    // Hint text is hidden until the button is clicked.
+    let hint_hidden_before = driver
+        .execute(
+            "return document.querySelector('.fc-hint-text')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        hint_hidden_before.json().as_bool().unwrap_or(false),
+        "hint text should be hidden before clicking the toggle"
+    );
+
+    click(driver, ".fc-hint-toggle").await?;
+
+    // After click the hint text must be visible.
+    let hint_hidden_after = driver
+        .execute(
+            "return document.querySelector('.fc-hint-text')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !hint_hidden_after.json().as_bool().unwrap_or(true),
+        "hint text should be visible after clicking the toggle"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_import_via_url_is_client_side() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Load the page first so we can use the browser's CompressionStream API.
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Encode a deck entirely in the browser — same algorithm as flashcards.js.
+    let param = generate_import_param(driver).await?;
+    assert!(
+        !param.is_empty(),
+        "expected a non-empty encoded import param"
+    );
+
+    // Navigate to the import URL. The server only serves the page HTML; all
+    // decoding happens in the browser (client-side only).
+    driver
+        .goto(app.url(&format!("/extra/flashcards?import={param}")))
+        .await?;
+
+    // The import confirmation box must appear — proving client-side decode worked.
+    wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
+
+    // Confirm import and verify the deck is now selected.
+    click(driver, "#fc-confirm-import").await?;
+    wait_for_css(driver, ".deck-item.selected", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Select the deck with the given ID, start the exercise, and return.
+async fn select_deck_and_start(driver: &WebDriver, deck_id: &str) -> TestResult<()> {
+    wait_for_css(
+        driver,
+        &format!(".deck-item[data-deck-id='{deck_id}']"),
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        &format!(".deck-item[data-deck-id='{deck_id}'] .deck-select-btn"),
+    )
+    .await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_one_at_a_time_with_fuzzy() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Deck with one 3-part card; all 3 parts required (default).
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp","name":"Multi-deel test","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon",
+                "parts":["wachter van de zon","half man","half leeuw"]}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp").await?;
+
+    // Part 1: fuzzy match "wachter zon" → "wachter van de zon".
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    wait_for_css(driver, ".fc-mp-progress", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "wachter zon").await?;
+    click(driver, "#button-check").await?;
+
+    // Part 2: "half man" (exact).
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+
+    // Part 3: fuzzy "halve leeuw" → "half leeuw".
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "halve leeuw").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "3 / 3", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_all_at_once() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Deck with one 3-part card.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-aao","name":"Multi-deel alles tegelijk","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon",
+                "parts":["wachter van de zon","half man","half leeuw"]}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-aao").await?;
+
+    // Type all three parts comma-separated in one shot.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(
+        driver,
+        "#answer",
+        "wachter van de zon, half man, half leeuw",
+    )
+    .await?;
+    click(driver, "#button-check").await?;
+
+    // The 2 auto-advance entries fire with 200 ms each; wait up to 5 s.
+    wait_for_text(driver, "#result h3", "3 / 3", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_partial_required() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // 3-part card with only 2 required.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-partial","name":"Multi-deel gedeeltelijk","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon",
+                "parts":["wachter van de zon","half man","half leeuw"],
+                "partsRequired":2}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-partial").await?;
+
+    // Give 2 of 3 parts; third entry is auto-advanced.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "wachter van de zon").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+
+    // Second entry satisfied requiredCount=2, third auto-advances.
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
