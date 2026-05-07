@@ -796,6 +796,85 @@ async fn flashcards_multipart_partial_required() -> TestResult<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_en_separator_all_at_once() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-en","name":"Multi-deel en-separator","mode":"two-sided",
+            "cards":[{"front":"fruit","back":"sinaasappelen",
+                "parts":["sinaasappelen","dadels"]}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-en").await?;
+
+    // Type both parts with Dutch "en" as separator — should count as all-at-once.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "sinaasappelen en dadels").await?;
+    click(driver, "#button-check").await?;
+
+    // Both entries should auto-advance; result shows 2/2.
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Two cards: a 2-part card followed by a normal single-back card.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-skip","name":"Multi-deel skip test","mode":"two-sided",
+            "cards":[
+                {"front":"fruit","back":"sinaasappelen",
+                 "parts":["sinaasappelen","dadels"]},
+                {"front":"kleur","back":"rood"}
+            ],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-skip").await?;
+
+    // At part 0 of the 2-part card: make a wrong attempt so skip button appears.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "fout antwoord").await?;
+    click(driver, "#button-check").await?;
+
+    // Click skip — should skip the ENTIRE card (both parts), not just part 0.
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
+    click(driver, "#button-skip").await?;
+
+    // The next question should be the single-back card "kleur → rood".
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "rood").await?;
+    click(driver, "#button-check").await?;
+
+    // 1 correct out of 3 total deck entries (2 skipped + 1 correct).
+    wait_for_text(driver, "#result h3", "1 / 3", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 async fn collect_hrefs(links: Vec<WebElement>) -> TestResult<Vec<String>> {

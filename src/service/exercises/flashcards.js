@@ -108,7 +108,7 @@ function appendLenientSection(matches) {
 // newline, or the word " en " — for "all at once" multi-part detection.
 function splitAnswerTokens(raw) {
     return raw
-        .split(/[,;\n/]|\ben\b/i)
+        .split(/[,;\n/+&]|\b(?:en|of|and|plus)\b/i)
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 }
@@ -119,6 +119,8 @@ function tryMatchParts(given, allParts, alreadyMatched) {
     const tokens = splitAnswerTokens(given);
     const newlyMatched = new Set();
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
+
+    // Pass 1: match each split token against an unmatched part.
     for (const token of tokens) {
         for (const part of remaining) {
             if (!newlyMatched.has(part) && fuzzyMatchPhrase(token, part)) {
@@ -127,6 +129,28 @@ function tryMatchParts(given, allParts, alreadyMatched) {
             }
         }
     }
+
+    // Pass 2 (phrase-contains fallback): if the full input contains all content words
+    // of a remaining part, count it as matched.  Handles any separator the user picks
+    // (space, "en", "+", etc.) without needing to enumerate them all.
+    // Only runs when pass 1 left parts unmatched.
+    for (const part of remaining) {
+        if (newlyMatched.has(part)) continue;
+        const bWords = normalize(part).split(" ").filter((w) => w.length > 0);
+        const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
+        if (contentWords.length === 0) continue;
+        const aWords = normalize(given).split(" ").filter((w) => w.length > 0);
+        let matched = 0;
+        for (const cw of contentWords) {
+            if (aWords.some((aw) => fuzzyEqual(aw, cw))) matched++;
+        }
+        // Require ALL content words present AND at most one extra word per content word
+        // (prevents single-word parts from matching long unrelated phrases).
+        if (matched === contentWords.length && aWords.length <= contentWords.length * 2 + 1) {
+            newlyMatched.add(part);
+        }
+    }
+
     return newlyMatched;
 }
 
@@ -1026,7 +1050,12 @@ function renderMultiPartQuestion(q, root, mode) {
             <div class="flash-question">
                 <p class="flash-text">${escapeHtml(q.front)}</p>
             </div>`;
-        setTimeout(() => document.getElementById("button-skip")?.click(), 50);
+        setTimeout(() => {
+            const btn = document.getElementById("button-skip");
+            if (!btn) return;
+            btn.hidden = false; // ensure click fires even on non-rendering elements
+            btn.click(); // nextQuestion() will hide it again
+        }, 50);
         return () => "";
     }
 
