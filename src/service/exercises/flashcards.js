@@ -790,6 +790,21 @@ function bindImageSearch(row) {
     });
 }
 
+// ---------- Hint toggle helpers (play phase) ----------
+
+function hintToggleHtml(hint) {
+    if (!hint) return "";
+    return `<button type="button" class="fc-hint-toggle">? hint</button>
+        <p class="fc-hint-text" hidden>${escapeHtml(hint)}</p>`;
+}
+
+function wireHintToggle(root) {
+    root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
+        const hintText = root.querySelector(".fc-hint-text");
+        if (hintText) hintText.hidden = !hintText.hidden;
+    });
+}
+
 function renderEditor() {
     // Hide the start button, time-mode fieldset, and history while editing.
     document.getElementById("page-setup")?.setAttribute("data-editing", "");
@@ -1420,7 +1435,7 @@ function renderFillInQuestion(q, root) {
     return () => input?.value;
 }
 
-function renderFillInReview(q, root, correct) {
+function renderFillInReview(q, root) {
     const blankSet = new Set(q.blankIndices);
 
     let html = `<div class="flash-fill-grid flash-fill-review">`;
@@ -1513,18 +1528,14 @@ function renderMultiPartQuestion(q, root, mode) {
     root.innerHTML = `
         <div class="flash-question">
             <p class="flash-text">${escapeHtml(q.front)}</p>
-            ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
-            <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+            ${hintToggleHtml(q.hint)}
             <p class="fc-mp-progress">${matched.size}/${requiredCount} gevonden</p>
             ${matchedHtml}
             <input type="text" id="answer" autocomplete="off"
                 placeholder="geef een onderdeel…" aria-label="jouw antwoord">
         </div>`;
 
-    root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
-        const hintText = root.querySelector(".fc-hint-text");
-        if (hintText) hintText.hidden = !hintText.hidden;
-    });
+    wireHintToggle(root);
 
     const input = root.querySelector("#answer");
     input?.focus();
@@ -1550,6 +1561,26 @@ runExercise({
         try { localStorage.setItem(FC_LAST_DECK_KEY, saved.deckId); } catch {}
         if (hiddenDeckInput) hiddenDeckInput.value = saved.deckId;
         renderList();
+        // Re-apply mode options that were saved alongside the deck selection.
+        // renderList() creates the mode-options HTML with defaults, so we overwrite
+        // them here after the DOM exists.
+        if (saved.fcMode) {
+            const modeRadio = managerRoot?.querySelector(`input[name='fc-mode'][value='${saved.fcMode}']`);
+            if (modeRadio) {
+                modeRadio.checked = true;
+                const countInput = managerRoot.querySelector("#fc-count");
+                if (countInput) {
+                    countInput.disabled = saved.fcMode !== "partial";
+                    if (saved.fcMode === "partial" && saved.fcCount) {
+                        countInput.value = String(saved.fcCount);
+                    }
+                }
+            }
+        }
+        if (saved.fcOrderImportant) {
+            const orderCheck = managerRoot?.querySelector("#fc-order-important");
+            if (orderCheck) orderCheck.checked = true;
+        }
     },
 
     readConfig(form) {
@@ -1591,7 +1622,6 @@ runExercise({
             back: c.back || "",
             hint: c.hint || null,
         }));
-        shuffle(imageQuestions);
 
         if (!isOneSided) {
             // Two-sided text cards: per-card groups, shuffle groups so multi-part entries stay consecutive.
@@ -1619,17 +1649,22 @@ runExercise({
                 }
                 return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
             });
-            shuffle(cardGroups);
-            return [...imageQuestions, ...cardGroups.flat()];
+            // Wrap each image question as a single-item group so it shuffles in
+            // with text card groups rather than always appearing first.
+            const allGroups = [...imageQuestions.map(q => [q]), ...cardGroups];
+            shuffle(allGroups);
+            return allGroups.flat();
         }
 
         // One-sided fill-in mode (text cards only).
-        // Image cards come first as standalone questions, then the fill-in grid.
+        // Image cards are shuffled among themselves and come before the fill-in
+        // grid, which is a single compound exercise covering all text cards.
+        shuffle(imageQuestions);
         clearFillInState();
         if (textCards.length === 0) return imageQuestions;
 
         // Shuffle card positions unless the user opted in to strict ordering.
-        const orderedTextCards = cfg.fcOrderImportant ? textCards : [...textCards].sort(() => Math.random() - 0.5);
+        const orderedTextCards = cfg.fcOrderImportant ? textCards : shuffle([...textCards]);
         const allFronts = orderedTextCards.map((c) => c.front);
         let blankIndices;
 
@@ -1657,7 +1692,7 @@ runExercise({
             case "multi-part":
                 return renderMultiPartQuestion(q, root, mode);
             case "fill-in":
-                if (mode.kind === "review") { renderFillInReview(q, root, mode.correct); return; }
+                if (mode.kind === "review") { renderFillInReview(q, root); return; }
                 return renderFillInQuestion(q, root);
             case "image": {
                 const skipBtn = document.getElementById("button-skip");
@@ -1686,17 +1721,13 @@ runExercise({
                                 ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
                                 : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`}
                         </div>
-                        ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
-                        <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+                        ${hintToggleHtml(q.hint)}
                         <input type="text" id="answer" autocomplete="off"
                             placeholder="wat zie je?" aria-label="jouw antwoord">
                     </div>`;
                 if (skipBtn) skipBtn.hidden = true;
                 if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
-                root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
-                    const hintText = root.querySelector(".fc-hint-text");
-                    if (hintText) hintText.hidden = !hintText.hidden;
-                });
+                wireHintToggle(root);
                 // If not cached yet, retry once the load completes in the background.
                 if (!imgSrc) {
                     wmLoad(q.wikimedia).then(url => {
@@ -1729,17 +1760,13 @@ runExercise({
                 root.innerHTML = `
                     <div class="flash-question">
                         <p class="flash-text">${escapeHtml(q.front)}</p>
-                        ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
-                        <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+                        ${hintToggleHtml(q.hint)}
                         <input type="text" id="answer" autocomplete="off"
                             placeholder="jouw antwoord…" aria-label="jouw antwoord">
                     </div>`;
                 if (skipBtn) skipBtn.hidden = true;
                 if (checkBtn) checkBtn.textContent = "👉 antwoord";
-                root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
-                    const hintText = root.querySelector(".fc-hint-text");
-                    if (hintText) hintText.hidden = !hintText.hidden;
-                });
+                wireHintToggle(root);
                 const input = root.querySelector("#answer");
                 return () => input.value;
             }

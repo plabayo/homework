@@ -1154,6 +1154,104 @@ async fn flashcards_one_sided_perfect_score_shows_wave() -> TestResult<()> {
     Ok(())
 }
 
+/// ---- Config persistence test -----------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_mode_config_persists_across_sessions() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // 4-card one-sided deck so partial mode (≥2 blanks) is valid.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-persist","name":"Config persistentie","mode":"one-sided",
+            "cards":[{"front":"aap"},{"front":"beer"},{"front":"kat"},{"front":"hond"}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    // Select the deck so mode options appear.
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-persist']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-persist'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+
+    // Switch to partial mode, set count to 2, and enable order-important.
+    click(driver, "input[name='fc-mode'][value='partial']").await?;
+    wait_for_enabled(driver, "#fc-count", Duration::from_secs(3)).await?;
+    set_input_value(driver, "#fc-count", "2").await?;
+    set_checkbox(driver, "#fc-order-important", true).await?;
+
+    // Start a session and skip both blanks directly — the fill-in renderer shows
+    // the skip button immediately so no answer is required.
+    click(driver, "#form-setup button[type='submit']").await?;
+    for _ in 0..2 {
+        wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+        click(driver, "#button-skip").await?;
+    }
+
+    // Return to setup. Wait for the result text to be visible (not just present in
+    // the DOM) — the result page has a page-in animation; clicking reset too early
+    // throws ElementNotInteractable while the overlay is still fading in.
+    wait_for_nonempty_text(driver, "#result h3", Duration::from_secs(10)).await?;
+    click(driver, "#page-result .button-reset").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    // Mode options must be restored: partial radio checked, count = 2, order checked.
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+
+    let partial_checked = driver
+        .execute(
+            "return document.querySelector('input[name=\"fc-mode\"][value=\"partial\"]')?.checked ?? false;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        partial_checked.json().as_bool().unwrap_or(false),
+        "partial mode radio must be restored after returning to setup"
+    );
+
+    let count_val = driver
+        .execute(
+            "return document.querySelector('#fc-count')?.value ?? '';",
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        count_val.json().as_str().unwrap_or(""),
+        "2",
+        "partial count must be restored to 2"
+    );
+
+    let order_checked = driver
+        .execute(
+            "return document.querySelector('#fc-order-important')?.checked ?? false;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        order_checked.json().as_bool().unwrap_or(false),
+        "order-important checkbox must be restored"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 /// ---- Image card tests -------------------------------------------------------
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1423,6 +1521,28 @@ async fn wait_for_nonempty_text(
         }
         if Instant::now() >= deadline {
             return Err(format!("no visible text in {selector:?} within {timeout:?}").into());
+        }
+        sleep(Duration::from_millis(30));
+    }
+}
+
+async fn wait_for_enabled(driver: &WebDriver, selector: &str, timeout: Duration) -> TestResult<()> {
+    let deadline = Instant::now() + timeout;
+    let script = format!(
+        "var el = document.querySelector({selector:?}); return el != null && !el.disabled;"
+    );
+    loop {
+        let enabled = driver
+            .execute(&script, vec![])
+            .await
+            .ok()
+            .and_then(|v| v.json().as_bool())
+            .unwrap_or(false);
+        if enabled {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("{selector:?} not enabled within {timeout:?}").into());
         }
         sleep(Duration::from_millis(30));
     }

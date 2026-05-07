@@ -1,4 +1,4 @@
-import { runExercise, shuffle, pad, hourName, wireOptions, read, load, pickRandom, dutchTimePhrase, optionListHtml } from '/homework.js';
+import { runExercise, shuffle, pad, wireOptions, read, load, pickRandom, dutchTimePhrase, optionListHtml } from '/homework.js';
 
 // Granularity helpers
 const GRAN = {
