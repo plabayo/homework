@@ -1154,6 +1154,54 @@ async fn flashcards_one_sided_perfect_score_shows_wave() -> TestResult<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_one_sided_single_text_card_hides_partial_mode() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-single-text","name":"Enkele tekstkaart","mode":"one-sided",
+            "cards":[{"front":"maan"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-single-text'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+
+    let partial_exists = driver
+        .execute(
+            "return !!document.querySelector('input[name=\"fc-mode\"][value=\"partial\"]');",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !partial_exists.json().as_bool().unwrap_or(true),
+        "partial mode should be hidden when only one text card is available"
+    );
+
+    let count_exists = driver
+        .execute("return !!document.querySelector('#fc-count');", vec![])
+        .await?;
+    assert!(
+        !count_exists.json().as_bool().unwrap_or(true),
+        "partial count input should not be rendered for a single text card"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 /// ---- Config persistence test -----------------------------------------------
 
 #[tokio::test(flavor = "multi_thread")]

@@ -1,4 +1,4 @@
-import { runExercise, read, load, pickRandom } from "/homework.js";
+import { runExercise, read, load, pickRandom } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.

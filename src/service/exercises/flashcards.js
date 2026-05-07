@@ -1,4 +1,4 @@
-import { runExercise, shuffle, escapeHtml } from "/homework.js";
+import { runExercise, shuffle, escapeHtml } from "@homework";
 
 // ---------- Fuzzy matching ----------
 
@@ -566,6 +566,13 @@ function renderModeOptionsHtml(deck) {
     const n = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
     if (n === 0) return "";
     const defaultCount = Math.max(1, Math.ceil(n / 2));
+    const partialModeHtml = n >= 2 ? `
+            <label class="fc-mode-radio">
+                <input type="radio" name="fc-mode" value="partial">
+                vul ontbrekende in:
+                <input type="number" name="fc-count" id="fc-count" min="1" max="${n - 1}" value="${defaultCount}" disabled>
+                van ${n} lege vakjes — de rest zie je als hint
+            </label>` : "";
     return `
         <div class="fc-mode-options">
             <p class="fc-mode-label">Hoe wil je oefenen?</p>
@@ -573,12 +580,7 @@ function renderModeOptionsHtml(deck) {
                 <input type="radio" name="fc-mode" value="all" checked>
                 vul alles in uit het hoofd (${n} lege vakjes)
             </label>
-            <label class="fc-mode-radio">
-                <input type="radio" name="fc-mode" value="partial">
-                vul ontbrekende in:
-                <input type="number" name="fc-count" id="fc-count" min="1" max="${n - 1}" value="${defaultCount}" disabled>
-                van ${n} lege vakjes — de rest zie je als hint
-            </label>
+            ${partialModeHtml}
             <label class="fc-mode-radio fc-order-label">
                 <input type="checkbox" id="fc-order-important">
                 Volgorde is belangrijk <span class="fc-order-note">(standaard: willekeurig)</span>
@@ -1600,6 +1602,9 @@ runExercise({
         const isOneSided = deckMode(deck) === "one-sided";
         if (isOneSided && cfg.fcMode === "partial") {
             const textCount = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
+            if (textCount < 2) {
+                return "Deze modus heeft minstens 2 tekstkaarten nodig.";
+            }
             const max = textCount - 1;
             if (!cfg.fcCount || cfg.fcCount < 1 || cfg.fcCount > max) {
                 return `Kies een aantal tussen 1 en ${max}.`;

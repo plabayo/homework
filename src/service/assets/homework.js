@@ -460,33 +460,42 @@ function formatMillis(ms) {
     return `${m}m${String(r).padStart(2, "0")}s`;
 }
 
-function renderTrickyList(session) {
-    const wrong = (session.questions || []).filter((q) => !q.correct);
-    const tricky = (session.questions || []).filter(
-        (q) => q.correct && q.attempts > 0,
-    );
-    if (wrong.length === 0 && tricky.length === 0) return "";
-
-    const li = (q, kind) => {
-        const desc = q.label
-            ? escapeHtml(q.label)
-            : escapeHtml(JSON.stringify(q.question));
-        if (kind === "wrong") {
-            const metaParts = [];
-            if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
-            if (q.timedOut) metaParts.push("⏰ te traag");
-            else if (q.skipped) metaParts.push("overgeslagen");
-            const metaLine = metaParts.length
-                ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
-                : "";
-            return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
-        }
-        return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
+function splitQuestionOutcomes(session) {
+    const questions = session.questions || [];
+    return {
+        wrong: questions.filter((q) => !q.correct),
+        tricky: questions.filter((q) => q.correct && q.attempts > 0),
     };
-    const items = [
-        ...wrong.map((q) => li(q, "wrong")),
-        ...tricky.map((q) => li(q, "tricky")),
+}
+
+function renderOutcomeItem(q, kind) {
+    const desc = q.label
+        ? escapeHtml(q.label)
+        : escapeHtml(JSON.stringify(q.question));
+    if (kind === "wrong") {
+        const metaParts = [];
+        if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
+        if (q.timedOut) metaParts.push("⏰ te traag");
+        else if (q.skipped) metaParts.push("overgeslagen");
+        const metaLine = metaParts.length
+            ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
+            : "";
+        return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
+    }
+    return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
+}
+
+function renderOutcomeItems({ wrong, tricky }) {
+    return [
+        ...wrong.map((q) => renderOutcomeItem(q, "wrong")),
+        ...tricky.map((q) => renderOutcomeItem(q, "tricky")),
     ].join("");
+}
+
+function renderTrickyList(session) {
+    const { wrong, tricky } = splitQuestionOutcomes(session);
+    if (wrong.length === 0 && tricky.length === 0) return "";
+    const items = renderOutcomeItems({ wrong, tricky });
     return `
         <section class="result-detail">
             <h3 class="section-title">Wat ging moeilijk</h3>
@@ -1079,32 +1088,9 @@ async function setupHistoryView() {
         }
         list.innerHTML = sessions
             .map((s) => {
-                const questions = s.questions || [];
-                const wrong = questions.filter((q) => !q.correct);
-                const tricky = questions.filter(
-                    (q) => q.correct && q.attempts > 0,
-                );
+                const { wrong, tricky } = splitQuestionOutcomes(s);
                 const hasMistakes = wrong.length > 0 || tricky.length > 0;
-                const itemHtml = (q, kind) => {
-                    const desc = q.label
-                        ? escapeHtml(q.label)
-                        : escapeHtml(JSON.stringify(q.question));
-                    if (kind === "wrong") {
-                        const metaParts = [];
-                        if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
-                        if (q.timedOut) metaParts.push("⏰ te traag");
-                        else if (q.skipped) metaParts.push("overgeslagen");
-                        const metaLine = metaParts.length
-                            ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
-                            : "";
-                        return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
-                    }
-                    return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
-                };
-                const items = [
-                    ...wrong.map((q) => itemHtml(q, "wrong")),
-                    ...tricky.map((q) => itemHtml(q, "tricky")),
-                ].join("");
+                const items = renderOutcomeItems({ wrong, tricky });
 
                 const scoreParts = [`${s.correct} / ${s.total}`];
                 if (s.timeMode && s.durationMs)

@@ -34,16 +34,15 @@ fn versioned_asset_url(path: &str) -> String {
     format!("{path}?v={ASSET_VERSION}")
 }
 
-fn rewrite_module_imports(script_source: &str, shared_js_url: &str) -> String {
-    script_source
-        .replace(r#""/homework.js""#, &format!(r#""{shared_js_url}""#))
-        .replace(r#"'/homework.js'"#, &format!(r#"'{shared_js_url}'"#))
+fn shared_js_import_map(shared_js_url: &str) -> String {
+    format!(r#"{{"imports":{{"@homework":"{shared_js_url}"}}}}"#)
 }
 
 /// Build a complete HTML page with the shared chrome.
 ///
 /// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
 /// they go into `<style>` / `<script type="module">` verbatim (not HTML-escaped).
+/// Inline exercise modules can import the shared runtime via `@homework`.
 pub fn page(
     meta_data: PageMeta,
     extra_style: &str,
@@ -58,7 +57,7 @@ pub fn page(
     let theme_css_url = versioned_asset_url("/theme.css");
     let manifest_url = versioned_asset_url("/manifest.webmanifest");
     let shared_js_url = versioned_asset_url("/homework.js");
-    let extra_module_script = rewrite_module_imports(extra_module_script, &shared_js_url);
+    let shared_js_import_map = shared_js_import_map(&shared_js_url);
 
     html!(
         lang = "nl",
@@ -112,6 +111,7 @@ pub fn page(
                 class = "box bad",
                 "Deze website heeft JavaScript nodig om de oefeningen te doen.",
             )),
+            script!(r#type = "importmap", PreEscaped(shared_js_import_map)),
             script!(r#type = "module", src = shared_js_url),
             if extra_module_script.is_empty() {
                 script!(r#type = "module", PreEscaped(""))

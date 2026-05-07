@@ -1,4 +1,4 @@
-import { runExercise, shuffle, read, load, pickRandom } from "/homework.js";
+import { runExercise, shuffle, read, load, pickRandom } from "@homework";
 
 function buildDeck(cfg) {
     const deck = [];

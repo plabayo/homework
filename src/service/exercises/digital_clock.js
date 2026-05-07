@@ -1,4 +1,4 @@
-import { runExercise, shuffle, pad, wireOptions, read, load, pickRandom, normalizePhrase, dutchTimePhrase, optionListHtml } from '/homework.js';
+import { runExercise, shuffle, pad, wireOptions, read, load, pickRandom, normalizePhrase, dutchTimePhrase, optionListHtml } from "@homework";
 
 // Dutch time expression utilities. Covers every 5-minute step that has a
 // standard Flemish/Dutch idiom:

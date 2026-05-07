@@ -1,4 +1,4 @@
-import { runExercise, shuffle, read, load } from "/homework.js";
+import { runExercise, shuffle, read, load } from "@homework";
 
 function getSelectedTables(form) {
     const list = [];
