@@ -111,7 +111,7 @@ async function recentMistakes(exerciseId, limit = 30) {
             const key = JSON.stringify(item.question);
             if (seen.has(key)) continue;
             seen.add(key);
-            const isMistake = !item.correct || (item.attempts || 0) > 0;
+            const isMistake = isPracticeMistake(item);
             if (!isMistake) continue;
             mistakes.push(item.question);
             if (mistakes.length >= limit) return mistakes;
@@ -430,7 +430,7 @@ function pickMistakes(spec, mistakes) {
 function cycleSummaryLine(session, n) {
     const wrong = (session.questions || []).filter((q) => !q.correct).length;
     const tricky = (session.questions || []).filter(
-        (q) => q.correct && q.attempts > 0,
+        (q) => q.correct && isPracticeMistake(q),
     ).length;
     const modeLabel =
         session.mode === "mistakes" ? '<span class="cycle-mode">foutenmodus</span>' : "";
@@ -460,11 +460,15 @@ function formatMillis(ms) {
     return `${m}m${String(r).padStart(2, "0")}s`;
 }
 
+function isPracticeMistake(q) {
+    return !q.correct || (q.attempts || 0) > 0 || q.practiceAgain === true;
+}
+
 function splitQuestionOutcomes(session) {
     const questions = session.questions || [];
     return {
         wrong: questions.filter((q) => !q.correct),
-        tricky: questions.filter((q) => q.correct && q.attempts > 0),
+        tricky: questions.filter((q) => q.correct && isPracticeMistake(q)),
     };
 }
 
@@ -481,6 +485,9 @@ function renderOutcomeItem(q, kind) {
             ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
             : "";
         return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
+    }
+    if (q.practiceAgain) {
+        return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">bijna goed · opnieuw oefenen</span></span></li>`;
     }
     return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
 }
@@ -519,6 +526,11 @@ function renderTrickyList(session) {
  *      For 'play', return a function that yields the user's answer
  *      (or null if unanswerable). Interactive exercises may instead
  *      return { getAnswer, cleanup } to tear down global listeners.
+ *   evaluateAnswer?: (q, given) => boolean | {
+ *      correct: boolean, exact?: boolean, showReview?: boolean,
+ *      practiceAgain?: boolean, feedback?: string
+ *   }
+ *   evaluateSkip?: (q) => null | { showReview?: boolean, feedback?: string, bad?: boolean }
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
  * }
@@ -797,8 +809,56 @@ export function runExercise(spec) {
             elapsedMs: Date.now() - state.questionStartedAt,
             given,
             correct,
+            exact: opts.exact !== false,
+            practiceAgain: !!opts.practiceAgain,
             label: spec.describe ? spec.describe(state.currentQuestion) : null,
         });
+    }
+
+    function showAdvanceButton() {
+        const actions = formExercise.querySelector(".exercise-actions");
+        if (!actions || document.getElementById("button-next")) return;
+        const next = document.createElement("button");
+        next.type = "button";
+        next.className = "primary";
+        next.id = "button-next";
+        next.textContent = "volgende ➡️";
+        next.addEventListener("click", (e) => {
+            e.preventDefault();
+            nextQuestion();
+        });
+        actions.appendChild(next);
+        next.focus();
+    }
+
+    function showReviewState({ given, correct, feedback, bad = false }) {
+        clearTimeout(state.deadlineTimerHandle);
+        state.deadlineTimerHandle = null;
+        cleanupCurrentQuestion();
+
+        contentEl.innerHTML = "";
+        spec.renderQuestion(state.currentQuestion, contentEl, {
+            kind: "review",
+            given,
+            correct,
+        });
+        contentEl.classList.add("locked");
+        feedbackEl.textContent = feedback || "Bekijk het juiste antwoord.";
+        feedbackEl.classList.toggle("is-bad", bad);
+
+        const checkBtn = document.getElementById("button-check");
+        if (checkBtn) checkBtn.hidden = true;
+        if (skipBtn) skipBtn.hidden = true;
+        showAdvanceButton();
+        updateClock();
+    }
+
+    function normalizeAnswerEvaluation(q, given) {
+        const result = spec.evaluateAnswer
+            ? spec.evaluateAnswer(q, given)
+            : spec.isCorrect(q, given);
+        if (typeof result === "boolean") return { correct: result };
+        return result && typeof result === "object" ? result : { correct: false };
     }
 
     function onDeadlineExpired() {
@@ -810,36 +870,13 @@ export function runExercise(spec) {
         clearTimeout(state.deadlineTimerHandle);
         state.deadlineTimerHandle = null;
         cleanupCurrentQuestion();
-
-        contentEl.innerHTML = "";
-        spec.renderQuestion(state.currentQuestion, contentEl, {
-            kind: "review",
+        state.streak = 0;
+        showReviewState({
             given: state.currentGiven,
             correct: false,
+            feedback: "⏰ te traag",
+            bad: true,
         });
-        state.streak = 0;
-        contentEl.classList.add("locked");
-        feedbackEl.textContent = "⏰ te traag";
-        feedbackEl.classList.add("is-bad");
-
-        const checkBtn = document.getElementById("button-check");
-        if (checkBtn) checkBtn.hidden = true;
-        if (skipBtn) skipBtn.hidden = true;
-        const actions = formExercise.querySelector(".exercise-actions");
-        if (actions && !document.getElementById("button-next")) {
-            const next = document.createElement("button");
-            next.type = "button";
-            next.className = "primary";
-            next.id = "button-next";
-            next.textContent = "volgende ➡️";
-            next.addEventListener("click", (e) => {
-                e.preventDefault();
-                nextQuestion();
-            });
-            actions.appendChild(next);
-            next.focus();
-        }
-        updateClock();
     }
 
     function onWrongAttempt(given) {
@@ -870,9 +907,18 @@ export function runExercise(spec) {
         }, 450);
     }
 
-    function onCorrect(given) {
-        recordOutcome(true, given, false);
-        if (state.currentAttempts === 0) state.streak++;
+    function onCorrect(given, opts = {}) {
+        recordOutcome(true, given, false, opts);
+        if (opts.showReview) {
+            state.streak = 0;
+            showReviewState({
+                given,
+                correct: true,
+                feedback: opts.feedback,
+            });
+            return;
+        }
+        if (state.currentAttempts === 0 && opts.exact !== false) state.streak++;
         else state.streak = 0;
         flashCorrect(state.streak);
         nextQuestion();
@@ -881,6 +927,18 @@ export function runExercise(spec) {
     function onSkip() {
         state.streak = 0;
         recordOutcome(false, state.currentGiven, true);
+        const skipEval = spec.evaluateSkip
+            ? spec.evaluateSkip(state.currentQuestion)
+            : null;
+        if (skipEval?.showReview) {
+            showReviewState({
+                given: state.currentGiven,
+                correct: false,
+                feedback: skipEval.feedback,
+                bad: !!skipEval.bad,
+            });
+            return;
+        }
         nextQuestion();
     }
 
@@ -916,7 +974,7 @@ export function runExercise(spec) {
     function renderResult(session) {
         const wrong = session.questions.filter((q) => !q.correct);
         const tricky = session.questions.filter(
-            (q) => q.correct && q.attempts > 0,
+            (q) => q.correct && isPracticeMistake(q),
         );
         const score = session.correct;
         const total = session.total;
@@ -933,7 +991,7 @@ export function runExercise(spec) {
 
         const trickyList = renderTrickyList(session);
 
-        const reviewable = wrong.length > 0;
+        const reviewable = session.questions.some(isPracticeMistake);
 
         const sessionTime =
             session.timeMode && session.durationMs
@@ -967,7 +1025,9 @@ export function runExercise(spec) {
 
         const repeatBtn = document.getElementById("review-button-repeat");
         repeatBtn?.addEventListener("click", () => {
-            const deck = shuffle(wrong.map((w) => w.question));
+            const deck = shuffle(
+                session.questions.filter(isPracticeMistake).map((q) => q.question),
+            );
             startSession(deck, state.config, "mistakes");
         });
     }
@@ -1005,8 +1065,9 @@ export function runExercise(spec) {
         if (!state.getAnswer) return;
         const given = state.getAnswer();
         if (given === null || given === undefined || given === "") return;
-        if (spec.isCorrect(state.currentQuestion, given)) {
-            onCorrect(given);
+        const evaluation = normalizeAnswerEvaluation(state.currentQuestion, given);
+        if (evaluation.correct) {
+            onCorrect(given, evaluation);
         } else {
             onWrongAttempt(given);
         }

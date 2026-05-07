@@ -56,11 +56,8 @@ const PHRASE_STOPWORDS = new Set([
     "is", "was", "waren", "heeft", "hebben", "had", "worden", "je", "ze", "we",
 ]);
 
-// Accept a given phrase for an expected multi-word answer.
-// First tries exact/Levenshtein fuzzy on the whole phrase; if that fails,
-// checks that ≥60% of content words (non-stopwords) are fuzzily present.
-function fuzzyMatchPhrase(given, expected) {
-    if (fuzzyEqual(given, expected)) return true;
+// Check that ≥60% of content words (non-stopwords) are fuzzily present.
+function phraseCoverageMatch(given, expected) {
     const bWords = normalize(expected).split(" ").filter((w) => w.length > 0);
     const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
     if (contentWords.length === 0) return false;
@@ -72,12 +69,17 @@ function fuzzyMatchPhrase(given, expected) {
     return matched / contentWords.length >= 0.6;
 }
 
-// Returns true when the answer was accepted via phrase-coverage fallback (not
-// exact/Levenshtein), so we can flag it as "bijna goed" for the teacher.
-function isLenientMatch(given, expected) {
-    if (normalize(given) === normalize(expected)) return false;
-    if (fuzzyEqual(given, expected)) return false;
-    return true; // phrase-coverage fallback was used
+function classifyAnswerMatch(given, expected) {
+    if (normalize(given) === normalize(expected)) {
+        return { accepted: true, exact: true, practiceAgain: false };
+    }
+    if (fuzzyEqual(given, expected)) {
+        return { accepted: true, exact: false, practiceAgain: false };
+    }
+    if (phraseCoverageMatch(given, expected)) {
+        return { accepted: true, exact: false, practiceAgain: true };
+    }
+    return { accepted: false, exact: false, practiceAgain: false };
 }
 
 // ---------- Lenient-match tracking ----------
@@ -92,9 +94,10 @@ function pushLenientMatch(given, expected, front) {
 // only the phrase-coverage fallback was used.  Single source of truth so callers
 // can't forget the tracking step.
 function matchAndTrackLenient(given, expected, front) {
-    if (!fuzzyMatchPhrase(given, expected)) return false;
-    if (isLenientMatch(given, expected)) pushLenientMatch(given, expected, front);
-    return true;
+    const match = classifyAnswerMatch(given, expected);
+    if (!match.accepted) return null;
+    if (match.practiceAgain) pushLenientMatch(given, expected, front);
+    return match;
 }
 
 function appendLenientSection(matches) {
@@ -127,17 +130,19 @@ function splitAnswerTokens(raw) {
 
 // Try to match one or more tokens from `given` against unmatched parts.
 // `front` is the card's front text, used for lenient-match tracking.
-// Returns a Set of newly matched part strings.
+// Returns match objects for newly matched parts.
 function tryMatchParts(given, allParts, alreadyMatched, front) {
     const tokens = splitAnswerTokens(given);
-    const newlyMatched = new Set();
+    const newlyMatched = [];
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
 
     // Pass 1: match each split token against an unmatched part.
     for (const token of tokens) {
         for (const part of remaining) {
-            if (!newlyMatched.has(part) && matchAndTrackLenient(token, part, front)) {
-                newlyMatched.add(part);
+            if (newlyMatched.some((m) => m.part === part)) continue;
+            const match = matchAndTrackLenient(token, part, front);
+            if (match) {
+                newlyMatched.push({ part, ...match });
                 break;
             }
         }
@@ -148,7 +153,7 @@ function tryMatchParts(given, allParts, alreadyMatched, front) {
     // (space, "en", "+", etc.) without needing to enumerate them all.
     // Only runs when pass 1 left parts unmatched.  Always lenient by definition.
     for (const part of remaining) {
-        if (newlyMatched.has(part)) continue;
+        if (newlyMatched.some((m) => m.part === part)) continue;
         const bWords = normalize(part).split(" ").filter((w) => w.length > 0);
         const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
         if (contentWords.length === 0) continue;
@@ -161,11 +166,27 @@ function tryMatchParts(given, allParts, alreadyMatched, front) {
         // (prevents single-word parts from matching long unrelated phrases).
         if (matched === contentWords.length && aWords.length <= contentWords.length * 2 + 1) {
             pushLenientMatch(given, part, front);
-            newlyMatched.add(part);
+            newlyMatched.push({
+                part,
+                accepted: true,
+                exact: false,
+                practiceAgain: true,
+            });
         }
     }
 
     return newlyMatched;
+}
+
+function buildAcceptedFeedback(answerText, practiceAgain, plural = false) {
+    const intro = plural ? "Op de kaart staan:" : "Op de kaart staat:";
+    const retry = practiceAgain ? " Deze kaart komt terug bij fouten oefenen." : "";
+    return `Bijna goed. ${intro} ${answerText}.${retry}`;
+}
+
+function buildRevealFeedback(answerText, plural = false) {
+    const intro = plural ? "Op de kaart staan:" : "Op de kaart staat:";
+    return `${intro} ${answerText}.`;
 }
 
 // ---------- Deck validation ----------
@@ -1640,7 +1661,12 @@ runExercise({
                     const requiredCount = c.partsRequired != null
                         ? Math.min(Math.max(1, c.partsRequired), c.parts.length)
                         : c.parts.length;
-                    const sharedState = { matched: new Set() };
+                    const sharedState = {
+                        matched: new Set(),
+                        revealAtEnd: false,
+                        revealPracticeAgain: false,
+                        revealShown: false,
+                    };
                     return Array.from({ length: requiredCount }, (_, pi) => ({
                         kind: "multi-part",
                         front: c.front,
@@ -1780,38 +1806,106 @@ runExercise({
         }
     },
 
-    isCorrect(q, given) {
+    evaluateAnswer(q, given) {
         switch (q.kind) {
             case "multi-part": {
-                if (given === "__matched__") return q.sharedState.matched.size >= q.requiredCount;
+                if (given === "__matched__") {
+                    return {
+                        correct: q.sharedState.matched.size >= q.requiredCount,
+                        exact: !q.sharedState.revealShown,
+                    };
+                }
                 const { sharedState, allParts } = q;
                 const newlyMatched = tryMatchParts(given, allParts, sharedState.matched, q.front);
-                if (newlyMatched.size > 0) {
-                    for (const p of newlyMatched) sharedState.matched.add(p);
-                    return true;
+                if (newlyMatched.length > 0) {
+                    for (const match of newlyMatched) sharedState.matched.add(match.part);
+                    const exactThisStep = newlyMatched.every((match) => match.exact);
+                    const practiceAgainThisStep = newlyMatched.some((match) => match.practiceAgain);
+                    if (!exactThisStep) sharedState.revealAtEnd = true;
+                    if (practiceAgainThisStep) sharedState.revealPracticeAgain = true;
+                    const finished = sharedState.matched.size >= q.requiredCount;
+                    const showReview = finished && sharedState.revealAtEnd && !sharedState.revealShown;
+                    if (showReview) sharedState.revealShown = true;
+                    return {
+                        correct: true,
+                        exact: exactThisStep && !sharedState.revealAtEnd,
+                        showReview,
+                        practiceAgain: practiceAgainThisStep,
+                        feedback: showReview
+                            ? buildAcceptedFeedback(
+                                allParts.join(" / "),
+                                sharedState.revealPracticeAgain,
+                                allParts.length > 1,
+                            )
+                            : undefined,
+                    };
                 }
-                return false;
+                return { correct: false };
             }
             case "fill-in": {
                 // Order-independent: accept if the answer matches any remaining unmatched blank.
                 for (const idx of q.blankIndices) {
-                    if (!(idx in fillInResults) && matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "))) {
+                    if (idx in fillInResults) continue;
+                    const match = matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "));
+                    if (match) {
                         fillInResults[idx] = true;
-                        return true;
+                        return {
+                            correct: true,
+                            exact: match.exact,
+                            showReview: !match.exact,
+                            practiceAgain: match.practiceAgain,
+                            feedback: match.exact
+                                ? undefined
+                                : buildAcceptedFeedback(q.allCards[idx], match.practiceAgain),
+                        };
                     }
                 }
                 // No match — mark the first unanswered blank as wrong.
                 const firstOpen = q.blankIndices.find((i) => !(i in fillInResults));
                 if (firstOpen !== undefined) fillInResults[firstOpen] = false;
-                return false;
+                return { correct: false };
             }
-            case "image":
-                return matchAndTrackLenient(given, q.back, q.wikimedia);
-            case "two-sided":
-                return matchAndTrackLenient(given, q.back, q.front);
+            case "image": {
+                const match = matchAndTrackLenient(given, q.back, q.wikimedia);
+                return match
+                    ? {
+                        correct: true,
+                        exact: match.exact,
+                        showReview: !match.exact,
+                        practiceAgain: match.practiceAgain,
+                        feedback: match.exact
+                            ? undefined
+                            : buildAcceptedFeedback(q.back, match.practiceAgain),
+                    }
+                    : { correct: false };
+            }
+            case "two-sided": {
+                const match = matchAndTrackLenient(given, q.back, q.front);
+                return match
+                    ? {
+                        correct: true,
+                        exact: match.exact,
+                        showReview: !match.exact,
+                        practiceAgain: match.practiceAgain,
+                        feedback: match.exact
+                            ? undefined
+                            : buildAcceptedFeedback(q.back, match.practiceAgain),
+                    }
+                    : { correct: false };
+            }
             default:
                 throw new Error(`Unknown card kind: ${q.kind}`);
         }
+    },
+
+    evaluateSkip(q) {
+        if (q.kind !== "multi-part") return null;
+        if (q.partIndex !== q.sharedState.matched.size) return null;
+        q.sharedState.revealShown = true;
+        return {
+            showReview: true,
+            feedback: buildRevealFeedback(q.allParts.join(" / "), q.allParts.length > 1),
+        };
     },
 
     describe(q) {
@@ -1859,6 +1953,7 @@ function showCardWave(cards) {
                 if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
                 const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
                 if (deck && deckMode(deck) === "one-sided") {
+                    if (pageResult.querySelector("#review-button-repeat")) return;
                     const scoreText = pageResult.querySelector("h3")?.textContent ?? "";
                     const [rawCorrect, rawTotal] = scoreText.split("/");
                     const correct = parseInt(rawCorrect, 10);

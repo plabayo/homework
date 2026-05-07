@@ -847,8 +847,67 @@ async fn flashcards_multipart_one_at_a_time_with_fuzzy() -> TestResult<()> {
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     set_input_value(driver, "#answer", "halve leeuw").await?;
     click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-feedback",
+        "Op de kaart staan: wachter van de zon / half man / half leeuw.",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#button-next").await?;
 
     wait_for_text(driver, "#result h3", "3 / 3", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_non_exact_does_not_reveal_until_card_end() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-no-spoil","name":"Multi-deel geen spoiler","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon",
+                "parts":["wachter van de zon","half man"]}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-no-spoil").await?;
+
+    // First component is close enough, but the card is not finished yet.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "wachter zon").await?;
+    click(driver, "#button-check").await?;
+
+    // It should move to the next component without revealing the full answer yet.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    let next_buttons = driver.find_all(By::Css("#button-next")).await?;
+    assert!(
+        next_buttons.is_empty(),
+        "multipart card should not reveal the full answer before the card is complete"
+    );
+
+    // Completing the card should now reveal the full component list once.
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-feedback",
+        "Op de kaart staan: wachter van de zon / half man.",
+        Duration::from_secs(5),
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -994,12 +1053,62 @@ async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
     set_input_value(driver, "#answer", "fout antwoord").await?;
     click(driver, "#button-check").await?;
 
-    // Click skip — should skip the ENTIRE card (both parts), going straight to results.
+    // Click skip — should skip the ENTIRE card, but only reveal the full answer once,
+    // at the end of the card.
     wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
     click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-feedback",
+        "Op de kaart staan: sinaasappelen / dadels.",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#button-next").await?;
 
     // Both parts skipped; result shows 0 / 2 with no more questions.
     wait_for_text(driver, "#result h3", "0 / 2", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_non_exact_typo_shows_answer_before_finishing() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-close-typo","name":"Typo feedback test","mode":"two-sided",
+            "cards":[{"front":"huis","back":"maison"}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-close-typo").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "maizon").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-feedback",
+        "Op de kaart staat: maison.",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -1026,13 +1135,27 @@ async fn flashcards_lenient_match_shows_bijna_goed() -> TestResult<()> {
     driver.refresh().await?;
     select_deck_and_start(driver, "test-lenient").await?;
 
-    // Type answer without the article — should be accepted via phrase-coverage.
+    // Type answer without the article — accepted via phrase-coverage, but it should
+    // show the canonical answer first and mark the card for follow-up practice.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     set_input_value(driver, "#answer", "farao").await?;
     click(driver, "#button-check").await?;
 
-    // Session ends; result shows 1 / 1 and the "Bijna goed" section appears.
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-feedback",
+        "Deze kaart komt terug bij fouten oefenen.",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    click(driver, "#button-next").await?;
+
+    // Session ends; result still shows 1 / 1, but the "practice again" action and
+    // "Bijna goed" section must both be present.
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#review-button-repeat", Duration::from_secs(5)).await?;
     wait_for_css(driver, ".item-lenient", Duration::from_secs(3)).await?;
 
     driver.clone().quit().await?;
