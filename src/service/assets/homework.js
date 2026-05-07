@@ -401,6 +401,9 @@ function pickMistakes(spec, mistakes) {
             dlg.remove();
             resolve(action === "start" ? selected : null);
         });
+        dlg.addEventListener("click", (e) => {
+            if (e.target === dlg) dlg.close("cancel");
+        });
         if (typeof dlg.showModal === "function") {
             dlg.showModal();
         } else {

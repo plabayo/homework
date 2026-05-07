@@ -658,3 +658,71 @@
     margin: 0.25rem 0 0;
     text-align: center;
 }
+
+/* ---------- Lenient match result items ---------- */
+
+.result-detail-list li.item-lenient {
+    border-left-color: #7c3aed;
+}
+
+@media (prefers-color-scheme: dark) {
+    .result-detail-list li.item-lenient {
+        border-left-color: #a78bfa;
+    }
+}
+
+/* ---------- Card wave animation ---------- */
+
+.fc-wave-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+    animation: fc-wave-bg-in 0.25s ease-out;
+}
+
+.fc-wave-overlay.fc-wave-fade {
+    animation: fc-wave-bg-out 0.4s ease-in forwards;
+}
+
+.fc-wave-stage {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 580px;
+    justify-content: center;
+    padding: 28px;
+}
+
+.fc-wave-card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    opacity: 0;
+    animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
+}
+
+@keyframes fc-card-wave {
+    0%   { opacity: 0; transform: translateY(0) scale(1); }
+    20%  { opacity: 1; }
+    45%  { transform: translateY(-18px) scale(1.13); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fc-wave-bg-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes fc-wave-bg-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}

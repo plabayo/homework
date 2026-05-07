@@ -69,6 +69,41 @@ function fuzzyMatchPhrase(given, expected) {
     return matched / contentWords.length >= 0.6;
 }
 
+// Returns true when the answer was accepted via phrase-coverage fallback (not
+// exact/Levenshtein), so we can flag it as "bijna goed" for the teacher.
+function isLenientMatch(given, expected) {
+    if (normalize(given) === normalize(expected)) return false;
+    if (fuzzyEqual(given, expected)) return false;
+    return true; // phrase-coverage fallback was used
+}
+
+// ---------- Lenient-match tracking ----------
+
+const lenientMatches = [];
+
+function pushLenientMatch(given, expected, front) {
+    lenientMatches.push({ given, expected, front });
+}
+
+function appendLenientSection(matches) {
+    const resultEl = document.getElementById("result");
+    if (!resultEl || matches.length === 0) return;
+    const items = matches
+        .map(
+            (m) =>
+                `<li class="item-lenient">
+            <span class="item-desc">${escapeHtml(m.front)}</span>
+            <span class="item-meta">jij: <em>${escapeHtml(m.given)}</em> → juist: <strong>${escapeHtml(m.expected)}</strong></span>
+        </li>`,
+        )
+        .join("");
+    const section = document.createElement("section");
+    section.className = "result-detail";
+    section.innerHTML = `<h3 class="section-title">Bijna goed 〜</h3>
+        <ul class="result-detail-list">${items}</ul>`;
+    resultEl.appendChild(section);
+}
+
 // Split raw input into individual answer tokens on comma, semicolon, slash,
 // newline, or the word " en " — for "all at once" multi-part detection.
 function splitAnswerTokens(raw) {
@@ -985,6 +1020,16 @@ function renderMultiPartQuestion(q, root, mode) {
         return () => "__matched__";
     }
 
+    // A previous entry for this card was skipped — propagate skip to this entry too.
+    if (q.partIndex > matched.size) {
+        root.innerHTML = `
+            <div class="flash-question">
+                <p class="flash-text">${escapeHtml(q.front)}</p>
+            </div>`;
+        setTimeout(() => document.getElementById("button-skip")?.click(), 50);
+        return () => "";
+    }
+
     // Normal play: show already-matched parts and an input for the next one.
     if (skipBtn) skipBtn.hidden = true;
     if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
@@ -1199,7 +1244,9 @@ runExercise({
         if (!q.back && q.allCards) {
             // Order-independent: accept if the answer matches any remaining unmatched blank.
             for (const idx of q.blankIndices) {
-                if (!(idx in fillInResults) && fuzzyEqual(given, q.allCards[idx])) {
+                if (!(idx in fillInResults) && fuzzyMatchPhrase(given, q.allCards[idx])) {
+                    if (isLenientMatch(given, q.allCards[idx]))
+                        pushLenientMatch(given, q.allCards[idx], q.allCards.join(" … "));
                     fillInResults[idx] = true;
                     return true;
                 }
@@ -1210,7 +1257,11 @@ runExercise({
             return false;
         }
         if (!q.back) return given === "__know__";
-        return fuzzyEqual(given, q.back);
+        if (fuzzyMatchPhrase(given, q.back)) {
+            if (isLenientMatch(given, q.back)) pushLenientMatch(given, q.back, q.front);
+            return true;
+        }
+        return false;
     },
 
     describe(q) {
@@ -1218,3 +1269,44 @@ runExercise({
         return q.back ? `${q.front} → ${q.back}` : q.front;
     },
 });
+
+// ---------- Card wave animation (one-sided decks) ----------
+
+function showCardWave(cards) {
+    if (!cards.length) return;
+    const overlay = document.createElement("div");
+    overlay.className = "fc-wave-overlay";
+    const items = cards
+        .map((text, i) => `<div class="fc-wave-card" style="--i:${i}">${escapeHtml(text)}</div>`)
+        .join("");
+    overlay.innerHTML = `<div class="fc-wave-stage">${items}</div>`;
+    document.body.appendChild(overlay);
+    const totalMs = Math.min(cards.length - 1, 19) * 80 + 900;
+    setTimeout(() => {
+        overlay.classList.add("fc-wave-fade");
+        setTimeout(() => overlay.remove(), 400);
+    }, totalMs);
+}
+
+// ---------- Lenient-match observer ----------
+
+(function setupResultObservers() {
+    const pageExercises = document.getElementById("page-exercises");
+    if (pageExercises) {
+        new MutationObserver(() => {
+            if (!pageExercises.hidden) lenientMatches.length = 0;
+        }).observe(pageExercises, { attributes: true, attributeFilter: ["hidden"] });
+    }
+    const pageResult = document.getElementById("page-result");
+    if (pageResult) {
+        new MutationObserver(() => {
+            if (!pageResult.hidden) {
+                if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
+                const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
+                if (deck && deckMode(deck) === "one-sided") {
+                    showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
+                }
+            }
+        }).observe(pageResult, { attributes: true, attributeFilter: ["hidden"] });
+    }
+})();
