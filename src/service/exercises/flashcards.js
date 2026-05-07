@@ -9,6 +9,9 @@ function normalize(s) {
         .normalize("NFKD")
         .replace(/[̀-ͯ]/g, "")
         .replace(/\p{Extended_Pictographic}/gu, "")
+        // Strip variation selectors (U+FE00-FE0F), ZWJ (U+200D) and keycap combiner
+        // (U+20E3) left behind after Extended_Pictographic removal (e.g. U+FE0F after ❄).
+        .replace(/[︀-️‍⃣]|\p{Emoji_Modifier}/gu, "")
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -1350,9 +1353,13 @@ function showCardWave(cards) {
                 if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
                 const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
                 if (deck && deckMode(deck) === "one-sided") {
-                    const h3 = pageResult.querySelector("h3");
-                    const correct = parseInt(h3?.textContent ?? "", 10);
-                    if (correct > 0) showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
+                    const scoreText = pageResult.querySelector("h3")?.textContent ?? "";
+                    const [rawCorrect, rawTotal] = scoreText.split("/");
+                    const correct = parseInt(rawCorrect, 10);
+                    const total = parseInt(rawTotal, 10);
+                    if (correct > 0 && correct === total) {
+                        showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
+                    }
                 }
             }
         }).observe(pageResult, { attributes: true, attributeFilter: ["hidden"] });

@@ -903,6 +903,121 @@ async fn flashcards_lenient_match_shows_bijna_goed() -> TestResult<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_one_sided_emoji_card_accepted() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Cards whose text contains emoji with variation selectors (e.g. ❄️ = U+2744 + U+FE0F).
+    // The user should be able to answer with plain text and still be accepted.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-emoji","name":"Emoji kaarten","mode":"one-sided",
+            "cards":[
+                {"front":"lente 🌸"},
+                {"front":"winter ❄️"}
+            ],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-emoji").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "lente").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "winter").await?;
+    click(driver, "#button-check").await?;
+
+    // Both plain-text answers accepted despite emoji in card text — 2 / 2.
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_one_sided_partial_score_no_wave() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-partial","name":"Deels goed","mode":"one-sided",
+            "cards":[{"front":"lente"},{"front":"zomer"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-partial").await?;
+
+    // Answer first correctly, then skip the second.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "lente").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "fout").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
+    click(driver, "#button-skip").await?;
+
+    // 1 / 2 — no wave overlay should ever appear.
+    wait_for_text(driver, "#result h3", "1 / 2", Duration::from_secs(5)).await?;
+    // Give it a full second to confirm the wave is not triggered.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let wave_count = driver.find_all(By::Css(".fc-wave-overlay")).await?.len();
+    assert_eq!(wave_count, 0, "wave should not appear on partial score");
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_one_sided_perfect_score_shows_wave() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-perfect","name":"Alles goed","mode":"one-sided",
+            "cards":[{"front":"lente"},{"front":"zomer"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-perfect").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "lente").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "zomer").await?;
+    click(driver, "#button-check").await?;
+
+    // 2 / 2 — wave overlay should appear briefly.
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    wait_for_css(driver, ".fc-wave-overlay", Duration::from_secs(3)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 async fn collect_hrefs(links: Vec<WebElement>) -> TestResult<Vec<String>> {
