@@ -85,6 +85,15 @@ function pushLenientMatch(given, expected, front) {
     lenientMatches.push({ given, expected, front });
 }
 
+// Match `given` against `expected` and, if accepted, auto-track as lenient when
+// only the phrase-coverage fallback was used.  Single source of truth so callers
+// can't forget the tracking step.
+function matchAndTrackLenient(given, expected, front) {
+    if (!fuzzyMatchPhrase(given, expected)) return false;
+    if (isLenientMatch(given, expected)) pushLenientMatch(given, expected, front);
+    return true;
+}
+
 function appendLenientSection(matches) {
     const resultEl = document.getElementById("result");
     if (!resultEl || matches.length === 0) return;
@@ -114,8 +123,9 @@ function splitAnswerTokens(raw) {
 }
 
 // Try to match one or more tokens from `given` against unmatched parts.
+// `front` is the card's front text, used for lenient-match tracking.
 // Returns a Set of newly matched part strings.
-function tryMatchParts(given, allParts, alreadyMatched) {
+function tryMatchParts(given, allParts, alreadyMatched, front) {
     const tokens = splitAnswerTokens(given);
     const newlyMatched = new Set();
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
@@ -123,7 +133,7 @@ function tryMatchParts(given, allParts, alreadyMatched) {
     // Pass 1: match each split token against an unmatched part.
     for (const token of tokens) {
         for (const part of remaining) {
-            if (!newlyMatched.has(part) && fuzzyMatchPhrase(token, part)) {
+            if (!newlyMatched.has(part) && matchAndTrackLenient(token, part, front)) {
                 newlyMatched.add(part);
                 break;
             }
@@ -133,7 +143,7 @@ function tryMatchParts(given, allParts, alreadyMatched) {
     // Pass 2 (phrase-contains fallback): if the full input contains all content words
     // of a remaining part, count it as matched.  Handles any separator the user picks
     // (space, "en", "+", etc.) without needing to enumerate them all.
-    // Only runs when pass 1 left parts unmatched.
+    // Only runs when pass 1 left parts unmatched.  Always lenient by definition.
     for (const part of remaining) {
         if (newlyMatched.has(part)) continue;
         const bWords = normalize(part).split(" ").filter((w) => w.length > 0);
@@ -147,11 +157,30 @@ function tryMatchParts(given, allParts, alreadyMatched) {
         // Require ALL content words present AND at most one extra word per content word
         // (prevents single-word parts from matching long unrelated phrases).
         if (matched === contentWords.length && aWords.length <= contentWords.length * 2 + 1) {
+            pushLenientMatch(given, part, front);
             newlyMatched.add(part);
         }
     }
 
     return newlyMatched;
+}
+
+// ---------- Deck validation ----------
+
+// Validate and normalise raw deck data from any untrusted source (import URL,
+// future sync, etc.).  Returns a clean object or null if data is unusable.
+function validateDeckData(raw) {
+    if (!raw || typeof raw.name !== "string" || !Array.isArray(raw.cards)) return null;
+    const name = raw.name.trim();
+    if (!name) return null;
+    const cards = raw.cards.filter((c) => c && typeof c.front === "string" && c.front.trim());
+    if (cards.length === 0) return null;
+    return {
+        name,
+        mode: raw.mode === "one-sided" ? "one-sided" : "two-sided",
+        bidirectional: raw.bidirectional === true,
+        cards,
+    };
 }
 
 // ---------- Storage ----------
@@ -226,7 +255,9 @@ async function decodeDeckParam(param) {
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const json = await decompress(bytes);
-    return JSON.parse(json);
+    const data = validateDeckData(JSON.parse(json));
+    if (!data) throw new Error("invalid deck data");
+    return data;
 }
 
 // ---------- Example decks ----------
@@ -576,9 +607,9 @@ function syncCardHints() {
     managerRoot.querySelectorAll(".card-hint-row-reverse").forEach((row) => { row.hidden = !isBidir; });
 }
 
-// Wire hint checkboxes so they show/hide their text input.
-function bindHintCheckboxes() {
-    managerRoot.querySelectorAll(".card-hint-check").forEach((cb) => {
+// Wire hint checkboxes within `root` so they show/hide their text input.
+function bindHintCheckboxesFor(root) {
+    root.querySelectorAll(".card-hint-check").forEach((cb) => {
         const hintRow = cb.closest(".card-hint-row");
         const input = hintRow?.querySelector(".card-hint-input");
         if (!input) return;
@@ -587,6 +618,10 @@ function bindHintCheckboxes() {
             if (cb.checked) input.focus();
         });
     });
+}
+
+function bindHintCheckboxes() {
+    bindHintCheckboxesFor(managerRoot);
 }
 
 function autoResizeTextarea(ta) {
@@ -656,15 +691,7 @@ function addCardRow() {
     div.innerHTML = cardRowHtml(null, i, isTwoSided, isBidirectional);
     const row = div.firstElementChild;
     row.querySelector("[data-action='remove-card']").addEventListener("click", handleRemoveCardClick);
-    row.querySelectorAll(".card-hint-check").forEach((cb) => {
-        const hintRow = cb.closest(".card-hint-row");
-        const input = hintRow?.querySelector(".card-hint-input");
-        if (!input) return;
-        cb.addEventListener("change", () => {
-            input.hidden = !cb.checked;
-            if (cb.checked) input.focus();
-        });
-    });
+    bindHintCheckboxesFor(row);
     list.appendChild(row);
     bindCardPartHandlers(row);
     row.querySelector(".card-front").focus();
@@ -822,7 +849,7 @@ function renderImport() {
     document.getElementById("page-setup")?.setAttribute("data-editing", "");
 
     const deck = importPending;
-    const isTwo = deck.cards.some((c) => c.back) || deck.mode === "two-sided";
+    const isTwo = deckMode(deck) === "two-sided";
     const isBidir = isTwo && deck.bidirectional;
     const count = deck.cards.length;
     const modeLabel = !isTwo ? "uit het hoofd" : isBidir ? "twee richtingen" : "voor-achterkant";
@@ -1147,7 +1174,7 @@ runExercise({
             const cardGroups = cards.map((c) => {
                 if (isBidirectional && Math.random() < 0.5) {
                     // Backward: show back (or first part), expect front.
-                    return [{ front: c.back || (c.parts?.[0] ?? ""), back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
+                    return [{ kind: "two-sided", front: c.back || (c.parts?.[0] ?? ""), back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
                 }
                 // Forward direction — check for multi-part.
                 const isMultiPart = c.parts && c.parts.length > 1;
@@ -1157,6 +1184,7 @@ runExercise({
                         : c.parts.length;
                     const sharedState = { matched: new Set() };
                     return Array.from({ length: requiredCount }, (_, pi) => ({
+                        kind: "multi-part",
                         front: c.front,
                         allParts: c.parts,
                         requiredCount,
@@ -1166,7 +1194,7 @@ runExercise({
                         direction: "fwd",
                     }));
                 }
-                return [{ front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
+                return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
             });
             shuffle(cardGroups);
             return cardGroups.flat();
@@ -1190,8 +1218,8 @@ runExercise({
         }
 
         return blankIndices.map((idx) => ({
+            kind: "fill-in",
             front: allCards[idx],
-            back: null,
             index: idx,
             allCards,
             blankIndices,
@@ -1199,105 +1227,92 @@ runExercise({
     },
 
     renderQuestion(q, root, mode) {
-        // Multi-part two-sided question — delegate entirely.
-        if (q.allParts) return renderMultiPartQuestion(q, root, mode);
-
-        const isTwoSided = !!q.back;
-        const skipBtn = document.getElementById("button-skip");
-        const checkBtn = document.getElementById("button-check");
-
-        // ---- Review mode (shown in result detail) ----
-        if (mode.kind === "review") {
-            if (!isTwoSided && q.allCards) {
-                renderFillInReview(q, root, mode.correct);
-                return;
-            }
-            if (isTwoSided) {
-                // For bidirectional cards, show labels that reflect which side was asked.
-                const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
-                const answerLabel = q.direction === "bwd" ? "voorkant" : "achterkant";
+        switch (q.kind) {
+            case "multi-part":
+                return renderMultiPartQuestion(q, root, mode);
+            case "fill-in":
+                if (mode.kind === "review") { renderFillInReview(q, root, mode.correct); return; }
+                return renderFillInQuestion(q, root);
+            case "two-sided": {
+                const skipBtn = document.getElementById("button-skip");
+                const checkBtn = document.getElementById("button-check");
+                if (mode.kind === "review") {
+                    const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
+                    const answerLabel = q.direction === "bwd" ? "voorkant" : "achterkant";
+                    root.innerHTML = `
+                        <div class="flash-review">
+                            <div class="flash-side flash-front-side">
+                                <span class="flash-side-label">${shownLabel}</span>
+                                <p class="flash-text">${escapeHtml(q.front)}</p>
+                            </div>
+                            <div class="flash-side flash-back-side">
+                                <span class="flash-side-label">${answerLabel}</span>
+                                <p class="flash-text">${escapeHtml(q.back)}</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
                 root.innerHTML = `
-                    <div class="flash-review">
-                        <div class="flash-side flash-front-side">
-                            <span class="flash-side-label">${shownLabel}</span>
-                            <p class="flash-text">${escapeHtml(q.front)}</p>
-                        </div>
-                        <div class="flash-side flash-back-side">
-                            <span class="flash-side-label">${answerLabel}</span>
-                            <p class="flash-text">${escapeHtml(q.back)}</p>
-                        </div>
-                    </div>`;
-            } else {
-                root.innerHTML = `
-                    <div class="flash-review flash-review-one-sided">
+                    <div class="flash-question">
                         <p class="flash-text">${escapeHtml(q.front)}</p>
+                        ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
+                        <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+                        <input type="text" id="answer" autocomplete="off"
+                            placeholder="jouw antwoord…" aria-label="jouw antwoord">
                     </div>`;
+                if (skipBtn) skipBtn.hidden = true;
+                if (checkBtn) checkBtn.textContent = "👉 antwoord";
+                root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
+                    const hintText = root.querySelector(".fc-hint-text");
+                    if (hintText) hintText.hidden = !hintText.hidden;
+                });
+                const input = root.querySelector("#answer");
+                return () => input.value;
             }
-            return;
+            default:
+                throw new Error(`Unknown card kind: ${q.kind}`);
         }
-
-        // ---- Play mode ----
-        if (!isTwoSided && q.allCards) {
-            return renderFillInQuestion(q, root);
-        }
-
-        // Two-sided: show front, user types the back.
-        root.innerHTML = `
-            <div class="flash-question">
-                <p class="flash-text">${escapeHtml(q.front)}</p>
-                ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
-                <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
-                <input type="text" id="answer" autocomplete="off"
-                    placeholder="jouw antwoord…" aria-label="jouw antwoord">
-            </div>`;
-        if (skipBtn) skipBtn.hidden = true;
-        if (checkBtn) checkBtn.textContent = "👉 antwoord";
-        root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
-            const hintText = root.querySelector(".fc-hint-text");
-            if (hintText) hintText.hidden = !hintText.hidden;
-        });
-        const input = root.querySelector("#answer");
-        return () => input.value;
     },
 
     isCorrect(q, given) {
-        // Multi-part: match against unmatched parts (all-at-once detection via splitAnswerTokens).
-        if (q.allParts) {
-            if (given === "__matched__") return q.sharedState.matched.size >= q.requiredCount;
-            const { sharedState, allParts } = q;
-            const newlyMatched = tryMatchParts(given, allParts, sharedState.matched);
-            if (newlyMatched.size > 0) {
-                for (const p of newlyMatched) sharedState.matched.add(p);
-                return true;
-            }
-            return false;
-        }
-        if (!q.back && q.allCards) {
-            // Order-independent: accept if the answer matches any remaining unmatched blank.
-            for (const idx of q.blankIndices) {
-                if (!(idx in fillInResults) && fuzzyMatchPhrase(given, q.allCards[idx])) {
-                    if (isLenientMatch(given, q.allCards[idx]))
-                        pushLenientMatch(given, q.allCards[idx], q.allCards.join(" … "));
-                    fillInResults[idx] = true;
+        switch (q.kind) {
+            case "multi-part": {
+                if (given === "__matched__") return q.sharedState.matched.size >= q.requiredCount;
+                const { sharedState, allParts } = q;
+                const newlyMatched = tryMatchParts(given, allParts, sharedState.matched, q.front);
+                if (newlyMatched.size > 0) {
+                    for (const p of newlyMatched) sharedState.matched.add(p);
                     return true;
                 }
+                return false;
             }
-            // No match — mark the first unanswered blank as wrong.
-            const firstOpen = q.blankIndices.find((i) => !(i in fillInResults));
-            if (firstOpen !== undefined) fillInResults[firstOpen] = false;
-            return false;
+            case "fill-in": {
+                // Order-independent: accept if the answer matches any remaining unmatched blank.
+                for (const idx of q.blankIndices) {
+                    if (!(idx in fillInResults) && matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "))) {
+                        fillInResults[idx] = true;
+                        return true;
+                    }
+                }
+                // No match — mark the first unanswered blank as wrong.
+                const firstOpen = q.blankIndices.find((i) => !(i in fillInResults));
+                if (firstOpen !== undefined) fillInResults[firstOpen] = false;
+                return false;
+            }
+            case "two-sided":
+                return matchAndTrackLenient(given, q.back, q.front);
+            default:
+                throw new Error(`Unknown card kind: ${q.kind}`);
         }
-        if (!q.back) return given === "__know__";
-        if (fuzzyMatchPhrase(given, q.back)) {
-            if (isLenientMatch(given, q.back)) pushLenientMatch(given, q.back, q.front);
-            return true;
-        }
-        return false;
     },
 
     describe(q) {
-        if (q.allParts) return `${q.front} → [${q.allParts.join(" / ")}]`;
-        return q.back ? `${q.front} → ${q.back}` : q.front;
+        switch (q.kind) {
+            case "multi-part": return `${q.front} → [${q.allParts.join(" / ")}]`;
+            case "two-sided":  return `${q.front} → ${q.back}`;
+            case "fill-in":    return q.front;
+            default: throw new Error(`Unknown card kind: ${q.kind}`);
+        }
     },
 });
 
@@ -1335,7 +1350,9 @@ function showCardWave(cards) {
                 if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
                 const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
                 if (deck && deckMode(deck) === "one-sided") {
-                    showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
+                    const h3 = pageResult.querySelector("h3");
+                    const correct = parseInt(h3?.textContent ?? "", 10);
+                    if (correct > 0) showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
                 }
             }
         }).observe(pageResult, { attributes: true, attributeFilter: ["hidden"] });

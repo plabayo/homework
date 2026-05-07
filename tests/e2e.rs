@@ -869,6 +869,40 @@ async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_lenient_match_shows_bijna_goed() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Single two-sided card: correct answer includes a Dutch article.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-lenient","name":"Bijna goed test","mode":"two-sided",
+            "cards":[{"front":"egyptisch heerser","back":"de farao"}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-lenient").await?;
+
+    // Type answer without the article — should be accepted via phrase-coverage.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "farao").await?;
+    click(driver, "#button-check").await?;
+
+    // Session ends; result shows 1 / 1 and the "Bijna goed" section appears.
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
+    wait_for_css(driver, ".item-lenient", Duration::from_secs(3)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 async fn collect_hrefs(links: Vec<WebElement>) -> TestResult<Vec<String>> {
