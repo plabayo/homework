@@ -2,6 +2,7 @@ use rama::http::html::{IntoHtml, button, div, fieldset, form, input, label, lege
 
 pub mod clock;
 pub mod digital_clock;
+pub mod flashcards;
 pub mod mathbox;
 pub mod multiplications;
 pub mod thermometer;
@@ -58,6 +59,7 @@ pub fn all_exercises() -> &'static [ExerciseInfo] {
             code_label: "⏰",
             level: 2,
         },
+        flashcards::INFO,
     ]
 }
 
@@ -66,6 +68,7 @@ pub fn niveau_label(level: u8) -> &'static str {
         1 => "Niveau 1️⃣",
         2 => "Niveau 2️⃣",
         3 => "Niveau 3️⃣",
+        10 => "Extra ✨",
         _ => "Niveau",
     }
 }

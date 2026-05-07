@@ -62,6 +62,7 @@ pub async fn load_https_service()
         .with_get("/1/thermometer", exercises::thermometer::handler)
         .with_get("/2/clock", exercises::clock::handler)
         .with_get("/2/digital-clock", exercises::digital_clock::handler)
+        .with_get("/extra/flashcards", exercises::flashcards::handler)
         .with_not_found(pages::offline::offline);
 
     let middlewares = (

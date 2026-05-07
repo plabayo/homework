@@ -1,0 +1,55 @@
+use rama::http::html::{div, input};
+use rama::http::service::web::response::IntoResponse;
+
+use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
+use crate::service::layout::{PageMeta, page, page_header};
+
+pub const INFO: ExerciseInfo = ExerciseInfo {
+    id: "flashcards",
+    path: "/extra/flashcards",
+    label: "flitskaarten",
+    icon: "🃏",
+    code_label: "🃏",
+    level: 10,
+};
+
+const STYLE: &str = include_str!("flashcards.css");
+const SCRIPT: &str = include_str!("flashcards.js");
+
+pub async fn handler() -> impl IntoResponse {
+    let body = (
+        page_header("flitskaarten 🃏"),
+        exercise_scaffold(
+            INFO,
+            "Maak je eigen kaartjes en oefen ze. Kies een deck hieronder of maak een nieuw deck aan.",
+            config_fields(),
+        ),
+    );
+
+    page(
+        PageMeta {
+            title: "flitskaarten — Oefeningen Basisschool",
+            description: "Maak je eigen flitskaartjes en oefen ze.",
+            og_path: "/extra/flashcards",
+            favicon_emoji: "🃏",
+            show_confetti: true,
+        },
+        STYLE,
+        body,
+        SCRIPT,
+    )
+}
+
+fn config_fields() -> impl rama::http::html::IntoHtml {
+    (
+        // Hidden input populated by JS when a deck is selected.
+        input!(
+            r#type = "hidden",
+            id = "selected-deck-id",
+            name = "selected-deck-id",
+        ),
+        // The deck management UI is rendered here entirely by flashcards.js.
+        div!(id = "deck-manager"),
+        time_mode_fieldset(),
+    )
+}

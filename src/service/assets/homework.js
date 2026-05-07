@@ -994,6 +994,8 @@ export function runExercise(spec) {
     enableTouchSubmit(formExercise);
     show("setup");
     setupHistoryView();
+    // Allow exercise scripts to trigger a history refresh when the deck/variant changes.
+    document.addEventListener("homework:refresh-history", setupHistoryView);
 }
 
 // ---------- parent history view ----------
@@ -1001,8 +1003,7 @@ export function runExercise(spec) {
 async function setupHistoryView() {
     const root = document.getElementById("history");
     if (!root) return;
-    const exerciseId = root.dataset.exerciseId;
-    if (!exerciseId) return;
+    if (!root.dataset.exerciseId) return;
 
     let list = root.querySelector(".history-list");
     if (!list) {
@@ -1012,6 +1013,8 @@ async function setupHistoryView() {
     }
 
     async function refresh() {
+        const exerciseId = root.dataset.exerciseId;
+        if (!exerciseId) return;
         const sessions = await listSessions(exerciseId, 20);
         const mistakes = await recentMistakes(exerciseId, 1);
 
@@ -1096,6 +1099,7 @@ async function setupHistoryView() {
         )
             return;
         try {
+            const exerciseId = root.dataset.exerciseId;
             await withStore("readwrite", (store) => {
                 return new Promise((resolve, reject) => {
                     const idx = store.index("by_exercise");
@@ -1259,12 +1263,41 @@ function relativeDate(ts) {
     return formatDate(ts).split(" ")[0];
 }
 
+// Scan all sessions newest-first and return those whose exerciseId starts with `prefix`.
+// Used as a fallback for exercises that store sessions under per-variant IDs
+// (e.g. "flashcards-<deckId>") so the home page still shows stats for "flashcards".
+async function listRecentWithPrefix(prefix, limit = 5) {
+    try {
+        return await withStore("readonly", (store) => {
+            return new Promise((resolve, reject) => {
+                const results = [];
+                const idx = store.index("by_finishedAt");
+                const req = idx.openCursor(null, "prev");
+                req.onsuccess = (e) => {
+                    const cursor = e.target.result;
+                    if (!cursor) { resolve(results); return; }
+                    if (cursor.value.exerciseId.startsWith(prefix)) {
+                        results.push(cursor.value);
+                        if (results.length >= limit) { resolve(results); return; }
+                    }
+                    cursor.continue();
+                };
+                req.onerror = () => reject(req.error);
+            });
+        });
+    } catch {
+        return [];
+    }
+}
+
 async function hydrateHomeStats() {
     const slots = document.querySelectorAll("[data-stats-for]");
     if (slots.length === 0) return;
     for (const slot of slots) {
         const id = slot.dataset.statsFor;
-        const sessions = await listSessions(id, 5);
+        let sessions = await listSessions(id, 5);
+        // Fallback: exercise may use per-variant IDs (e.g. "flashcards-<deckId>").
+        if (sessions.length === 0) sessions = await listRecentWithPrefix(id + "-", 5);
         if (sessions.length === 0) {
             slot.textContent = "nog niet geoefend";
             continue;
