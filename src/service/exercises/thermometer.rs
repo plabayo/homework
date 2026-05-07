@@ -30,7 +30,7 @@ pub async fn handler() -> impl IntoResponse {
         PageMeta {
             title: "thermometer — Oefeningen Basisschool",
             description: "Oefen het lezen en kleuren van een analoge thermometer.",
-            og_path: "/1/thermometer",
+            og_path: "/1/thermometer".into(),
             favicon_emoji: "🌡️",
             show_confetti: true,
         },

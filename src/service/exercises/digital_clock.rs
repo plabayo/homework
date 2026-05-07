@@ -30,7 +30,7 @@ pub async fn handler() -> impl IntoResponse {
         PageMeta {
             title: "digitale klok — Oefeningen Basisschool",
             description: "Oefen Nederlandse tijduitdrukkingen: kwart over, half, kwart voor.",
-            og_path: "/2/digital-clock",
+            og_path: "/2/digital-clock".into(),
             favicon_emoji: "⏰",
             show_confetti: true,
         },

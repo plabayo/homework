@@ -8,7 +8,7 @@ pub async fn offline() -> impl IntoResponse {
         PageMeta {
             title: "Offline — Oefeningen Basisschool",
             description: "Je bent offline.",
-            og_path: "/offline",
+            og_path: "/offline".into(),
             favicon_emoji: "📴",
             show_confetti: false,
         },

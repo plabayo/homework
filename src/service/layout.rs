@@ -1,14 +1,19 @@
+use std::borrow::Cow;
+
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
     p, script, style, title,
 };
 use rama::http::service::web::response::IntoResponse;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct PageMeta {
     pub title: &'static str,
     pub description: &'static str,
-    pub og_path: &'static str,
+    /// Path (and optional query string) used to build the canonical og:url.
+    /// Most pages use a `&'static str` path; share links include a query string
+    /// and pass an owned `String` via `Cow::Owned`.
+    pub og_path: Cow<'static, str>,
     pub favicon_emoji: &'static str,
     pub show_confetti: bool,
 }
@@ -18,7 +23,7 @@ impl Default for PageMeta {
         Self {
             title: "Oefeningen Basisschool",
             description: "Gratis huiswerk middel voor de basisschool.",
-            og_path: "/",
+            og_path: Cow::Borrowed("/"),
             favicon_emoji: "🏫",
             show_confetti: false,
         }

@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+
+use rama::http::Uri;
 use rama::http::html::{div, input};
 use rama::http::service::web::response::IntoResponse;
 
@@ -16,7 +19,31 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("flashcards.css");
 const SCRIPT: &str = include_str!("flashcards.js");
 
-pub async fn handler() -> impl IntoResponse {
+pub async fn handler(uri: Uri) -> impl IntoResponse {
+    let is_import = uri.query().is_some_and(|q| q.contains("import="));
+
+    let (title, description) = if is_import {
+        (
+            "Importeer flitskaartjes deck — Oefeningen Basisschool",
+            "Klik om een gedeeld flitskaartjes deck te importeren in jouw oefeningen app.",
+        )
+    } else {
+        (
+            "flitskaarten — Oefeningen Basisschool",
+            "Maak je eigen flitskaartjes en oefen ze.",
+        )
+    };
+
+    let og_path: Cow<'static, str> = if is_import {
+        let path_and_query = uri
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or("/extra/flashcards");
+        Cow::Owned(path_and_query.to_owned())
+    } else {
+        Cow::Borrowed("/extra/flashcards")
+    };
+
     let body = (
         page_header("flitskaarten 🃏"),
         exercise_scaffold(
@@ -28,9 +55,9 @@ pub async fn handler() -> impl IntoResponse {
 
     page(
         PageMeta {
-            title: "flitskaarten — Oefeningen Basisschool",
-            description: "Maak je eigen flitskaartjes en oefen ze.",
-            og_path: "/extra/flashcards",
+            title,
+            description,
+            og_path,
             favicon_emoji: "🃏",
             show_confetti: true,
         },

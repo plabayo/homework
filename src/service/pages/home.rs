@@ -11,7 +11,7 @@ pub async fn home() -> impl IntoResponse {
         PageMeta {
             title: "Oefeningen Basisschool",
             description: "Gratis huiswerk middel voor de basisschool.",
-            og_path: "/",
+            og_path: "/".into(),
             favicon_emoji: "🏫",
             show_confetti: false,
         },

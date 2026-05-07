@@ -30,7 +30,7 @@ pub async fn handler() -> impl IntoResponse {
         PageMeta {
             title: "analoge klok — Oefeningen Basisschool",
             description: "Oefen het lezen en zetten van een analoge klok.",
-            og_path: "/2/clock",
+            og_path: "/2/clock".into(),
             favicon_emoji: "🕐",
             show_confetti: true,
         },

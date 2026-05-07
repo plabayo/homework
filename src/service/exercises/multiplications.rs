@@ -30,7 +30,7 @@ pub async fn handler() -> impl IntoResponse {
         PageMeta {
             title: "maaltafels — Oefeningen Basisschool",
             description: "Oefen de maaltafels van 1 tot en met 10.",
-            og_path: "/1/multiplications",
+            og_path: "/1/multiplications".into(),
             favicon_emoji: "✖️",
             show_confetti: true,
         },
