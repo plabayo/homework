@@ -1018,6 +1018,181 @@ async fn flashcards_one_sided_perfect_score_shows_wave() -> TestResult<()> {
     Ok(())
 }
 
+/// ---- Image card tests -------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_image_card_exercise_text_answer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Inject a deck with a single image card.  No real image is loaded during
+    // the test — the exercise renders a loading placeholder and the answer field
+    // still appears and accepts text.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-img","name":"Afbeelding test","mode":"two-sided",
+            "cards":[{"wikimedia":"File:Cat.jpg","back":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-img").await?;
+
+    // The image-card question renders a container plus the answer input.
+    wait_for_css(
+        driver,
+        "#exercise-content .flash-image-container",
+        Duration::from_secs(5),
+    )
+    .await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    // Type the correct answer and confirm it's accepted.
+    set_input_value(driver, "#answer", "kat").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_image_card_type_toggle_in_editor() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Open the new-deck editor.
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#deck-name-input", Duration::from_secs(5)).await?;
+
+    // Default state: text front is visible, image front is hidden.
+    let img_front_hidden_before = driver
+        .execute(
+            "return document.querySelector('.card-image-front')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        img_front_hidden_before.json().as_bool().unwrap_or(false),
+        "image front should be hidden when card type is text"
+    );
+
+    let text_front_hidden_before = driver
+        .execute(
+            "return document.querySelector('.card-text-front')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !text_front_hidden_before.json().as_bool().unwrap_or(true),
+        "text front should be visible by default"
+    );
+
+    // Click the image radio button for card 0.
+    click(driver, "input[name='card-type-0'][value='image']").await?;
+
+    // Now image front should be visible and text front hidden.
+    let img_front_hidden_after = driver
+        .execute(
+            "return document.querySelector('.card-image-front')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !img_front_hidden_after.json().as_bool().unwrap_or(true),
+        "image front should be visible after toggling to image type"
+    );
+
+    let text_front_hidden_after = driver
+        .execute(
+            "return document.querySelector('.card-text-front')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        text_front_hidden_after.json().as_bool().unwrap_or(false),
+        "text front should be hidden after toggling to image type"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_one_sided_order_checkbox_preserves_order() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // Two-card one-sided deck in a fixed order.
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-order","name":"Volgorde test","mode":"one-sided",
+            "cards":[{"front":"aap"},{"front":"beer"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    // Select the deck: mode options (including the order checkbox) should appear.
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-order']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-order'] .deck-select-btn",
+    )
+    .await?;
+
+    // The order checkbox must be visible and unchecked by default (shuffle is the default).
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+    let order_checked = driver
+        .execute(
+            "return document.querySelector('#fc-order-important')?.checked ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !order_checked.json().as_bool().unwrap_or(true),
+        "order checkbox should be unchecked by default"
+    );
+
+    // Check the box so order is preserved, then start.
+    set_checkbox(driver, "#fc-order-important", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    // With preserved order the fill-in grid starts at "aap" (index 0).
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "aap").await?;
+    click(driver, "#button-check").await?;
+
+    // Second slot is "beer".
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "beer").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 async fn collect_hrefs(links: Vec<WebElement>) -> TestResult<Vec<String>> {

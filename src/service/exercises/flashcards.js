@@ -176,7 +176,11 @@ function validateDeckData(raw) {
     if (!raw || typeof raw.name !== "string" || !Array.isArray(raw.cards)) return null;
     const name = raw.name.trim();
     if (!name) return null;
-    const cards = raw.cards.filter((c) => c && typeof c.front === "string" && c.front.trim());
+    const cards = raw.cards.filter((c) => {
+        if (!c) return false;
+        if (typeof c.wikimedia === "string" && c.wikimedia.trim()) return true;
+        return typeof c.front === "string" && c.front.trim();
+    });
     if (cards.length === 0) return null;
     return {
         name,
@@ -222,6 +226,117 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// ---------- Wikimedia Commons image cache ----------
+//
+// The Commons action API and the upload.wikimedia.org media CDN both expose
+// permissive CORS headers (Access-Control-Allow-Origin: *), so all fetches
+// below work from any origin — localhost during development and
+// https://elementary.training in production.  The `origin=*` query parameter
+// is required so the action API includes CORS response headers.
+
+const WM_API = "https://commons.wikimedia.org/w/api.php";
+const WM_DB_NAME = "homework-wikimedia-v1";
+const WM_STORE = "blobs";
+
+// Session-level map: filename → objectURL.  Populated lazily by wmLoad().
+const imageObjectURLs = new Map();
+
+let _wmDbHandle = null;
+async function wmDb() {
+    if (_wmDbHandle) return _wmDbHandle;
+    _wmDbHandle = await new Promise((resolve, reject) => {
+        const req = indexedDB.open(WM_DB_NAME, 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore(WM_STORE);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+    });
+    return _wmDbHandle;
+}
+
+async function wmDbGet(filename) {
+    try {
+        const db = await wmDb();
+        return await new Promise(resolve => {
+            const req = db.transaction(WM_STORE).objectStore(WM_STORE).get(filename);
+            req.onsuccess = () => resolve(req.result ?? null);
+            req.onerror = () => resolve(null);
+        });
+    } catch { return null; }
+}
+
+async function wmDbPut(filename, blob) {
+    try {
+        const db = await wmDb();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(WM_STORE, "readwrite");
+            tx.objectStore(WM_STORE).put(blob, filename);
+            tx.oncomplete = resolve;
+            tx.onerror = e => reject(e.target.error);
+        });
+    } catch (e) { console.warn("wmDbPut failed", e); }
+}
+
+// Resolve a Commons filename to a thumbnail URL via the action API.
+async function wmResolveThumb(filename, width) {
+    const params = new URLSearchParams({
+        action: "query", titles: filename, prop: "imageinfo",
+        iiprop: "url", iiurlwidth: String(width), format: "json", origin: "*",
+    });
+    const resp = await fetch(`${WM_API}?${params}`);
+    const data = await resp.json();
+    for (const page of Object.values(data.query?.pages ?? {})) {
+        const info = page.imageinfo?.[0];
+        if (info?.thumburl) return info.thumburl;
+        if (info?.url) return info.url;
+    }
+    throw new Error(`No image info for ${filename}`);
+}
+
+// Ensure a file is in imageObjectURLs; load from IDB cache or fetch if needed.
+async function wmLoad(filename) {
+    if (imageObjectURLs.has(filename)) return imageObjectURLs.get(filename);
+    let blob = await wmDbGet(filename);
+    if (!blob) {
+        const thumbUrl = await wmResolveThumb(filename, 400);
+        const resp = await fetch(thumbUrl);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching ${thumbUrl}`);
+        blob = await resp.blob();
+        await wmDbPut(filename, blob);
+    }
+    const url = URL.createObjectURL(blob);
+    imageObjectURLs.set(filename, url);
+    return url;
+}
+
+// Pre-load all image cards in a deck. Returns { loaded, failed } filename arrays.
+async function wmPreloadDeck(deck) {
+    const filenames = [...new Set(deck.cards.filter(c => c.wikimedia).map(c => c.wikimedia))];
+    const loaded = [], failed = [];
+    await Promise.all(filenames.map(async fn => {
+        try { await wmLoad(fn); loaded.push(fn); }
+        catch (e) { console.warn(`Failed to load ${fn}:`, e); failed.push(fn); }
+    }));
+    return { loaded, failed };
+}
+
+// Search Commons for images matching term. Returns [{ title, thumbUrl }].
+// Uses the generator API so title lookup and imageinfo come in one round-trip.
+async function wmSearch(term) {
+    if (!term.trim()) return [];
+    const params = new URLSearchParams({
+        action: "query", generator: "search", gsrsearch: term,
+        gsrnamespace: "6", gsrlimit: "15", prop: "imageinfo",
+        iiprop: "url", iiurlwidth: "120", format: "json", origin: "*",
+    });
+    try {
+        const resp = await fetch(`${WM_API}?${params}`);
+        const data = await resp.json();
+        return Object.values(data.query?.pages ?? {})
+            .filter(p => p.imageinfo?.[0]?.thumburl)
+            .map(p => ({ title: p.title, thumbUrl: p.imageinfo[0].thumburl }));
+    } catch { return []; }
+}
+
 // ---------- Compression for sharing ----------
 
 async function compress(text) {
@@ -245,7 +360,21 @@ async function encodeDeck(deck) {
         name: deck.name,
         mode: deck.mode,
         bidirectional: deck.bidirectional || false,
-        cards: deck.cards,
+        // Strip editor-only fields (thumbUrl) so shared deck URLs stay lean.
+        cards: deck.cards.map(c => {
+            if (c.wikimedia) {
+                const card = { wikimedia: c.wikimedia };
+                if (c.back) card.back = c.back;
+                return card;
+            }
+            const card = { front: c.front };
+            if (c.back) card.back = c.back;
+            if (c.parts) card.parts = c.parts;
+            if (c.partsRequired != null) card.partsRequired = c.partsRequired;
+            if (c.hint) card.hint = c.hint;
+            if (c.hintReverse) card.hintReverse = c.hintReverse;
+            return card;
+        }),
     });
     const buf = await compress(json);
     let bin = "";
@@ -395,7 +524,9 @@ function renderList() {
 }
 
 function renderModeOptionsHtml(deck) {
-    const n = deck.cards.length;
+    // Only text cards participate in the fill-in grid; image cards are standalone.
+    const n = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
+    if (n === 0) return "";
     const defaultCount = Math.max(1, Math.ceil(n / 2));
     return `
         <div class="fc-mode-options">
@@ -409,6 +540,10 @@ function renderModeOptionsHtml(deck) {
                 vul ontbrekende in:
                 <input type="number" name="fc-count" id="fc-count" min="1" max="${n - 1}" value="${defaultCount}" disabled>
                 van ${n} lege vakjes — de rest zie je als hint
+            </label>
+            <label class="fc-mode-radio fc-order-label">
+                <input type="checkbox" id="fc-order-important">
+                Volgorde is belangrijk <span class="fc-order-note">(standaard: willekeurig)</span>
             </label>
         </div>`;
 }
@@ -434,6 +569,8 @@ function handleDeckAction(e) {
             if (hiddenDeckInput) hiddenDeckInput.value = deckId;
             try { localStorage.setItem(FC_LAST_DECK_KEY, deckId); } catch {}
             renderList();
+            // Pre-load image cards in the background so they're ready when the session starts.
+            { const sel = getDeck(deckId); if (sel) wmPreloadDeck(sel); }
             break;
         case "edit":
             editorState = { mode: "edit", id: deckId };
@@ -455,6 +592,7 @@ function handleDeckAction(e) {
 // ---------- Deck editor view ----------
 
 function cardRowHtml(card, i, isTwoSided, isBidirectional) {
+    const isImageCard = !!(card?.wikimedia);
     const hintVal = escapeHtml(card?.hint || "");
     const hintRevVal = escapeHtml(card?.hintReverse || "");
     const rawParts = card?.parts || (card?.back ? [card.back] : []);
@@ -462,17 +600,42 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
     const partsCount = rawParts.length;
     const hasMinRequired = partsCount > 1 && card?.partsRequired != null && card.partsRequired < partsCount;
     const minRequiredVal = hasMinRequired ? card.partsRequired : partsCount;
+    // Image cards always expose their answer field regardless of deck mode.
+    const showBack = isTwoSided || isImageCard;
+    const wmFilename = escapeHtml(card?.wikimedia || "");
+    const wmThumb = escapeHtml(card?.thumbUrl || "");
     return `
-        <div class="card-row" data-index="${i}">
+        <div class="card-row" data-index="${i}" data-card-type="${isImageCard ? "image" : "text"}">
+            <div class="card-type-toggle">
+                <label class="fc-type-label">
+                    <input type="radio" name="card-type-${i}" value="text"${isImageCard ? "" : " checked"}> ✍️ Tekst
+                </label>
+                <label class="fc-type-label">
+                    <input type="radio" name="card-type-${i}" value="image"${isImageCard ? " checked" : ""}> 🖼️ Wikimedia afbeelding
+                </label>
+            </div>
             <div class="card-row-main">
-                <div class="card-fields${isTwoSided ? "" : " one-sided"}">
-                    <div class="card-field">
+                <div class="card-fields${showBack ? "" : " one-sided"}${isImageCard ? " has-image" : ""}">
+                    <div class="card-field card-text-front"${isImageCard ? " hidden" : ""}>
                         <label for="card-front-${i}">Voorkant</label>
                         <input type="text" id="card-front-${i}" class="card-front"
                             value="${escapeHtml(card?.front || "")}" placeholder="Tekst op de voorkant" autocomplete="off">
                     </div>
+                    <div class="card-field card-image-front"${isImageCard ? "" : " hidden"}>
+                        <label>Afbeelding (Wikimedia Commons)</label>
+                        <div class="card-image-picker">
+                            <input type="hidden" class="card-wikimedia" value="${wmFilename}"${wmThumb ? ` data-thumb="${wmThumb}"` : ""}>
+                            <div class="card-image-selected"${wmFilename ? "" : " hidden"}>
+                                ${wmFilename && wmThumb ? `<img class="card-image-thumb" src="${wmThumb}" alt="">` : ""}
+                                ${wmFilename ? `<span class="card-image-filename">${wmFilename}</span>` : ""}
+                            </div>
+                            <input type="text" class="card-image-search"
+                                placeholder="Zoek op Wikimedia Commons…" autocomplete="off" spellcheck="false">
+                            <div class="card-image-results" hidden></div>
+                        </div>
+                    </div>
                     <div class="card-field card-back-field">
-                        <label for="card-back-${i}">Achterkant <span class="optional">(één per regel)</span></label>
+                        <label for="card-back-${i}">${isImageCard ? "Antwoord" : "Achterkant"} <span class="optional">(één per regel)</span></label>
                         <textarea id="card-back-${i}" class="card-back" rows="2" wrap="off"
                             placeholder="Antwoord — meerdere regels = meerdere onderdelen"
                             autocomplete="off">${backVal}</textarea>
@@ -490,7 +653,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
                 <button type="button" class="fc-btn-sm fc-btn-delete" data-action="remove-card"
                     data-index="${i}" aria-label="Verwijder kaart ${i + 1}">🗑️</button>
             </div>
-            <div class="card-hints"${isTwoSided ? "" : " hidden"}>
+            <div class="card-hints"${isTwoSided || isImageCard ? "" : " hidden"}>
                 <div class="card-hint-row">
                     <label class="fc-hint-label">
                         <input type="checkbox" class="card-hint-check" data-dir="fwd"${card?.hint ? " checked" : ""}>
@@ -499,7 +662,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
                     <input type="text" class="card-hint-input" data-dir="fwd"
                         value="${hintVal}" placeholder="hint voor de achterkant…"${card?.hint ? "" : " hidden"}>
                 </div>
-                <div class="card-hint-row card-hint-row-reverse"${isBidirectional ? "" : " hidden"}>
+                <div class="card-hint-row card-hint-row-reverse"${isBidirectional && !isImageCard ? "" : " hidden"}>
                     <label class="fc-hint-label">
                         <input type="checkbox" class="card-hint-check" data-dir="bwd"${card?.hintReverse ? " checked" : ""}>
                         ? hint (omgekeerd)
@@ -509,6 +672,84 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
                 </div>
             </div>
         </div>`;
+}
+
+// Toggle between text and image front for a card row.
+function bindCardTypeToggle(row) {
+    const isTwoSided = () => managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
+    row.querySelectorAll("input[name^='card-type-']").forEach(radio => {
+        radio.addEventListener("change", () => {
+            if (!radio.checked) return;
+            const isImage = radio.value === "image";
+            row.dataset.cardType = radio.value;
+            row.querySelector(".card-text-front").hidden = isImage;
+            row.querySelector(".card-image-front").hidden = !isImage;
+            const cardFields = row.querySelector(".card-fields");
+            cardFields.classList.toggle("has-image", isImage);
+            cardFields.classList.toggle("one-sided", !isImage && !isTwoSided());
+            const hintsDiv = row.querySelector(".card-hints");
+            if (hintsDiv) hintsDiv.hidden = !isTwoSided() && !isImage;
+            // Back label
+            const backLabel = row.querySelector(".card-back-field > label");
+            if (backLabel) backLabel.firstChild.textContent = isImage ? "Antwoord " : "Achterkant ";
+        });
+    });
+}
+
+// Wire the Wikimedia image search inside a card row.
+function bindImageSearch(row) {
+    const searchInput = row.querySelector(".card-image-search");
+    const resultsDiv = row.querySelector(".card-image-results");
+    const wmInput = row.querySelector(".card-wikimedia");
+    const selectedDiv = row.querySelector(".card-image-selected");
+    if (!searchInput || !resultsDiv || !wmInput || !selectedDiv) return;
+
+    let debounce = null;
+    searchInput.addEventListener("input", () => {
+        clearTimeout(debounce);
+        const term = searchInput.value.trim();
+        if (!term) { resultsDiv.hidden = true; resultsDiv.innerHTML = ""; return; }
+        debounce = setTimeout(async () => {
+            resultsDiv.hidden = false;
+            resultsDiv.innerHTML = `<div class="wm-search-status">Zoeken…</div>`;
+            const results = await wmSearch(term);
+            if (!searchInput.value.trim()) return;
+            if (results.length === 0) {
+                resultsDiv.innerHTML = `<div class="wm-search-status">Geen afbeeldingen gevonden.</div>`;
+                return;
+            }
+            resultsDiv.innerHTML = results.map(r =>
+                `<button type="button" class="wm-result-btn"
+                    data-filename="${escapeHtml(r.title)}" data-thumb="${escapeHtml(r.thumbUrl)}"
+                    title="${escapeHtml(r.title)}">
+                    <img src="${escapeHtml(r.thumbUrl)}" alt="${escapeHtml(r.title)}" loading="lazy">
+                </button>`,
+            ).join("");
+            resultsDiv.querySelectorAll(".wm-result-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const filename = btn.dataset.filename;
+                    const thumb = btn.dataset.thumb;
+                    wmInput.value = filename;
+                    wmInput.dataset.thumb = thumb;
+                    selectedDiv.innerHTML = `<img class="card-image-thumb" src="${escapeHtml(thumb)}" alt=""><span class="card-image-filename">${escapeHtml(filename)}</span>`;
+                    selectedDiv.hidden = false;
+                    searchInput.value = "";
+                    resultsDiv.hidden = true;
+                    resultsDiv.innerHTML = "";
+                    // Ensure image type is active
+                    row.dataset.cardType = "image";
+                    const imgRadio = row.querySelector("input[name^='card-type-'][value='image']");
+                    if (imgRadio) imgRadio.checked = true;
+                    row.querySelector(".card-text-front").hidden = true;
+                    row.querySelector(".card-image-front").hidden = false;
+                    row.querySelector(".card-fields")?.classList.add("has-image");
+                    row.querySelector(".card-fields")?.classList.remove("one-sided");
+                    const backLabel = row.querySelector(".card-back-field > label");
+                    if (backLabel) backLabel.firstChild.textContent = "Antwoord ";
+                });
+            });
+        }, 400);
+    });
 }
 
 function renderEditor() {
@@ -571,7 +812,10 @@ function renderEditor() {
         radio.addEventListener("change", () => {
             const twoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']").checked;
             managerRoot.querySelectorAll(".card-fields").forEach((cf) => {
-                cf.classList.toggle("one-sided", !twoSided);
+                // Don't hide back field for image cards — they always need an answer.
+                if (!cf.classList.contains("has-image")) {
+                    cf.classList.toggle("one-sided", !twoSided);
+                }
             });
             managerRoot.querySelector("#fc-bidir-option")?.classList.toggle("hidden", !twoSided);
             syncCardHints();
@@ -591,7 +835,11 @@ function renderEditor() {
     });
     bindRemoveButtons();
     bindHintCheckboxes();
-    managerRoot.querySelectorAll(".card-row").forEach(bindCardPartHandlers);
+    managerRoot.querySelectorAll(".card-row").forEach(row => {
+        bindCardPartHandlers(row);
+        bindCardTypeToggle(row);
+        bindImageSearch(row);
+    });
 
     const nameInput = managerRoot.querySelector("#deck-name-input");
     if (!nameInput.value) {
@@ -606,7 +854,11 @@ function renderEditor() {
 function syncCardHints() {
     const isTwoSided = managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
     const isBidir = isTwoSided && managerRoot.querySelector("#deck-bidirectional")?.checked;
-    managerRoot.querySelectorAll(".card-hints").forEach((h) => { h.hidden = !isTwoSided; });
+    managerRoot.querySelectorAll(".card-hints").forEach((h) => {
+        const cardRow = h.closest(".card-row");
+        const isImage = cardRow?.dataset.cardType === "image";
+        h.hidden = !isTwoSided && !isImage;
+    });
     managerRoot.querySelectorAll(".card-hint-row-reverse").forEach((row) => { row.hidden = !isBidir; });
 }
 
@@ -695,6 +947,8 @@ function addCardRow() {
     const row = div.firstElementChild;
     row.querySelector("[data-action='remove-card']").addEventListener("click", handleRemoveCardClick);
     bindHintCheckboxesFor(row);
+    bindCardTypeToggle(row);
+    bindImageSearch(row);
     list.appendChild(row);
     bindCardPartHandlers(row);
     row.querySelector(".card-front").focus();
@@ -734,6 +988,27 @@ function saveDeckFromEditor(existingId) {
     let hintErrorInput = null;
     managerRoot.querySelectorAll(".card-row").forEach((row) => {
         if (hintErrorInput) return;
+
+        if (row.dataset.cardType === "image") {
+            const wikimediaVal = row.querySelector(".card-wikimedia")?.value.trim();
+            if (!wikimediaVal) return; // skip rows with no image selected
+            const backRaw = row.querySelector(".card-back")?.value?.trim() || "";
+            if (!backRaw) return; // answer is required for image cards
+            const card = { wikimedia: wikimediaVal, back: backRaw };
+            // Store thumb URL locally (editor preview only — stripped on share).
+            const thumb = row.querySelector(".card-wikimedia")?.dataset.thumb;
+            if (thumb) card.thumbUrl = thumb;
+            const hintCheck = row.querySelector(".card-hint-check[data-dir='fwd']");
+            const hintInput = row.querySelector(".card-hint-input[data-dir='fwd']");
+            if (hintCheck?.checked) {
+                const val = hintInput?.value.trim();
+                if (!val) { hintErrorInput = hintInput; return; }
+                card.hint = val;
+            }
+            cards.push(card);
+            return;
+        }
+
         const front = row.querySelector(".card-front")?.value.trim();
         if (!front) return;
         const card = { front };
@@ -780,7 +1055,7 @@ function saveDeckFromEditor(existingId) {
     }
 
     if (cards.length === 0) {
-        alert("Een deck moet minstens één kaart hebben met een voorkant.");
+        alert("Een deck moet minstens één kaart hebben met een voorkant (of een afbeelding met antwoord).");
         return;
     }
 
@@ -855,7 +1130,9 @@ function renderImport() {
     const isTwo = deckMode(deck) === "two-sided";
     const isBidir = isTwo && deck.bidirectional;
     const count = deck.cards.length;
+    const imageCount = deck.cards.filter(c => c.wikimedia).length;
     const modeLabel = !isTwo ? "uit het hoofd" : isBidir ? "twee richtingen" : "voor-achterkant";
+    const imageNote = imageCount > 0 ? ` · ${imageCount} afbeelding${imageCount === 1 ? "" : "en"}` : "";
 
     managerRoot.innerHTML = `
         <div class="fc-import-box">
@@ -863,15 +1140,20 @@ function renderImport() {
             <p>Je hebt een gedeeld deck ontvangen:</p>
             <div class="deck-preview">
                 <strong>${escapeHtml(deck.name)}</strong>
-                <span>${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}</span>
+                <span>${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}${imageNote}</span>
             </div>
+            ${imageCount > 0 ? `<p class="fc-import-image-note">📥 Afbeeldingen worden na import automatisch gedownload.</p>` : ""}
             <div class="button-row">
                 <button type="button" id="fc-confirm-import" class="primary">📥 Importeer dit deck</button>
                 <button type="button" id="fc-cancel-import">Annuleer</button>
             </div>
         </div>`;
 
-    managerRoot.querySelector("#fc-confirm-import").addEventListener("click", () => {
+    managerRoot.querySelector("#fc-confirm-import").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        if (imageCount > 0) btn.textContent = "⏳ Afbeeldingen laden…";
+
         const decks = loadDecks();
         const id = generateId();
         decks.push({
@@ -887,8 +1169,18 @@ function renderImport() {
         if (hiddenDeckInput) hiddenDeckInput.value = id;
         importPending = null;
         history.replaceState({}, "", location.pathname);
+
+        if (imageCount > 0) {
+            const { failed } = await wmPreloadDeck({ cards: deck.cards });
+            if (failed.length > 0) {
+                showToast(`Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`);
+            } else {
+                showToast(`Deck "${deck.name}" is geïmporteerd! 🎉`);
+            }
+        } else {
+            showToast(`Deck "${deck.name}" is geïmporteerd! 🎉`);
+        }
         renderManager();
-        showToast(`Deck "${deck.name}" is geïmporteerd! 🎉`);
     });
 
     managerRoot.querySelector("#fc-cancel-import").addEventListener("click", () => {
@@ -932,6 +1224,12 @@ async function initManager() {
     }
 
     renderManager();
+
+    // Pre-load image cards for the initially selected deck (set by restoreLastDeck).
+    if (selectedDeckId) {
+        const d = getDeck(selectedDeckId);
+        if (d) wmPreloadDeck(d);
+    }
 }
 
 initManager();
@@ -1146,6 +1444,7 @@ runExercise({
             deckId: form.querySelector("#selected-deck-id")?.value || "",
             fcMode: form.querySelector("input[name='fc-mode']:checked")?.value || "all",
             fcCount: Number(form.querySelector("input[name='fc-count']")?.value) || 0,
+            fcOrderImportant: form.querySelector("#fc-order-important")?.checked || false,
         };
     },
 
@@ -1156,7 +1455,8 @@ runExercise({
         if (!deck.cards.length) return "Dit deck heeft geen kaarten.";
         const isOneSided = deckMode(deck) === "one-sided";
         if (isOneSided && cfg.fcMode === "partial") {
-            const max = deck.cards.length - 1;
+            const textCount = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
+            const max = textCount - 1;
             if (!cfg.fcCount || cfg.fcCount < 1 || cfg.fcCount > max) {
                 return `Kies een aantal tussen 1 en ${max}.`;
             }
@@ -1167,19 +1467,26 @@ runExercise({
     buildDeck(cfg) {
         const deck = getDeck(cfg.deckId);
         if (!deck) return [];
-        const cards = deck.cards.filter((c) => c.front?.trim());
+        // Image cards always produce standalone questions regardless of deck mode.
+        const imageCards = deck.cards.filter(c => c.wikimedia?.trim());
+        const textCards = deck.cards.filter(c => !c.wikimedia && c.front?.trim());
         const isOneSided = deckMode(deck) === "one-sided";
 
+        const imageQuestions = imageCards.map(c => ({
+            kind: "image",
+            wikimedia: c.wikimedia,
+            back: c.back || "",
+            hint: c.hint || null,
+        }));
+        shuffle(imageQuestions);
+
         if (!isOneSided) {
-            // Two-sided: create per-card groups (multi-part cards → N entries sharing state),
-            // shuffle the groups so a multi-part card's entries stay consecutive.
+            // Two-sided text cards: per-card groups, shuffle groups so multi-part entries stay consecutive.
             const isBidirectional = deck.bidirectional === true;
-            const cardGroups = cards.map((c) => {
+            const cardGroups = textCards.map((c) => {
                 if (isBidirectional && Math.random() < 0.5) {
-                    // Backward: show back (or first part), expect front.
                     return [{ kind: "two-sided", front: c.back || (c.parts?.[0] ?? ""), back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
                 }
-                // Forward direction — check for multi-part.
                 const isMultiPart = c.parts && c.parts.length > 1;
                 if (isMultiPart) {
                     const requiredCount = c.partsRequired != null
@@ -1200,33 +1507,36 @@ runExercise({
                 return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
             });
             shuffle(cardGroups);
-            return cardGroups.flat();
+            return [...imageQuestions, ...cardGroups.flat()];
         }
 
-        // One-sided fill-in mode.
-        // Cards keep their original order: position in the grid is a visible hint.
-        // All blank slots are shown at once; the framework walks them top-to-bottom
-        // but the user can pre-fill any slot freely.
+        // One-sided fill-in mode (text cards only).
+        // Image cards come first as standalone questions, then the fill-in grid.
         clearFillInState();
-        const allCards = cards.map((c) => c.front);
+        if (textCards.length === 0) return imageQuestions;
+
+        // Shuffle card positions unless the user opted in to strict ordering.
+        const orderedTextCards = cfg.fcOrderImportant ? textCards : [...textCards].sort(() => Math.random() - 0.5);
+        const allFronts = orderedTextCards.map((c) => c.front);
         let blankIndices;
 
         if (cfg.fcMode === "partial") {
-            const count = Math.min(Math.max(1, cfg.fcCount), cards.length - 1);
-            const idx = cards.map((_, i) => i);
+            const count = Math.min(Math.max(1, cfg.fcCount), textCards.length - 1);
+            const idx = textCards.map((_, i) => i);
             shuffle(idx);
             blankIndices = idx.slice(0, count).sort((a, b) => a - b);
         } else {
-            blankIndices = cards.map((_, i) => i); // all blanked
+            blankIndices = textCards.map((_, i) => i);
         }
 
-        return blankIndices.map((idx) => ({
+        const fillInQuestions = blankIndices.map((idx) => ({
             kind: "fill-in",
-            front: allCards[idx],
+            front: allFronts[idx],
             index: idx,
-            allCards,
+            allCards: allFronts,
             blankIndices,
         }));
+        return [...imageQuestions, ...fillInQuestions];
     },
 
     renderQuestion(q, root, mode) {
@@ -1236,6 +1546,54 @@ runExercise({
             case "fill-in":
                 if (mode.kind === "review") { renderFillInReview(q, root, mode.correct); return; }
                 return renderFillInQuestion(q, root);
+            case "image": {
+                const skipBtn = document.getElementById("button-skip");
+                const checkBtn = document.getElementById("button-check");
+                const imgSrc = imageObjectURLs.get(q.wikimedia) || "";
+                if (mode.kind === "review") {
+                    root.innerHTML = `
+                        <div class="flash-review">
+                            <div class="flash-side flash-front-side flash-image-side">
+                                <span class="flash-side-label">afbeelding</span>
+                                ${imgSrc
+                                    ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                    : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`}
+                            </div>
+                            <div class="flash-side flash-back-side">
+                                <span class="flash-side-label">antwoord</span>
+                                <p class="flash-text">${escapeHtml(q.back)}</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+                root.innerHTML = `
+                    <div class="flash-question">
+                        <div class="flash-image-container">
+                            ${imgSrc
+                                ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`}
+                        </div>
+                        ${q.hint ? `<button type="button" class="fc-hint-toggle">? hint</button>
+                        <p class="fc-hint-text" hidden>${escapeHtml(q.hint)}</p>` : ""}
+                        <input type="text" id="answer" autocomplete="off"
+                            placeholder="wat zie je?" aria-label="jouw antwoord">
+                    </div>`;
+                if (skipBtn) skipBtn.hidden = true;
+                if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
+                root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
+                    const hintText = root.querySelector(".fc-hint-text");
+                    if (hintText) hintText.hidden = !hintText.hidden;
+                });
+                // If not cached yet, retry once the load completes in the background.
+                if (!imgSrc) {
+                    wmLoad(q.wikimedia).then(url => {
+                        const container = root.querySelector(".flash-image-container");
+                        if (container) container.innerHTML = `<img src="${url}" alt="afbeelding" class="flash-card-image">`;
+                    }).catch(() => {});
+                }
+                const input = root.querySelector("#answer");
+                return () => input?.value ?? "";
+            }
             case "two-sided": {
                 const skipBtn = document.getElementById("button-skip");
                 const checkBtn = document.getElementById("button-check");
@@ -1302,6 +1660,8 @@ runExercise({
                 if (firstOpen !== undefined) fillInResults[firstOpen] = false;
                 return false;
             }
+            case "image":
+                return matchAndTrackLenient(given, q.back, q.wikimedia);
             case "two-sided":
                 return matchAndTrackLenient(given, q.back, q.front);
             default:
@@ -1313,6 +1673,7 @@ runExercise({
         switch (q.kind) {
             case "multi-part": return `${q.front} → [${q.allParts.join(" / ")}]`;
             case "two-sided":  return `${q.front} → ${q.back}`;
+            case "image":      return `[🖼️ ${q.wikimedia}] → ${q.back}`;
             case "fill-in":    return q.front;
             default: throw new Error(`Unknown card kind: ${q.kind}`);
         }

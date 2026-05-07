@@ -1,3 +1,165 @@
+/* ---------- Card type toggle (text vs. image) in editor ---------- */
+
+.card-type-toggle {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    margin-bottom: 0.15rem;
+    padding-left: 0.1rem;
+}
+
+.fc-type-label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    opacity: 0.6;
+    user-select: none;
+    transition: opacity 0.12s;
+}
+.fc-type-label:has(input:checked) {
+    opacity: 1;
+    font-weight: 600;
+}
+.fc-type-label:hover { opacity: 0.9; }
+
+/* ---------- Image card editor ---------- */
+
+/* Back field is always visible for image cards (overrides one-sided hiding). */
+.card-fields.has-image .card-back-field {
+    display: flex;
+}
+
+.card-image-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.card-image-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.card-image-thumb {
+    width: 64px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    flex-shrink: 0;
+}
+
+.card-image-filename {
+    font-size: 0.72rem;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 14rem;
+}
+
+.card-image-search {
+    font-size: 0.85rem !important;
+    padding: 0.3rem 0.5rem !important;
+}
+
+.card-image-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 6px;
+    padding: 4px;
+    background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.wm-result-btn {
+    background: none;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    transition: border-color 0.1s, background 0.1s;
+    overflow: hidden;
+}
+.wm-result-btn:hover {
+    border-color: #2d6cdf;
+    background: color-mix(in srgb, #2d6cdf 10%, transparent);
+}
+.wm-result-btn img {
+    width: 100%;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 2px;
+    display: block;
+}
+
+.wm-search-status {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 0.8rem;
+    opacity: 0.55;
+    padding: 0.6rem;
+}
+
+/* ---------- Import view — image note ---------- */
+
+.fc-import-image-note {
+    font-size: 0.82rem;
+    opacity: 0.7;
+    margin: 0;
+}
+
+/* ---------- Image card exercise (play phase) ---------- */
+
+.flash-image-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin: 0.25rem 0 0.75rem;
+}
+
+.flash-card-image {
+    max-width: min(360px, 100%);
+    max-height: 260px;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    object-fit: contain;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.15);
+    display: block;
+}
+
+.flash-image-loading,
+.flash-image-missing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 200px;
+    height: 140px;
+    border: 2px dashed color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    opacity: 0.55;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+/* Image card review side — allow a bit more room for the picture. */
+.flash-side.flash-image-side {
+    max-width: 22rem;
+}
+.flash-image-side .flash-card-image {
+    max-width: 180px;
+    max-height: 130px;
+    box-shadow: none;
+}
+
 /* ---- Editing / importing mode — hide the play controls and history ---- */
 
 #page-setup[data-editing] #form-setup > fieldset,
