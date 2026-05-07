@@ -13,7 +13,6 @@ pub async fn home() -> impl IntoResponse {
             description: "Gratis huiswerk middel voor de basisschool.",
             og_path: "/".into(),
             favicon_emoji: "🏫",
-            show_confetti: false,
         },
         "",
         body,

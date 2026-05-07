@@ -266,25 +266,46 @@ function attachInteractive(root, q) {
     svg.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
 
     // increment/decrement helpers
-    root.querySelector('#hour-inc')?.addEventListener('click', (e) => { e.preventDefault(); set((state.h + 1) % 12, state.m); });
-    root.querySelector('#hour-dec')?.addEventListener('click', (e) => { e.preventDefault(); set((state.h + 11) % 12, state.m); });
-    root.querySelector('#min-inc')?.addEventListener('click', (e) => {
+    const onHourInc = (e) => { e.preventDefault(); set((state.h + 1) % 12, state.m); };
+    const onHourDec = (e) => { e.preventDefault(); set((state.h + 11) % 12, state.m); };
+    const onMinInc = (e) => {
         e.preventDefault();
         const m = (state.m + minStep) % 60;
         const nh = m === 0 ? (state.h + 1) % 12 : state.h;
         set(nh, m);
-    });
-    root.querySelector('#min-dec')?.addEventListener('click', (e) => {
+    };
+    const onMinDec = (e) => {
         e.preventDefault();
         let m = state.m - minStep;
         let nh = state.h;
         if (m < 0) { m += 60; nh = (state.h + 11) % 12; }
         set(nh, m);
-    });
+    };
+    const hourIncBtn = root.querySelector('#hour-inc');
+    const hourDecBtn = root.querySelector('#hour-dec');
+    const minIncBtn = root.querySelector('#min-inc');
+    const minDecBtn = root.querySelector('#min-dec');
+    hourIncBtn?.addEventListener('click', onHourInc);
+    hourDecBtn?.addEventListener('click', onHourDec);
+    minIncBtn?.addEventListener('click', onMinInc);
+    minDecBtn?.addEventListener('click', onMinDec);
 
-    return () => ({ h: state.h, m: state.m });
+    return {
+        getAnswer: () => ({ h: state.h, m: state.m }),
+        cleanup() {
+            svg.removeEventListener('pointerdown', onDown);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
+            hourIncBtn?.removeEventListener('click', onHourInc);
+            hourDecBtn?.removeEventListener('click', onHourDec);
+            minIncBtn?.removeEventListener('click', onMinInc);
+            minDecBtn?.removeEventListener('click', onMinDec);
+        },
+    };
 }
 
 function timeLabel(h, m) {

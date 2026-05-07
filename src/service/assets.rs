@@ -4,6 +4,8 @@ use rama::http::{
     service::web::response::{Css, IntoResponse, Script},
 };
 
+use crate::utils::info::ASSET_VERSION;
+
 pub const THEME_CSS: &str = include_str!("assets/theme.css");
 pub const HOMEWORK_JS: &str = include_str!("assets/homework.js");
 pub const SERVICE_WORKER_JS: &str = include_str!("assets/service-worker.js");
@@ -23,7 +25,11 @@ pub async fn service_worker_js() -> impl IntoResponse {
 }
 
 pub async fn manifest() -> impl IntoResponse {
-    let mut res = MANIFEST.into_response();
+    let manifest = MANIFEST.replace(
+        r#""/favicon.svg""#,
+        &format!(r#""/favicon.svg?v={ASSET_VERSION}""#),
+    );
+    let mut res = manifest.into_response();
     res.headers_mut().insert(
         CONTENT_TYPE,
         HeaderValue::from_static("application/manifest+json"),

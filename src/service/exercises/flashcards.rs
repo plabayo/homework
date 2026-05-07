@@ -59,7 +59,6 @@ pub async fn handler(uri: Uri) -> impl IntoResponse {
             description,
             og_path,
             favicon_emoji: "🃏",
-            show_confetti: true,
         },
         STYLE,
         body,

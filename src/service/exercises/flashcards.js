@@ -639,8 +639,12 @@ function bindCardPartHandlers(row) {
 
 function bindRemoveButtons() {
     managerRoot.querySelectorAll("[data-action='remove-card']").forEach((btn) => {
-        btn.addEventListener("click", () => removeCardRow(Number(btn.dataset.index)));
+        btn.addEventListener("click", handleRemoveCardClick);
     });
+}
+
+function handleRemoveCardClick(e) {
+    removeCardRow(Number(e.currentTarget.dataset.index));
 }
 
 function addCardRow() {
@@ -651,9 +655,7 @@ function addCardRow() {
     const div = document.createElement("div");
     div.innerHTML = cardRowHtml(null, i, isTwoSided, isBidirectional);
     const row = div.firstElementChild;
-    row.querySelector("[data-action='remove-card']").addEventListener("click", () =>
-        removeCardRow(i),
-    );
+    row.querySelector("[data-action='remove-card']").addEventListener("click", handleRemoveCardClick);
     row.querySelectorAll(".card-hint-check").forEach((cb) => {
         const hintRow = cb.closest(".card-hint-row");
         const input = hintRow?.querySelector(".card-hint-input");

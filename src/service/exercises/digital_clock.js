@@ -158,7 +158,16 @@ runExercise({
                 });
                 return () => {
                     if (!hh.value || mm.value === '') return null;
-                    return JSON.stringify({ h: Number(hh.value) % 12, m: Number(mm.value) });
+                    const rawH = Number(hh.value);
+                    const rawM = Number(mm.value);
+                    const maxHour = q.use24h ? 23 : 12;
+                    if (!Number.isInteger(rawH) || !Number.isInteger(rawM)) return null;
+                    if (rawH < 0 || rawH > maxHour || rawM < 0 || rawM > 59) return null;
+                    if (!q.use24h && rawH === 0) return null;
+                    return JSON.stringify({
+                        h: q.use24h ? rawH : rawH % 12,
+                        m: rawM,
+                    });
                 };
             }
             const distractors = buildDistractors(q, 3);

@@ -10,15 +10,20 @@
 // The cache version is bumped whenever any asset content changes; older
 // caches are pruned on activate.
 
-const VERSION = "v1";
+const VERSION = new URL(self.location.href).searchParams.get("v") || "dev";
 const STATIC_CACHE = `homework-static-${VERSION}`;
 const PAGES_CACHE = `homework-pages-${VERSION}`;
 
+function versionedAsset(path) {
+    return `${path}?v=${encodeURIComponent(VERSION)}`;
+}
+
 // Pre-cache the assets that are guaranteed to be needed.
 const PRECACHE = [
-    "/theme.css",
-    "/homework.js",
-    "/manifest.webmanifest",
+    versionedAsset("/theme.css"),
+    versionedAsset("/homework.js"),
+    versionedAsset("/manifest.webmanifest"),
+    versionedAsset("/favicon.svg"),
     "/offline",
     "/",
 ];

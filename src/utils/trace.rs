@@ -28,8 +28,13 @@ pub fn init_tracing() {
     const DEFAULT_DIRECTIVE: LevelFilter = LevelFilter::INFO;
 
     if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
-        init_structured(DEFAULT_DIRECTIVE);
-        tracing::trace!("structured (OTEL) tracing init complete");
+        match init_structured(DEFAULT_DIRECTIVE) {
+            Ok(()) => tracing::trace!("structured (OTEL) tracing init complete"),
+            Err(err) => {
+                init_default(DEFAULT_DIRECTIVE);
+                tracing::warn!("structured (OTEL) tracing disabled: {err}");
+            }
+        }
     } else {
         init_default(DEFAULT_DIRECTIVE);
         tracing::trace!("default tracing init complete");
@@ -47,7 +52,7 @@ fn init_default(default_directive: impl Into<Directive>) {
         .init();
 }
 
-fn init_structured(default_directive: impl Into<Directive>) {
+fn init_structured(default_directive: impl Into<Directive>) -> Result<(), String> {
     let svc = EasyHttpWebClient::connector_builder()
         .with_default_transport_connector()
         .without_tls_proxy_support()
@@ -55,15 +60,16 @@ fn init_structured(default_directive: impl Into<Directive>) {
         .with_tls_support_using_boringssl(None)
         .with_default_http_connector(Executor::default())
         .try_with_connection_pool(HttpPooledConnectorConfig::default())
-        .expect("build http exporter client service")
+        .map_err(|err| format!("build http exporter client service: {err}"))?
         .build_client();
-    let exportor = HttpExporter::from_env(svc).expect("build OTLP HTTP span exporter");
+    let exporter = HttpExporter::from_env(svc)
+        .map_err(|err| format!("build OTLP HTTP span exporter: {err}"))?;
 
     let provider = SdkTracerProvider::builder()
-        .with_batch_exporter(exportor)
+        .with_batch_exporter(exporter)
         .with_resource(
             Resource::builder()
-                .with_attribute(KeyValue::new("service.name", "rama"))
+                .with_attribute(KeyValue::new("service.name", "homework"))
                 .build(),
         )
         .build();
@@ -86,4 +92,5 @@ fn init_structured(default_directive: impl Into<Directive>) {
                 .from_env_lossy(),
         )
         .init();
+    Ok(())
 }

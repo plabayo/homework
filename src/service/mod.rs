@@ -63,7 +63,7 @@ pub async fn load_https_service()
         .with_get("/2/clock", exercises::clock::handler)
         .with_get("/2/digital-clock", exercises::digital_clock::handler)
         .with_get("/extra/flashcards", exercises::flashcards::handler)
-        .with_not_found(pages::offline::offline);
+        .with_not_found(pages::offline::not_found);
 
     let middlewares = (
         SetResponseHeaderLayer::if_not_present_typed(

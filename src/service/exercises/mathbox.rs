@@ -32,7 +32,6 @@ pub async fn handler() -> impl IntoResponse {
             description: "Oefen rekenkunde: som, verschil, splitsen, vermenigvuldigen, delen.",
             og_path: "/1/mathbox".into(),
             favicon_emoji: "🔢",
-            show_confetti: true,
         },
         STYLE,
         body,

@@ -32,7 +32,6 @@ pub async fn handler() -> impl IntoResponse {
             description: "Oefen Nederlandse tijduitdrukkingen: kwart over, half, kwart voor.",
             og_path: "/2/digital-clock".into(),
             favicon_emoji: "⏰",
-            show_confetti: true,
         },
         STYLE,
         body,

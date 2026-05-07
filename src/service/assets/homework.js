@@ -336,11 +336,20 @@ function setupOfflineIndicator() {
     update();
 }
 
+function currentAssetVersion() {
+    return document.documentElement.dataset.assetVersion || "dev";
+}
+
+function versionedAssetPath(path) {
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}v=${encodeURIComponent(currentAssetVersion())}`;
+}
+
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     if (location.protocol === "file:") return;
     navigator.serviceWorker
-        .register("/service-worker.js")
+        .register(versionedAssetPath("/service-worker.js"))
         .catch((err) => console.warn("sw register failed", err));
 }
 
@@ -496,10 +505,11 @@ function renderTrickyList(session) {
  *   readConfig: (form) => config              — read submitted form
  *   validateConfig?: (config) => string|null  — error message or null
  *   buildDeck: (config) => questions[]        — full deck for a session
- *   renderQuestion: (q, root, mode) => getAnswer
+ *   renderQuestion: (q, root, mode) => getAnswer | { getAnswer, cleanup }
  *      mode = { kind: 'play' } | { kind: 'review', given, correct }
  *      For 'play', return a function that yields the user's answer
- *      (or null if unanswerable).
+ *      (or null if unanswerable). Interactive exercises may instead
+ *      return { getAnswer, cleanup } to tear down global listeners.
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
  * }
@@ -528,6 +538,7 @@ export function runExercise(spec) {
         currentAttempts: 0,
         currentGiven: null,
         getAnswer: null,
+        currentCleanup: null,
         startedAt: 0,
         sessionId: null,
         mode: "normal", // 'normal' or 'mistakes'
@@ -594,12 +605,43 @@ export function runExercise(spec) {
         }, deadlineSec() * 1000);
     }
 
+    function cleanupCurrentQuestion() {
+        if (typeof state.currentCleanup === "function") {
+            try {
+                state.currentCleanup();
+            } catch (err) {
+                console.warn("question cleanup failed", err);
+            }
+        }
+        state.currentCleanup = null;
+        state.getAnswer = null;
+    }
+
+    function setQuestionController(controller) {
+        if (typeof controller === "function") {
+            state.getAnswer = controller;
+            state.currentCleanup = null;
+            return;
+        }
+        if (controller && typeof controller.getAnswer === "function") {
+            state.getAnswer = controller.getAnswer;
+            state.currentCleanup =
+                typeof controller.cleanup === "function"
+                    ? controller.cleanup
+                    : null;
+            return;
+        }
+        state.getAnswer = null;
+        state.currentCleanup = null;
+    }
+
     function show(which) {
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
         result.hidden = which !== "result";
         if (which !== "result") stopConfetti();
         if (which !== "play") stopSessionTimer();
+        if (which !== "play") cleanupCurrentQuestion();
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
     }
@@ -693,6 +735,7 @@ export function runExercise(spec) {
     }
 
     function nextQuestion() {
+        cleanupCurrentQuestion();
         state.currentIndex += 1;
         if (state.currentIndex >= state.deck.length) {
             finish();
@@ -715,9 +758,11 @@ export function runExercise(spec) {
         titleEl.textContent = `oefening ${state.currentIndex + 1} van ${state.deck.length}`;
 
         contentEl.innerHTML = "";
-        state.getAnswer = spec.renderQuestion(state.currentQuestion, contentEl, {
-            kind: "play",
-        });
+        setQuestionController(
+            spec.renderQuestion(state.currentQuestion, contentEl, {
+                kind: "play",
+            }),
+        );
         // Label any unlabeled answer inputs so screen readers know their purpose.
         contentEl.querySelectorAll('input:not([aria-label]):not([aria-labelledby])').forEach((input) => {
             input.setAttribute('aria-label', 'jouw antwoord');
@@ -755,6 +800,7 @@ export function runExercise(spec) {
         recordOutcome(false, state.currentGiven, true, { timedOut: true });
         clearTimeout(state.deadlineTimerHandle);
         state.deadlineTimerHandle = null;
+        cleanupCurrentQuestion();
 
         contentEl.innerHTML = "";
         spec.renderQuestion(state.currentQuestion, contentEl, {

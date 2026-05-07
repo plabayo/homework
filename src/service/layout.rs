@@ -6,6 +6,8 @@ use rama::http::html::{
 };
 use rama::http::service::web::response::IntoResponse;
 
+use crate::utils::info::ASSET_VERSION;
+
 #[derive(Debug, Clone)]
 pub struct PageMeta {
     pub title: &'static str,
@@ -15,7 +17,6 @@ pub struct PageMeta {
     /// and pass an owned `String` via `Cow::Owned`.
     pub og_path: Cow<'static, str>,
     pub favicon_emoji: &'static str,
-    pub show_confetti: bool,
 }
 
 impl Default for PageMeta {
@@ -25,9 +26,18 @@ impl Default for PageMeta {
             description: "Gratis huiswerk middel voor de basisschool.",
             og_path: Cow::Borrowed("/"),
             favicon_emoji: "🏫",
-            show_confetti: false,
         }
     }
+}
+
+fn versioned_asset_url(path: &str) -> String {
+    format!("{path}?v={ASSET_VERSION}")
+}
+
+fn rewrite_module_imports(script_source: &str, shared_js_url: &str) -> String {
+    script_source
+        .replace(r#""/homework.js""#, &format!(r#""{shared_js_url}""#))
+        .replace(r#"'/homework.js'"#, &format!(r#"'{shared_js_url}'"#))
 }
 
 /// Build a complete HTML page with the shared chrome.
@@ -45,9 +55,14 @@ pub fn page(
         meta_data.favicon_emoji,
     );
     let og_url = format!("https://elementary.training{}", meta_data.og_path);
+    let theme_css_url = versioned_asset_url("/theme.css");
+    let manifest_url = versioned_asset_url("/manifest.webmanifest");
+    let shared_js_url = versioned_asset_url("/homework.js");
+    let extra_module_script = rewrite_module_imports(extra_module_script, &shared_js_url);
 
     html!(
         lang = "nl",
+        "data-asset-version" = ASSET_VERSION,
         head!(
             meta!(charset = "UTF-8"),
             meta!(
@@ -59,8 +74,8 @@ pub fn page(
             meta!(name = "description", content = meta_data.description),
             title!(meta_data.title),
             link!(rel = "icon", href = favicon_data),
-            link!(rel = "stylesheet", href = "/theme.css"),
-            link!(rel = "manifest", href = "/manifest.webmanifest"),
+            link!(rel = "stylesheet", href = theme_css_url),
+            link!(rel = "manifest", href = manifest_url),
             meta!("property" = "og:title", content = meta_data.title),
             meta!("property" = "og:locale", content = "nl_BE"),
             meta!("property" = "og:type", content = "website"),
@@ -97,7 +112,7 @@ pub fn page(
                 class = "box bad",
                 "Deze website heeft JavaScript nodig om de oefeningen te doen.",
             )),
-            script!(r#type = "module", src = "/homework.js"),
+            script!(r#type = "module", src = shared_js_url),
             if extra_module_script.is_empty() {
                 script!(r#type = "module", PreEscaped(""))
             } else {

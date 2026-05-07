@@ -66,6 +66,12 @@ is a real didactic need, not because the framework can support them.
   expressions (`half drie`, `kwart over vijf`, …); multiple-choice in
   one direction, fill-in on a big LED clock face in the other
 
+**Extra ✨**
+
+- **flitskaarten** — make your own one-sided or two-sided decks, with
+  optional bidirectional practice, hints, multi-part answers, and
+  share/import links
+
 Per-exercise, parents can review past sessions, see which questions
 were skipped or needed multiple attempts, and click _"oefen recente
 fouten"_ to drill exactly those again.
@@ -97,6 +103,7 @@ src/
       thermometer.rs/.css/.js
       clock.rs/.css/.js
       digital_clock.rs/.css/.js
+      flashcards.rs/.css/.js
 ```
 
 Every exercise file is small (~100 LOC of Rust for handler + form,
@@ -150,10 +157,13 @@ just run
 # auto-reload on file changes (requires `cargo install cargo-watch`)
 just watch-run
 
-# run all checks: fmt, sort, check, clippy, doc, test
+# run the fast local QA path: fmt, sort, check, clippy, doc, test
 just qa
 
-# run the ignored browser smoke suite (requires Chrome/Chromium)
+# run the full local QA path, including ignored browser smoke tests
+just qa-full
+
+# run only the ignored browser smoke suite (requires Chrome/Chromium)
 just test-e2e
 ```
 
@@ -200,15 +210,17 @@ browser tab (Shift+Reload) to bypass the service worker cache.
   Pages are built with Rama's type-safe `html!` macro.
 - **Static assets**: `Css(&'static str)` and `Script(&'static str)`
   response wrappers from Rama auto-set the right `Content-Type`.
-- **Client**: vanilla ES modules. No bundler, no framework. The whole
-  shared client framework is a single `homework.js` file (≈ 700 lines).
+- **Client**: vanilla ES modules. No bundler, no framework. The shared
+  client framework is a single `homework.js` file (≈ 1,350 lines).
 - **Storage**: `localStorage` for the per-exercise config, `IndexedDB`
   (object store `sessions`, indexed by `exerciseId`) for the practice
   history. Nothing leaves the device.
 - **Offline**: a service worker precaches the app shell on install,
   serves static assets stale-while-revalidate, and serves HTML with
   network-first + 2.5 s timeout, falling back to the last cached copy
-  and ultimately to `/offline`.
+  and ultimately to `/offline`. Build-versioned asset URLs ensure a new
+  deployment pulls fresh JS/CSS when online while keeping old builds
+  available offline.
 - **Accessibility / theming**: design tokens in `theme.css`, dark mode
   via `prefers-color-scheme`, contrast verified ≥ AA in both schemes.
   Number-only inputs are filtered live so the browser's pattern

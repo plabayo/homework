@@ -32,7 +32,6 @@ pub async fn handler() -> impl IntoResponse {
             description: "Oefen het lezen en zetten van een analoge klok.",
             og_path: "/2/clock".into(),
             favicon_emoji: "🕐",
-            show_confetti: true,
         },
         STYLE,
         body,
