@@ -892,23 +892,16 @@ function syncReviewRailPosition() {
     const cards = Array.from(document.querySelectorAll(".fc-review-card"));
     if (!viewport || !rail || cards.length === 0) return;
 
-    const vpStyle = window.getComputedStyle(viewport);
-    const vpPadL = parseFloat(vpStyle.paddingLeft) || 0;
-    const vpPadR = parseFloat(vpStyle.paddingRight) || 0;
-    const vpContentW = viewport.clientWidth - vpPadL - vpPadR;
+    const viewportRect = viewport.getBoundingClientRect();
+    const activeCard = cards[reviewState.currentIndex];
+    if (!activeCard) return;
 
-    const railStyle = window.getComputedStyle(rail);
-    const gapPx = parseFloat(railStyle.gap) || parseFloat(railStyle.columnGap) || 0;
-    const cardW = cards[0].offsetWidth;
-
-    const gutter = Math.max(0, vpContentW / 2 - cardW / 2);
-    rail.style.paddingInline = `${gutter}px`;
-
-    const idx = reviewState.currentIndex;
-    const activeCard = cards[idx];
-    const activeMarginL = parseFloat(window.getComputedStyle(activeCard).marginLeft) || 0;
-    const activeCenter = idx * (cardW + gapPx) + activeMarginL + cardW / 2;
-    rail.style.transform = `translateX(${vpContentW / 2 - gutter - activeCenter}px)`;
+    const railTransform = new DOMMatrixReadOnly(window.getComputedStyle(rail).transform).m41 || 0;
+    const activeRect = activeCard.getBoundingClientRect();
+    const viewportCenter = viewportRect.left + viewportRect.width / 2;
+    const activeCenter = activeRect.left + activeRect.width / 2;
+    const delta = viewportCenter - activeCenter;
+    rail.style.transform = `translateX(${railTransform + delta}px)`;
 }
 
 function hydrateReviewImages() {
