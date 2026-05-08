@@ -1075,7 +1075,18 @@ export function runExercise(spec) {
         state.currentAttempts += 1;
         state.currentGiven = given;
         state.streak = 0;
-        feedbackEl.textContent = `${randomAnimal()} probeer het nog eens.`;
+        if (!feedbackEl.classList.contains("is-bad")) {
+            feedbackEl.dataset.assignment = feedbackEl.textContent;
+        }
+        const assignment = (feedbackEl.dataset.assignment || "").trim();
+        if (assignment) {
+            feedbackEl.textContent = assignment;
+            const hint = document.createElement("small");
+            hint.textContent = `${randomAnimal()} probeer het nog eens.`;
+            feedbackEl.append(document.createElement("br"), hint);
+        } else {
+            feedbackEl.textContent = `${randomAnimal()} probeer het nog eens.`;
+        }
         // Remove then re-add so the animation re-fires on repeated wrong answers.
         feedbackEl.classList.remove("is-bad");
         contentEl.classList.remove("is-wrong", "question-enter");

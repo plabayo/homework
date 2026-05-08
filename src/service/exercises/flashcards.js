@@ -641,6 +641,9 @@ const reviewState = {
     keyHandler: null,
     resizeHandler: null,
     resizeTimer: null,
+    scrollSyncCleanup: null,
+    scrollStep: 0,
+    scrollStepRefresh: null,
 };
 
 function setupPage() {
@@ -1014,6 +1017,7 @@ function renderReviewViewer() {
         moveReviewBy(1);
     });
 
+    bindReviewScrollSync();
     syncReviewRailPosition();
     fitReviewFaceText();
     requestAnimationFrame(() => {
@@ -1022,23 +1026,13 @@ function renderReviewViewer() {
     });
 }
 
-function syncReviewRailPosition() {
-    if (!reviewState.active) return;
-    const viewport = document.querySelector(".fc-review-viewport");
+function syncReviewRailPosition(animated = true) {
+    if (!reviewState.active || reviewState.scrollStep <= 0) return;
     const rail = document.querySelector(".fc-review-rail");
-    const cards = Array.from(document.querySelectorAll(".fc-review-card"));
-    if (!viewport || !rail || cards.length === 0) return;
-
-    const viewportRect = viewport.getBoundingClientRect();
-    const activeCard = cards[reviewState.currentIndex];
-    if (!activeCard) return;
-
-    const railTransform = new DOMMatrixReadOnly(window.getComputedStyle(rail).transform).m41 || 0;
-    const activeRect = activeCard.getBoundingClientRect();
-    const viewportCenter = viewportRect.left + viewportRect.width / 2;
-    const activeCenter = activeRect.left + activeRect.width / 2;
-    const delta = viewportCenter - activeCenter;
-    rail.style.transform = `translateX(${railTransform + delta}px)`;
+    if (!rail) return;
+    const offset = -reviewState.currentIndex * reviewState.scrollStep;
+    rail.style.transition = animated ? "transform 280ms ease-out" : "none";
+    rail.style.transform = `translateX(${offset}px)`;
 }
 
 function hydrateReviewImages() {
@@ -1074,7 +1068,7 @@ function fitReviewFaceText() {
     });
 }
 
-function updateReviewActiveCard() {
+function updateReviewActiveCard({ scrollToActive = true } = {}) {
     const total = reviewState.cards.length;
     const current = reviewState.currentIndex;
     const title = exerciseTitle();
@@ -1093,7 +1087,75 @@ function updateReviewActiveCard() {
     const next = document.getElementById("fc-review-next");
     if (prev) prev.disabled = current === 0;
     if (next) next.disabled = current >= total - 1;
-    syncReviewRailPosition();
+    if (scrollToActive) syncReviewRailPosition();
+}
+
+function bindReviewScrollSync() {
+    const stage = document.querySelector(".fc-review-stage");
+    const rail = document.querySelector(".fc-review-rail");
+    if (!stage || !rail) return;
+
+    const computeStep = () => {
+        const card = rail.querySelector(".fc-review-card");
+        if (!card) return 0;
+        return card.offsetWidth + (parseFloat(getComputedStyle(rail).columnGap) || 0);
+    };
+    reviewState.scrollStep = computeStep();
+    reviewState.scrollStepRefresh = () => { reviewState.scrollStep = computeStep(); };
+
+    let startX = 0, startY = 0, dragging = false;
+
+    const endDrag = (commitDx = 0, commitDy = 0) => {
+        if (!dragging) return;
+        dragging = false;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onCancel);
+        if (Math.abs(commitDx) > Math.abs(commitDy) && Math.abs(commitDx) > 40) {
+            moveReviewBy(commitDx < 0 ? 1 : -1);
+        } else {
+            syncReviewRailPosition();
+        }
+    };
+
+    const onMove = (e) => {
+        if (!dragging || reviewState.scrollStep <= 0) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 12) return;
+        const base = -reviewState.currentIndex * reviewState.scrollStep;
+        const atStart = reviewState.currentIndex === 0 && dx > 0;
+        const atEnd = reviewState.currentIndex >= reviewState.cards.length - 1 && dx < 0;
+        const offset = base + (atStart || atEnd ? dx * 0.25 : dx);
+        rail.style.transition = "none";
+        rail.style.transform = `translateX(${offset}px)`;
+    };
+
+    const onUp = (e) => endDrag(e.clientX - startX, e.clientY - startY);
+    const onCancel = () => endDrag();
+
+    const onDown = (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        startX = e.clientX;
+        startY = e.clientY;
+        dragging = true;
+        // Attach to window so drag continues outside the stage and click events
+        // on child cards are never redirected (no setPointerCapture).
+        window.addEventListener("pointermove", onMove, { passive: true });
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onCancel);
+    };
+
+    stage.addEventListener("pointerdown", onDown);
+
+    reviewState.scrollSyncCleanup = () => {
+        stage.removeEventListener("pointerdown", onDown);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onCancel);
+        reviewState.scrollStep = 0;
+        reviewState.scrollStepRefresh = null;
+    };
 }
 
 function moveReviewBy(step) {
@@ -1138,6 +1200,10 @@ function stopReviewSession({ keepPage = false } = {}) {
     if (reviewState.resizeTimer) {
         clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = null;
+    }
+    if (reviewState.scrollSyncCleanup) {
+        reviewState.scrollSyncCleanup();
+        reviewState.scrollSyncCleanup = null;
     }
     exerciseForm()?.removeAttribute("data-review-mode");
     exerciseBox()?.classList.remove("fc-review-session");
@@ -1191,16 +1257,14 @@ async function startReviewSession() {
     };
     reviewState.resizeHandler = () => {
         const stage = document.querySelector(".fc-review-stage");
-        const rail = document.querySelector(".fc-review-rail");
         stage?.classList.add("is-resizing");
-        rail?.classList.add("is-resizing");
         if (reviewState.resizeTimer) clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = setTimeout(() => {
             reviewState.resizeTimer = null;
-            syncReviewRailPosition();
+            reviewState.scrollStepRefresh?.();
+            syncReviewRailPosition(false);
             fitReviewFaceText();
             document.querySelector(".fc-review-stage")?.classList.remove("is-resizing");
-            document.querySelector(".fc-review-rail")?.classList.remove("is-resizing");
         }, 120);
     };
     document.addEventListener("keydown", reviewState.keyHandler, true);

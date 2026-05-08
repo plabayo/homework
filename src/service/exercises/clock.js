@@ -196,18 +196,24 @@ function attachInteractive(root, q) {
         wrap.dataset.m = m;
         const minuteAngle = (m / 60) * 360;
         const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
-        const setHand = (els, deg, len) => {
+        const setHand = (els, deg, len, innerLen = 0) => {
             const a = (deg - 90) * Math.PI / 180;
             const x2 = 50 + len * Math.cos(a);
             const y2 = 50 + len * Math.sin(a);
             for (const el of els) {
                 if (!el) continue;
+                if (innerLen > 0) {
+                    el.setAttribute('x1', 50 + innerLen * Math.cos(a));
+                    el.setAttribute('y1', 50 + innerLen * Math.sin(a));
+                }
                 el.setAttribute('x2', x2);
                 el.setAttribute('y2', y2);
             }
         };
-        setHand([minHand, hitMin], minuteAngle, 36);
-        setHand([hourHand, hitHour], hourAngle, 24);
+        setHand([minHand], minuteAngle, 36);
+        setHand([hitMin], minuteAngle, 36, 8);
+        setHand([hourHand], hourAngle, 24);
+        setHand([hitHour], hourAngle, 24, 8);
     };
     set(state.h, state.m);
 
@@ -228,15 +234,13 @@ function attachInteractive(root, q) {
     const onDown = (e) => {
         e.preventDefault();
         const t = e.target;
-        // The wide invisible hit-zones carry data-hand. Fall back to the
-        // visible hand class for a direct hit, otherwise default to the
-        // minute hand (most common case for free clicks on the face).
         const hand =
             (t.dataset && t.dataset.hand) ||
             (t.classList && t.classList.contains('hand-hour') ? 'hour' :
              t.classList && t.classList.contains('hand-minute') ? 'minute' :
              null);
-        dragging = hand || 'minute';
+        if (!hand) return;
+        dragging = hand;
         onMove(e);
     };
     const onMove = (e) => {
