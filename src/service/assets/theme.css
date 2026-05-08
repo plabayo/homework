@@ -128,6 +128,7 @@ section + section {
 .page-intro {
     margin-block-end: var(--space);
     color: var(--muted);
+    font-size: 0.98rem;
 }
 .page-intro + form {
     margin-block-start: var(--space);
@@ -563,20 +564,20 @@ input.split-part {
 
 /* ---------- footer ---------- */
 .site-footer {
-    margin-block-start: calc(var(--space) * 2.5);
-    padding-block-start: var(--space);
+    margin-block-start: calc(var(--space) * 3.5);
+    padding-block-start: calc(var(--space) * 1.25);
     border-block-start: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
     color: var(--muted);
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     display: flex;
     flex-direction: column;
     gap: var(--gap);
 }
 .site-footer h2 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: var(--fg);
 }
-.footer-block { display: flex; flex-direction: column; gap: 8px; }
+.footer-block { display: flex; flex-direction: column; gap: 6px; }
 
 /* ---------- mistake picker dialog ---------- */
 dialog.mistake-picker,

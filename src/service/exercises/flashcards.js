@@ -131,7 +131,7 @@ function splitAnswerTokens(raw) {
 // Try to match one or more tokens from `given` against unmatched parts.
 // `front` is the card's front text, used for lenient-match tracking.
 // Returns match objects for newly matched parts.
-function tryMatchParts(given, allParts, alreadyMatched, front) {
+function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = true) {
     const tokens = splitAnswerTokens(given);
     const newlyMatched = [];
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
@@ -140,7 +140,7 @@ function tryMatchParts(given, allParts, alreadyMatched, front) {
     for (const token of tokens) {
         for (const part of remaining) {
             if (newlyMatched.some((m) => m.part === part)) continue;
-            const match = matchAndTrackLenient(token, part, front);
+            const match = trackLenient ? matchAndTrackLenient(token, part, front) : classifyAnswerMatch(token, part);
             if (match) {
                 newlyMatched.push({ part, ...match });
                 break;
@@ -165,7 +165,7 @@ function tryMatchParts(given, allParts, alreadyMatched, front) {
         // Require ALL content words present AND at most one extra word per content word
         // (prevents single-word parts from matching long unrelated phrases).
         if (matched === contentWords.length && aWords.length <= contentWords.length * 2 + 1) {
-            pushLenientMatch(given, part, front);
+            if (trackLenient) pushLenientMatch(given, part, front);
             newlyMatched.push({
                 part,
                 accepted: true,
@@ -500,6 +500,7 @@ const reviewState = {
     flipped: new Set(),
     keyHandler: null,
     resizeHandler: null,
+    resizeTimer: null,
 };
 
 function setupPage() {
@@ -998,6 +999,10 @@ function stopReviewSession({ keepPage = false } = {}) {
         window.removeEventListener("resize", reviewState.resizeHandler);
         reviewState.resizeHandler = null;
     }
+    if (reviewState.resizeTimer) {
+        clearTimeout(reviewState.resizeTimer);
+        reviewState.resizeTimer = null;
+    }
     exerciseForm()?.removeAttribute("data-review-mode");
     exerciseBox()?.classList.remove("fc-review-session");
     const checkBtn = document.getElementById("button-check");
@@ -1049,8 +1054,15 @@ async function startReviewSession() {
         }
     };
     reviewState.resizeHandler = () => {
-        syncReviewRailPosition();
-        fitReviewFaceText();
+        const rail = document.querySelector(".fc-review-rail");
+        rail?.classList.add("is-resizing");
+        if (reviewState.resizeTimer) clearTimeout(reviewState.resizeTimer);
+        reviewState.resizeTimer = setTimeout(() => {
+            reviewState.resizeTimer = null;
+            syncReviewRailPosition();
+            fitReviewFaceText();
+            document.querySelector(".fc-review-rail")?.classList.remove("is-resizing");
+        }, 120);
     };
     document.addEventListener("keydown", reviewState.keyHandler, true);
     window.addEventListener("resize", reviewState.resizeHandler);
@@ -2310,19 +2322,26 @@ runExercise({
                     };
                 }
                 const { sharedState, allParts } = q;
-                const newlyMatched = tryMatchParts(given, allParts, sharedState.matched, q.front);
+                const partialRequired = q.requiredCount < allParts.length;
+                const newlyMatched = tryMatchParts(
+                    given,
+                    allParts,
+                    sharedState.matched,
+                    q.front,
+                    !partialRequired,
+                );
                 if (newlyMatched.length > 0) {
                     for (const match of newlyMatched) sharedState.matched.add(match.part);
-                    const exactThisStep = newlyMatched.every((match) => match.exact);
-                    const practiceAgainThisStep = newlyMatched.some((match) => match.practiceAgain);
-                    if (!exactThisStep) sharedState.revealAtEnd = true;
+                    const exactThisStep = partialRequired || newlyMatched.every((match) => match.exact);
+                    const practiceAgainThisStep = !partialRequired && newlyMatched.some((match) => match.practiceAgain);
+                    if (!partialRequired && !exactThisStep) sharedState.revealAtEnd = true;
                     if (practiceAgainThisStep) sharedState.revealPracticeAgain = true;
                     const finished = sharedState.matched.size >= q.requiredCount;
-                    const showReview = finished && sharedState.revealAtEnd && !sharedState.revealShown;
+                    const showReview = !partialRequired && finished && sharedState.revealAtEnd && !sharedState.revealShown;
                     if (showReview) sharedState.revealShown = true;
                     return {
                         correct: true,
-                        exact: exactThisStep && !sharedState.revealAtEnd,
+                        exact: partialRequired || (exactThisStep && !sharedState.revealAtEnd),
                         showReview,
                         practiceAgain: practiceAgainThisStep,
                         feedback: showReview

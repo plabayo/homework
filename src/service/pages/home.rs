@@ -25,10 +25,7 @@ fn page_body() -> impl IntoHtml {
         page_header("Oefeningen Basisschool 🏫"),
         section!(
             class = "page-intro",
-            p!(
-                "Welkom! Op deze website oefen je willekeurige opgaven uit de basisschoolstof. ",
-                "Kies een oefening hieronder om te beginnen.",
-            ),
+            p!("Kies een oefening en ga meteen aan de slag.",),
         ),
         levels(),
         site_footer(),
@@ -42,13 +39,13 @@ fn site_footer() -> impl IntoHtml {
             class = "footer-block",
             h2!("Helpen of bijdragen 🤝"),
             p!(
-                "Ben je technisch onderlegd en gemotiveerd? We aanvaarden graag bijdragen aan ",
+                "Technisch onderlegd? We aanvaarden graag bijdragen aan ",
                 a!(
                     class = "nowrap",
                     href = "https://github.com/plabayo/homework",
                     "github.com/plabayo/homework ⛰️",
                 ),
-                ". Suggesties of feedback mag je sturen naar ",
+                ". Feedback mag je sturen naar ",
                 a!(
                     class = "nowrap",
                     href = "mailto:hello@plabayo.tech",
@@ -57,7 +54,7 @@ fn site_footer() -> impl IntoHtml {
                 ".",
             ),
             p!(
-                "Liever financieel steunen? Trakteer ons op ",
+                "Liever steunen? Trakteer ons op ",
                 a!(
                     class = "nowrap",
                     href = "https://www.buymeacoffee.com/plabayo",

@@ -356,6 +356,47 @@ async fn flashcards_multipart_partial_required() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_partial_required_does_not_flag_bijna_goed() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-mp-partial-lenient","name":"Multi-deel deels verplicht","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon",
+                "parts":["wachter van de zon","half man","half leeuw"],
+                "partsRequired":2}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-mp-partial-lenient").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "wachter zon").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    let repeat_buttons = driver.find_all(By::Css("#review-button-repeat")).await?;
+    assert!(
+        repeat_buttons.is_empty(),
+        "partial-required multipart cards should not be flagged as a practice-again round",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_multipart_en_separator_all_at_once() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -829,6 +870,90 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     assert!(
         (jump_active_center - jump_view_center).abs() <= 4.0,
         "expected jumped-to review card to stay centered, got: activeCenter={jump_active_center:.2}, viewportCenter={jump_view_center:.2}",
+    );
+
+    driver.set_window_rect(0, 0, 940, 760).await?;
+    poll_until(Duration::from_secs(10), || async {
+        let metrics = driver
+            .execute(
+                r#"
+                const viewport = document.querySelector('.fc-review-viewport');
+                const active = document.querySelector('.fc-review-card.is-active');
+                if (!viewport || !active) return false;
+                const vr = viewport.getBoundingClientRect();
+                const ar = active.getBoundingClientRect();
+                return Math.abs((ar.left + ar.width / 2) - (vr.left + vr.width / 2)) <= 4;
+                "#,
+                vec![],
+            )
+            .await?;
+        Ok(metrics.json().as_bool().unwrap_or(false))
+    })
+    .await?;
+    let resized_small = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const ar = active.getBoundingClientRect();
+            return { viewportCenter: vr.left + vr.width / 2, activeCenter: ar.left + ar.width / 2 };
+            "#,
+            vec![],
+        )
+        .await?;
+    let resized_small = resized_small.json();
+    let resized_small_obj = resized_small
+        .as_object()
+        .expect("expected resized-small object");
+    let resized_small_view_center = resized_small_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let resized_small_active_center = resized_small_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    assert!(
+        (resized_small_active_center - resized_small_view_center).abs() <= 4.0,
+        "expected review card to stay centered after resize to smaller viewport",
+    );
+
+    driver.set_window_rect(0, 0, 1440, 920).await?;
+    poll_until(Duration::from_secs(10), || async {
+        let metrics = driver
+            .execute(
+                r#"
+                const viewport = document.querySelector('.fc-review-viewport');
+                const active = document.querySelector('.fc-review-card.is-active');
+                if (!viewport || !active) return false;
+                const vr = viewport.getBoundingClientRect();
+                const ar = active.getBoundingClientRect();
+                return Math.abs((ar.left + ar.width / 2) - (vr.left + vr.width / 2)) <= 4;
+                "#,
+                vec![],
+            )
+            .await?;
+        Ok(metrics.json().as_bool().unwrap_or(false))
+    })
+    .await?;
+    let resized_large = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const ar = active.getBoundingClientRect();
+            return { viewportCenter: vr.left + vr.width / 2, activeCenter: ar.left + ar.width / 2 };
+            "#,
+            vec![],
+        )
+        .await?;
+    let resized_large = resized_large.json();
+    let resized_large_obj = resized_large
+        .as_object()
+        .expect("expected resized-large object");
+    let resized_large_view_center = resized_large_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let resized_large_active_center = resized_large_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    assert!(
+        (resized_large_active_center - resized_large_view_center).abs() <= 4.0,
+        "expected review card to stay centered after resize back to larger viewport",
     );
 
     driver
