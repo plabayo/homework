@@ -855,8 +855,10 @@ function renderReviewViewer() {
         moveReviewBy(1);
     });
 
+    syncReviewRailPosition();
+    fitReviewFaceText();
     requestAnimationFrame(() => {
-        syncReviewRailPosition();
+        fitReviewFaceText();
         hydrateReviewImages();
     });
 }
@@ -869,16 +871,15 @@ function syncReviewRailPosition() {
     if (!viewport || !rail || cards.length === 0) return;
     const first = cards[0];
     const second = cards[1] || first;
-    const viewportWidth = viewport.clientWidth;
-    const railWidth = rail.scrollWidth;
-    const firstCenter = first.offsetLeft + first.offsetWidth / 2;
-    const secondCenter = second.offsetLeft + second.offsetWidth / 2;
-    const step = cards.length > 1 ? secondCenter - firstCenter : 0;
-    const desiredFirstCenter = viewportWidth / 2;
-    let offset = desiredFirstCenter - firstCenter - reviewState.currentIndex * step;
-    const minOffset = Math.min(0, viewportWidth - railWidth);
-    offset = Math.max(minOffset, Math.min(0, offset));
-    rail.style.transform = `translateX(${offset}px)`;
+    const viewportStyle = window.getComputedStyle(viewport);
+    const viewportPaddingLeft = parseFloat(viewportStyle.paddingLeft) || 0;
+    const viewportPaddingRight = parseFloat(viewportStyle.paddingRight) || 0;
+    const viewportContentWidth = viewport.clientWidth - viewportPaddingLeft - viewportPaddingRight;
+    const slotWidth = first.offsetWidth;
+    const step = cards.length > 1 ? second.offsetLeft - first.offsetLeft : slotWidth;
+    const gutter = Math.max(0, viewportContentWidth / 2 - slotWidth / 2);
+    rail.style.paddingInline = `${gutter}px`;
+    rail.style.transform = `translateX(${-reviewState.currentIndex * step}px)`;
 }
 
 function hydrateReviewImages() {
@@ -896,6 +897,21 @@ function hydrateReviewImages() {
             if (!el.isConnected) return;
             el.textContent = "Afbeelding niet beschikbaar";
         });
+    });
+}
+
+function fitReviewFaceText() {
+    document.querySelectorAll(".fc-review-face-text").forEach((el) => {
+        const body = el.closest(".fc-review-face-body");
+        if (!body) return;
+        el.style.fontSize = "";
+        const computed = window.getComputedStyle(el);
+        let size = parseFloat(computed.fontSize) || 22;
+        const minSize = 11;
+        while (size > minSize && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1 || body.scrollHeight > body.clientHeight + 1)) {
+            size -= 0.5;
+            el.style.fontSize = `${size}px`;
+        }
     });
 }
 
@@ -988,7 +1004,10 @@ async function startReviewSession() {
             toggleReviewFlip(reviewState.currentIndex);
         }
     };
-    reviewState.resizeHandler = () => syncReviewRailPosition();
+    reviewState.resizeHandler = () => {
+        syncReviewRailPosition();
+        fitReviewFaceText();
+    };
     document.addEventListener("keydown", reviewState.keyHandler, true);
     window.addEventListener("resize", reviewState.resizeHandler);
     showReviewPage();

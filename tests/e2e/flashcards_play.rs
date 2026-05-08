@@ -690,7 +690,9 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
             "cards":[
                 {"front":"zon","back":"soleil"},
                 {"front":"maan","back":"lune"},
-                {"front":"ster","back":"etoile"}
+                {"front":"ster","back":"etoile"},
+                {"front":"wolk","back":"nuage"},
+                {"front":"regen","back":"pluie"}
             ],"createdAt":1}"#,
     )
     .await?;
@@ -714,10 +716,56 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     wait_for_text(
         driver,
         "#exercise-title",
-        "kaart 1 van 3",
+        "kaart 1 van 5",
         Duration::from_secs(5),
     )
     .await?;
+    tokio::time::sleep(Duration::from_millis(260)).await;
+
+    let start_metrics = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const rail = document.querySelector('.fc-review-rail');
+            const cards = Array.from(document.querySelectorAll('.fc-review-card'));
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !rail || cards.length < 3 || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const centers = cards.map(card => {
+                const r = card.getBoundingClientRect();
+                return r.left + r.width / 2;
+            });
+            const steps = centers.slice(1).map((center, i) => center - centers[i]);
+            const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
+            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
+            return {
+                viewportCenter: vr.left + vr.width / 2,
+                activeCenter,
+                steps,
+                transform,
+            };
+            "#,
+            vec![],
+        )
+        .await?;
+    let start = start_metrics.json();
+    let start_obj = start.as_object().expect("expected review metrics object");
+    let start_view_center = start_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let start_active_center = start_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    let start_transform = start_obj["transform"].as_f64().unwrap_or(0.0);
+    assert!(
+        (start_active_center - start_view_center).abs() <= 4.0,
+        "expected first review card to be centered at start",
+    );
+    let start_steps = start_obj["steps"].as_array().expect("expected step array");
+    let base_step = start_steps[0].as_f64().unwrap_or(0.0);
+    for step in start_steps {
+        let value = step.as_f64().unwrap_or(0.0);
+        assert!(
+            (value - base_step).abs() <= 1.5,
+            "expected equal spacing between review-card slots, got {value} vs {base_step}",
+        );
+    }
 
     click(driver, ".fc-review-card.is-active").await?;
     let flipped = driver
@@ -735,19 +783,86 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     wait_for_text(
         driver,
         "#exercise-title",
-        "kaart 2 van 3",
+        "kaart 2 van 5",
         Duration::from_secs(5),
     )
     .await?;
+    tokio::time::sleep(Duration::from_millis(260)).await;
+    let one_step_metrics = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const rail = document.querySelector('.fc-review-rail');
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !rail || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
+            const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
+            return { viewportCenter: vr.left + vr.width / 2, activeCenter, transform };
+            "#,
+            vec![],
+        )
+        .await?;
+    let one_step = one_step_metrics.json();
+    let one_step_obj = one_step.as_object().expect("expected one-step object");
+    let one_step_view_center = one_step_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let one_step_active_center = one_step_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    let one_step_transform = one_step_obj["transform"].as_f64().unwrap_or(0.0);
+    assert!(
+        (one_step_active_center - one_step_view_center).abs() <= 4.0,
+        "expected next review card to stay centered after one-step navigation",
+    );
+    assert!(
+        ((one_step_transform - start_transform).abs() - base_step).abs() <= 2.0,
+        "expected moving one card to shift the rail by one slot",
+    );
 
+    click(driver, "#fc-review-prev").await?;
+    wait_for_text(
+        driver,
+        "#exercise-title",
+        "kaart 1 van 5",
+        Duration::from_secs(5),
+    )
+    .await?;
+    tokio::time::sleep(Duration::from_millis(260)).await;
     click(driver, ".fc-review-card[data-index='2']").await?;
     wait_for_text(
         driver,
         "#exercise-title",
-        "kaart 3 van 3",
+        "kaart 3 van 5",
         Duration::from_secs(5),
     )
     .await?;
+    tokio::time::sleep(Duration::from_millis(260)).await;
+    let jump_metrics = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const rail = document.querySelector('.fc-review-rail');
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !rail || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
+            const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
+            return { viewportCenter: vr.left + vr.width / 2, activeCenter, transform };
+            "#,
+            vec![],
+        )
+        .await?;
+    let jump = jump_metrics.json();
+    let jump_obj = jump.as_object().expect("expected jump object");
+    let jump_view_center = jump_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let jump_active_center = jump_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    let jump_transform = jump_obj["transform"].as_f64().unwrap_or(0.0);
+    assert!(
+        (jump_active_center - jump_view_center).abs() <= 4.0,
+        "expected jumped-to review card to stay centered",
+    );
+    assert!(
+        ((jump_transform - start_transform).abs() - base_step * 2.0).abs() <= 2.5,
+        "expected clicking two cards away to shift the rail by two slots",
+    );
 
     driver
         .find(By::Css("body"))
@@ -757,10 +872,37 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     wait_for_text(
         driver,
         "#exercise-title",
-        "kaart 2 van 3",
+        "kaart 2 van 5",
         Duration::from_secs(5),
     )
     .await?;
+
+    for title in ["kaart 3 van 5", "kaart 4 van 5", "kaart 5 van 5"] {
+        click(driver, "#fc-review-next").await?;
+        wait_for_text(driver, "#exercise-title", title, Duration::from_secs(5)).await?;
+        tokio::time::sleep(Duration::from_millis(260)).await;
+    }
+    let last_metrics = driver
+        .execute(
+            r#"
+            const viewport = document.querySelector('.fc-review-viewport');
+            const active = document.querySelector('.fc-review-card.is-active');
+            if (!viewport || !active) return null;
+            const vr = viewport.getBoundingClientRect();
+            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
+            return { viewportCenter: vr.left + vr.width / 2, activeCenter };
+            "#,
+            vec![],
+        )
+        .await?;
+    let last = last_metrics.json();
+    let last_obj = last.as_object().expect("expected last-card metrics object");
+    let last_view_center = last_obj["viewportCenter"].as_f64().unwrap_or(0.0);
+    let last_active_center = last_obj["activeCenter"].as_f64().unwrap_or(0.0);
+    assert!(
+        (last_active_center - last_view_center).abs() <= 4.0,
+        "expected last review card to stop centered as well",
+    );
 
     let fits = driver
         .execute(
@@ -830,6 +972,71 @@ async fn flashcards_review_mode_home_link_leaves_without_warning() -> TestResult
     assert!(
         dialogs.is_empty(),
         "expected review mode to leave without a warning dialog",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_review_mode_long_text_fits_on_card() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-review-long-text","name":"Lange kaarttekst","mode":"two-sided",
+            "cards":[{"front":"dit is een extreem lange kaarttekst met veel woorden die normaal makkelijk buiten het kaartje zou vallen als je de letters niet dynamisch kleiner maakt","back":"dit is ook een lange achterkant die nog altijd volledig leesbaar moet blijven binnen de grenzen van dezelfde kaart"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-review-long-text']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-review-long-text'] .deck-select-btn",
+    )
+    .await?;
+    click(driver, "#fc-start-review").await?;
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(5)).await?;
+
+    let front_fits = driver
+        .execute(
+            r#"
+            return Array.from(document.querySelectorAll('.fc-review-face-front .fc-review-face-text'))
+                .every(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1);
+            "#,
+            vec![],
+        )
+        .await?;
+    assert!(
+        front_fits.json().as_bool().unwrap_or(false),
+        "expected long front text to shrink so it fits inside the review card",
+    );
+
+    click(driver, ".fc-review-card.is-active").await?;
+    let back_fits = driver
+        .execute(
+            r#"
+            return Array.from(document.querySelectorAll('.fc-review-face-back .fc-review-face-text'))
+                .every(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1);
+            "#,
+            vec![],
+        )
+        .await?;
+    assert!(
+        back_fits.json().as_bool().unwrap_or(false),
+        "expected long back text to shrink so it fits inside the review card",
     );
 
     driver.clone().quit().await?;
