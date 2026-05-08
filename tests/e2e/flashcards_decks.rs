@@ -261,8 +261,8 @@ async fn flashcards_newline_back_without_parts_is_treated_as_multi_component() -
     );
     assert_eq!(
         normalized["back"].as_str().unwrap_or_default(),
-        "de nijl",
-        "expected load-time normalization to keep the first line as the canonical back"
+        "de nijl\nde woestijn",
+        "expected load-time normalization to keep the full multiline back"
     );
 
     click(

@@ -51,8 +51,9 @@ function normalizeStoredCard(card) {
         if (parts.length > 1) {
             if (JSON.stringify(parts) !== JSON.stringify(normalized.parts)) changed = true;
             normalized.parts = parts;
-            if (normalized.back !== parts[0]) {
-                normalized.back = parts[0];
+            const joined = parts.join("\n");
+            if (normalized.back !== joined) {
+                normalized.back = joined;
                 changed = true;
             }
         } else if (parts.length === 1) {
@@ -69,7 +70,7 @@ function normalizeStoredCard(card) {
             const parts = back.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
             if (parts.length > 1) {
                 normalized.parts = parts;
-                normalized.back = parts[0];
+                normalized.back = back;
                 changed = true;
             } else if (parts.length === 1 && normalized.back !== parts[0]) {
                 normalized.back = parts[0];
