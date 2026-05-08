@@ -586,30 +586,35 @@
     width: 100%;
     max-width: min(100%, 66rem);
     margin-inline: auto;
-    overflow: hidden;
+    overflow-x: scroll;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
     padding: 1.9rem 0.85rem 2.1rem;
+    user-select: none;
+}
+
+.fc-review-viewport::-webkit-scrollbar {
+    display: none;
 }
 
 .fc-review-rail {
+    /* Defined here so the padding-inline calc() can read it;
+       cards inherit the value from this parent. */
+    --fc-review-card-w: clamp(168px, min(19vw, 27vh), 248px);
     display: flex;
     align-items: stretch;
     gap: 0.9rem;
-    width: max-content;
-    padding-inline: 0;
-    transition: transform 180ms ease-out;
-    will-change: transform;
-}
-
-.fc-review-rail.is-resizing {
-    transition: none;
+    /* Half-viewport padding lets the first and last card scroll to centre. */
+    padding-inline: calc(50% - var(--fc-review-card-w) / 2);
 }
 
 .fc-review-card {
     --fc-review-scale: 0.78;
     --fc-review-rotate: 0deg;
-    --fc-review-card-w: clamp(168px, min(19vw, 27vh), 248px);
     flex: 0 0 var(--fc-review-card-w);
     width: var(--fc-review-card-w);
+    scroll-snap-align: center;
     min-width: 0;
     aspect-ratio: 5 / 7;
     padding: 0.7rem 0.15rem;
@@ -1142,10 +1147,8 @@
 }
 
 @media (max-width: 640px) {
-    .fc-review-card {
+    .fc-review-rail {
         --fc-review-card-w: 156px;
-        flex-basis: 156px;
-        width: 156px;
     }
 
     .fc-review-viewport {
@@ -1163,10 +1166,8 @@
 }
 
 @media (max-width: 460px) {
-    .fc-review-card {
+    .fc-review-rail {
         --fc-review-card-w: 138px;
-        flex-basis: 138px;
-        width: 138px;
     }
 
     /* Shrink hint text when review carousel is active */

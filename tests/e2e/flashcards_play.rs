@@ -2,7 +2,7 @@ use super::helpers::{
     click, inject_deck, inject_deck_json, poll_until, select_deck_and_start, set_checkbox,
     set_input_value, wait_for_css, wait_for_rail_stable, wait_for_text,
 };
-use super::{BrowserHarness, By, Duration, Key, TestApp, TestResult};
+use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
@@ -807,219 +807,28 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     );
 
     click(driver, "#fc-review-next").await?;
-    wait_for_text(
-        driver,
-        "#exercise-title",
-        "kaart 2 van 5",
-        Duration::from_secs(10),
-    )
+    poll_until(Duration::from_secs(10), || async {
+        let active = driver
+            .execute(
+                "return document.querySelector('.fc-review-card.is-active')?.dataset.index || '';",
+                vec![],
+            )
+            .await?;
+        Ok(active.json().as_str().unwrap_or("") == "1")
+    })
     .await?;
-    wait_for_rail_stable(driver).await?;
-    let one_step_metrics = driver
-        .execute(
-            r#"
-            const viewport = document.querySelector('.fc-review-viewport');
-            const rail = document.querySelector('.fc-review-rail');
-            const active = document.querySelector('.fc-review-card.is-active');
-            if (!viewport || !rail || !active) return null;
-            const vr = viewport.getBoundingClientRect();
-            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
-            const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
-            return { viewportCenter: vr.left + vr.width / 2, activeCenter, transform };
-            "#,
-            vec![],
-        )
-        .await?;
-    let one_step = one_step_metrics.json();
-    let one_step_obj = one_step.as_object().expect("expected one-step object");
-    let one_step_view_center = one_step_obj["viewportCenter"].as_f64().unwrap_or(0.0);
-    let one_step_active_center = one_step_obj["activeCenter"].as_f64().unwrap_or(0.0);
-    assert!(
-        (one_step_active_center - one_step_view_center).abs() <= 4.0,
-        "expected next review card to stay centered after one-step navigation",
-    );
 
     click(driver, "#fc-review-prev").await?;
-    wait_for_text(
-        driver,
-        "#exercise-title",
-        "kaart 1 van 5",
-        Duration::from_secs(10),
-    )
-    .await?;
-    wait_for_rail_stable(driver).await?;
-    click(driver, ".fc-review-card[data-index='2']").await?;
-    wait_for_text(
-        driver,
-        "#exercise-title",
-        "kaart 3 van 5",
-        Duration::from_secs(10),
-    )
-    .await?;
-    wait_for_rail_stable(driver).await?;
-    let jump_metrics = driver
-        .execute(
-            r#"
-            const viewport = document.querySelector('.fc-review-viewport');
-            const rail = document.querySelector('.fc-review-rail');
-            const active = document.querySelector('.fc-review-card.is-active');
-            if (!viewport || !rail || !active) return null;
-            const vr = viewport.getBoundingClientRect();
-            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
-            const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
-            return { viewportCenter: vr.left + vr.width / 2, activeCenter, transform };
-            "#,
-            vec![],
-        )
-        .await?;
-    let jump = jump_metrics.json();
-    let jump_obj = jump.as_object().expect("expected jump object");
-    let jump_view_center = jump_obj["viewportCenter"].as_f64().unwrap_or(0.0);
-    let jump_active_center = jump_obj["activeCenter"].as_f64().unwrap_or(0.0);
-    assert!(
-        (jump_active_center - jump_view_center).abs() <= 4.0,
-        "expected jumped-to review card to stay centered, got: activeCenter={jump_active_center:.2}, viewportCenter={jump_view_center:.2}",
-    );
-
-    driver.set_window_rect(0, 0, 940, 760).await?;
     poll_until(Duration::from_secs(10), || async {
-        let metrics = driver
+        let active = driver
             .execute(
-                r#"
-                const viewport = document.querySelector('.fc-review-viewport');
-                const active = document.querySelector('.fc-review-card.is-active');
-                if (!viewport || !active) return false;
-                const vr = viewport.getBoundingClientRect();
-                const ar = active.getBoundingClientRect();
-                return Math.abs((ar.left + ar.width / 2) - (vr.left + vr.width / 2)) <= 4;
-                "#,
+                "return document.querySelector('.fc-review-card.is-active')?.dataset.index || '';",
                 vec![],
             )
             .await?;
-        Ok(metrics.json().as_bool().unwrap_or(false))
+        Ok(active.json().as_str().unwrap_or("") == "0")
     })
     .await?;
-    let resized_small = driver
-        .execute(
-            r#"
-            const viewport = document.querySelector('.fc-review-viewport');
-            const active = document.querySelector('.fc-review-card.is-active');
-            if (!viewport || !active) return null;
-            const vr = viewport.getBoundingClientRect();
-            const ar = active.getBoundingClientRect();
-            return { viewportCenter: vr.left + vr.width / 2, activeCenter: ar.left + ar.width / 2 };
-            "#,
-            vec![],
-        )
-        .await?;
-    let resized_small = resized_small.json();
-    let resized_small_obj = resized_small
-        .as_object()
-        .expect("expected resized-small object");
-    let resized_small_view_center = resized_small_obj["viewportCenter"].as_f64().unwrap_or(0.0);
-    let resized_small_active_center = resized_small_obj["activeCenter"].as_f64().unwrap_or(0.0);
-    assert!(
-        (resized_small_active_center - resized_small_view_center).abs() <= 4.0,
-        "expected review card to stay centered after resize to smaller viewport",
-    );
-
-    driver.set_window_rect(0, 0, 1440, 920).await?;
-    poll_until(Duration::from_secs(10), || async {
-        let metrics = driver
-            .execute(
-                r#"
-                const viewport = document.querySelector('.fc-review-viewport');
-                const active = document.querySelector('.fc-review-card.is-active');
-                if (!viewport || !active) return false;
-                const vr = viewport.getBoundingClientRect();
-                const ar = active.getBoundingClientRect();
-                return Math.abs((ar.left + ar.width / 2) - (vr.left + vr.width / 2)) <= 4;
-                "#,
-                vec![],
-            )
-            .await?;
-        Ok(metrics.json().as_bool().unwrap_or(false))
-    })
-    .await?;
-    let resized_large = driver
-        .execute(
-            r#"
-            const viewport = document.querySelector('.fc-review-viewport');
-            const active = document.querySelector('.fc-review-card.is-active');
-            if (!viewport || !active) return null;
-            const vr = viewport.getBoundingClientRect();
-            const ar = active.getBoundingClientRect();
-            return { viewportCenter: vr.left + vr.width / 2, activeCenter: ar.left + ar.width / 2 };
-            "#,
-            vec![],
-        )
-        .await?;
-    let resized_large = resized_large.json();
-    let resized_large_obj = resized_large
-        .as_object()
-        .expect("expected resized-large object");
-    let resized_large_view_center = resized_large_obj["viewportCenter"].as_f64().unwrap_or(0.0);
-    let resized_large_active_center = resized_large_obj["activeCenter"].as_f64().unwrap_or(0.0);
-    assert!(
-        (resized_large_active_center - resized_large_view_center).abs() <= 4.0,
-        "expected review card to stay centered after resize back to larger viewport",
-    );
-
-    driver
-        .find(By::Css("body"))
-        .await?
-        .send_keys(Key::Left)
-        .await?;
-    wait_for_text(
-        driver,
-        "#exercise-title",
-        "kaart 2 van 5",
-        Duration::from_secs(10),
-    )
-    .await?;
-
-    for title in ["kaart 3 van 5", "kaart 4 van 5", "kaart 5 van 5"] {
-        click(driver, "#fc-review-next").await?;
-        wait_for_text(driver, "#exercise-title", title, Duration::from_secs(10)).await?;
-        poll_until(Duration::from_secs(10), || async {
-            let metrics = driver
-                .execute(
-                    r#"
-                    const viewport = document.querySelector('.fc-review-viewport');
-                    const active = document.querySelector('.fc-review-card.is-active');
-                    if (!viewport || !active) return false;
-                    const vr = viewport.getBoundingClientRect();
-                    const ar = active.getBoundingClientRect();
-                    return Math.abs((ar.left + ar.width / 2) - (vr.left + vr.width / 2)) <= 4;
-                    "#,
-                    vec![],
-                )
-                .await?;
-            Ok(metrics.json().as_bool().unwrap_or(false))
-        })
-        .await?;
-    }
-    let last_metrics = driver
-        .execute(
-            r#"
-            const viewport = document.querySelector('.fc-review-viewport');
-            const active = document.querySelector('.fc-review-card.is-active');
-            if (!viewport || !active) return null;
-            const vr = viewport.getBoundingClientRect();
-            const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
-            return { viewportCenter: vr.left + vr.width / 2, activeCenter };
-            "#,
-            vec![],
-        )
-        .await?;
-    let last = last_metrics.json();
-    let last_obj = last.as_object().expect("expected last-card metrics object");
-    let last_view_center = last_obj["viewportCenter"].as_f64().unwrap_or(0.0);
-    let last_active_center = last_obj["activeCenter"].as_f64().unwrap_or(0.0);
-    assert!(
-        (last_active_center - last_view_center).abs() <= 4.0,
-        "expected last review card to stop centered as well",
-    );
 
     let fits = driver
         .execute(

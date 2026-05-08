@@ -641,6 +641,7 @@ const reviewState = {
     keyHandler: null,
     resizeHandler: null,
     resizeTimer: null,
+    scrollSyncCleanup: null,
 };
 
 function setupPage() {
@@ -1015,6 +1016,7 @@ function renderReviewViewer() {
     });
 
     syncReviewRailPosition();
+    bindReviewScrollSync();
     fitReviewFaceText();
     requestAnimationFrame(() => {
         fitReviewFaceText();
@@ -1022,23 +1024,16 @@ function renderReviewViewer() {
     });
 }
 
-function syncReviewRailPosition() {
+function syncReviewRailPosition(animated = true) {
     if (!reviewState.active) return;
     const viewport = document.querySelector(".fc-review-viewport");
-    const rail = document.querySelector(".fc-review-rail");
     const cards = Array.from(document.querySelectorAll(".fc-review-card"));
-    if (!viewport || !rail || cards.length === 0) return;
-
-    const viewportRect = viewport.getBoundingClientRect();
-    const activeCard = cards[reviewState.currentIndex];
-    if (!activeCard) return;
-
-    const railTransform = new DOMMatrixReadOnly(window.getComputedStyle(rail).transform).m41 || 0;
-    const activeRect = activeCard.getBoundingClientRect();
-    const viewportCenter = viewportRect.left + viewportRect.width / 2;
-    const activeCenter = activeRect.left + activeRect.width / 2;
-    const delta = viewportCenter - activeCenter;
-    rail.style.transform = `translateX(${railTransform + delta}px)`;
+    const active = cards[reviewState.currentIndex];
+    if (!viewport || !active) return;
+    const vr = viewport.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    const delta = (ar.left + ar.width / 2) - (vr.left + vr.width / 2);
+    viewport.scrollBy({ left: delta, behavior: animated ? "smooth" : "instant" });
 }
 
 function hydrateReviewImages() {
@@ -1074,7 +1069,7 @@ function fitReviewFaceText() {
     });
 }
 
-function updateReviewActiveCard() {
+function updateReviewActiveCard({ scrollToActive = true } = {}) {
     const total = reviewState.cards.length;
     const current = reviewState.currentIndex;
     const title = exerciseTitle();
@@ -1093,7 +1088,41 @@ function updateReviewActiveCard() {
     const next = document.getElementById("fc-review-next");
     if (prev) prev.disabled = current === 0;
     if (next) next.disabled = current >= total - 1;
-    syncReviewRailPosition();
+    if (scrollToActive) syncReviewRailPosition();
+}
+
+function updateReviewIndexFromScroll() {
+    if (!reviewState.active) return;
+    const viewport = document.querySelector(".fc-review-viewport");
+    const cards = Array.from(document.querySelectorAll(".fc-review-card"));
+    if (!viewport || cards.length === 0) return;
+    const vpRect = viewport.getBoundingClientRect();
+    const vpCenter = vpRect.left + vpRect.width / 2;
+    let best = 0, bestDist = Infinity;
+    cards.forEach((card, i) => {
+        const r = card.getBoundingClientRect();
+        const dist = Math.abs(r.left + r.width / 2 - vpCenter);
+        if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    if (best !== reviewState.currentIndex) {
+        reviewState.currentIndex = best;
+        updateReviewActiveCard({ scrollToActive: false });
+    }
+}
+
+function bindReviewScrollSync() {
+    const viewport = document.querySelector(".fc-review-viewport");
+    if (!viewport) return;
+    let timer = null;
+    const settle = () => { clearTimeout(timer); timer = null; updateReviewIndexFromScroll(); };
+    const debounce = () => { clearTimeout(timer); timer = setTimeout(settle, 80); };
+    viewport.addEventListener("scrollend", settle);
+    viewport.addEventListener("scroll", debounce);
+    reviewState.scrollSyncCleanup = () => {
+        clearTimeout(timer);
+        viewport.removeEventListener("scrollend", settle);
+        viewport.removeEventListener("scroll", debounce);
+    };
 }
 
 function moveReviewBy(step) {
@@ -1138,6 +1167,10 @@ function stopReviewSession({ keepPage = false } = {}) {
     if (reviewState.resizeTimer) {
         clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = null;
+    }
+    if (reviewState.scrollSyncCleanup) {
+        reviewState.scrollSyncCleanup();
+        reviewState.scrollSyncCleanup = null;
     }
     exerciseForm()?.removeAttribute("data-review-mode");
     exerciseBox()?.classList.remove("fc-review-session");
@@ -1191,16 +1224,13 @@ async function startReviewSession() {
     };
     reviewState.resizeHandler = () => {
         const stage = document.querySelector(".fc-review-stage");
-        const rail = document.querySelector(".fc-review-rail");
         stage?.classList.add("is-resizing");
-        rail?.classList.add("is-resizing");
         if (reviewState.resizeTimer) clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = setTimeout(() => {
             reviewState.resizeTimer = null;
-            syncReviewRailPosition();
+            syncReviewRailPosition(false);
             fitReviewFaceText();
             document.querySelector(".fc-review-stage")?.classList.remove("is-resizing");
-            document.querySelector(".fc-review-rail")?.classList.remove("is-resizing");
         }, 120);
     };
     document.addEventListener("keydown", reviewState.keyHandler, true);
