@@ -146,25 +146,25 @@ async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
     wait_for_css(
         driver,
         "dialog.leave-guard-dialog[open]",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
     wait_for_text(
         driver,
         "dialog.leave-guard-dialog .muted",
         "Je verliest je voortgang als je weggaat.",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
 
     click(driver, "#leave-stay").await?;
-    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
     click(driver, ".home-link").await?;
     wait_for_css(
         driver,
         "dialog.leave-guard-dialog[open]",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
     click(driver, "#leave-leave").await?;

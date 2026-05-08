@@ -728,6 +728,7 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
             const viewport = document.querySelector('.fc-review-viewport');
             const rail = document.querySelector('.fc-review-rail');
             const cards = Array.from(document.querySelectorAll('.fc-review-card'));
+            const inners = Array.from(document.querySelectorAll('.fc-review-card-inner'));
             const active = document.querySelector('.fc-review-card.is-active');
             if (!viewport || !rail || cards.length < 3 || !active) return null;
             const vr = viewport.getBoundingClientRect();
@@ -735,13 +736,19 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
                 const r = card.getBoundingClientRect();
                 return r.left + r.width / 2;
             });
+            // layout steps: center-to-center distances between adjacent card slots.
             const steps = centers.slice(1).map((center, i) => center - centers[i]);
+            // visual gaps: space between the scaled visual faces of adjacent cards.
+            // getBoundingClientRect on the inner element returns the post-transform rect.
+            const visualRects = inners.map(el => el.getBoundingClientRect());
+            const visualGaps = visualRects.slice(1).map((r, i) => r.left - visualRects[i].right);
             const transform = new DOMMatrixReadOnly(getComputedStyle(rail).transform).m41;
             const activeCenter = active.getBoundingClientRect().left + active.getBoundingClientRect().width / 2;
             return {
                 viewportCenter: vr.left + vr.width / 2,
                 activeCenter,
                 steps,
+                visualGaps,
                 transform,
             };
             "#,
@@ -757,15 +764,24 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         (start_active_center - start_view_center).abs() <= 4.0,
         "expected first review card to be centered at start",
     );
-    let start_steps = start_obj["steps"].as_array().expect("expected step array");
-    let base_step = start_steps[0].as_f64().unwrap_or(0.0);
-    for step in start_steps {
-        let value = step.as_f64().unwrap_or(0.0);
+    // The active card has margin-inline to compensate for its larger visual scale,
+    // so layout step[0] (active→inactive) is intentionally larger than the others.
+    // What must be equal is the VISUAL gap — the space between scaled faces.
+    let visual_gaps = start_obj["visualGaps"].as_array().expect("expected visual gaps");
+    let base_gap = visual_gaps[0].as_f64().unwrap_or(0.0);
+    for gap in visual_gaps {
+        let value = gap.as_f64().unwrap_or(0.0);
         assert!(
-            (value - base_step).abs() <= 1.5,
-            "expected equal spacing between review-card slots, got {value} vs {base_step}",
+            (value - base_gap).abs() <= 2.0,
+            "expected equal visual spacing between cards, got {value} vs {base_gap}",
         );
     }
+    // Rail shift per navigation step = card width + gap (inactive-to-inactive step).
+    // The margin on the active card cancels out when active moves: both positions
+    // include +M so the delta is just W+G.  Use the last layout step (always
+    // between two inactive cards) as the canonical slot width.
+    let start_steps = start_obj["steps"].as_array().expect("expected step array");
+    let inactive_step = start_steps.last().and_then(|v| v.as_f64()).unwrap_or(0.0);
 
     click(driver, ".fc-review-card.is-active").await?;
     let flipped = driver
@@ -813,7 +829,7 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         "expected next review card to stay centered after one-step navigation",
     );
     assert!(
-        ((one_step_transform - start_transform).abs() - base_step).abs() <= 2.0,
+        ((one_step_transform - start_transform).abs() - inactive_step).abs() <= 2.0,
         "expected moving one card to shift the rail by one slot",
     );
 
@@ -860,7 +876,7 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         "expected jumped-to review card to stay centered",
     );
     assert!(
-        ((jump_transform - start_transform).abs() - base_step * 2.0).abs() <= 2.5,
+        ((jump_transform - start_transform).abs() - inactive_step * 2.0).abs() <= 2.5,
         "expected clicking two cards away to shift the rail by two slots",
     );
 

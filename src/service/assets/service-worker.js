@@ -26,6 +26,12 @@ const PRECACHE = [
     versionedAsset("/favicon.svg"),
     "/offline",
     "/",
+    "/extra/flashcards",
+    "/1/mathbox",
+    "/1/multiplications",
+    "/1/thermometer",
+    "/2/clock",
+    "/2/digital-clock",
 ];
 
 self.addEventListener("install", (event) => {
@@ -101,7 +107,7 @@ async function networkFirstHtml(request) {
         .catch(() => null);
     const winner = await Promise.race([network, timeout]);
     if (winner && winner.ok) return winner;
-    const cached = await cache.match(request);
+    const cached = await caches.match(request);
     if (cached) return cached;
     // Last resort: maybe network finishes after timeout
     const late = await network;

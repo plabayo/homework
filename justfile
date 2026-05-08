@@ -29,7 +29,7 @@ test:
 	cargo test --all-features
 
 test-e2e *ARGS:
-	cargo test --test e2e -- --ignored --test-threads=1 {{ARGS}}
+	cargo test --test e2e -- --ignored --test-threads=4 {{ARGS}}
 
 # Lighthouse accessibility audit — requires the server to be running (`just run` in another terminal)
 [unix]

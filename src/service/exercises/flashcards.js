@@ -739,8 +739,17 @@ function buildReviewCards(deck) {
     const mode = deckMode(deck);
     return deck.cards.map((card, index) => {
         const isImage = !!card.wikimedia;
-        const backText = reviewCardBackText(card) || "—";
-        const hasParts = Array.isArray(card.parts) && card.parts.length > 1;
+        const rawParts = Array.isArray(card.parts)
+            ? card.parts.map((p) => String(p || "").trim()).filter(Boolean)
+            : [];
+        const hasParts = rawParts.length > 1;
+        const backText = rawParts.length > 0
+            ? rawParts.join(" / ")
+            : String(card?.back || card?.front || "").trim();
+        const partsRequired =
+            hasParts && card.partsRequired != null && card.partsRequired < rawParts.length
+                ? card.partsRequired
+                : null;
         return {
             index,
             frontKind: isImage ? "image" : "text",
@@ -748,6 +757,8 @@ function buildReviewCards(deck) {
             frontLabel: isImage ? "afbeelding" : mode === "two-sided" ? "voorkant" : "kaart",
             backKind: "text",
             backText: mode === "one-sided" && !card.back && !hasParts ? (String(card.front || "").trim() || "—") : backText,
+            backParts: hasParts ? rawParts : null,
+            backPartsRequired: partsRequired,
             backLabel: isImage ? "antwoord" : hasParts ? "onderdelen" : mode === "two-sided" ? "achterkant" : "kaart",
             wikimedia: card.wikimedia || "",
         };
@@ -762,10 +773,21 @@ function reviewImageHtml(filename) {
     return `<div class="fc-review-image-loading fc-review-face-image" data-wikimedia="${escapeHtml(filename)}">⏳ afbeelding laden…</div>`;
 }
 
-function reviewFaceHtml(label, kind, value, wikimedia = "") {
-    const body = kind === "image"
-        ? reviewImageHtml(wikimedia)
-        : `<span class="fc-review-face-text">${escapeHtml(value || "—")}</span>`;
+function reviewFaceHtml(label, kind, value, wikimedia = "", parts = null, partsRequired = null) {
+    let body;
+    if (kind === "image") {
+        body = reviewImageHtml(wikimedia);
+    } else if (parts && parts.length > 1) {
+        const chips = parts
+            .map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`)
+            .join("");
+        const note = partsRequired != null
+            ? `<span class="fc-review-parts-note">${partsRequired} van ${parts.length} verplicht</span>`
+            : "";
+        body = `<span class="fc-review-parts">${chips}${note}</span>`;
+    } else {
+        body = `<span class="fc-review-face-text">${escapeHtml(value || "—")}</span>`;
+    }
     return `
         <span class="fc-review-face-body">
             <span class="fc-review-face-label">${escapeHtml(label)}</span>
@@ -812,7 +834,7 @@ function renderReviewViewer() {
                             ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
                         </span>
                         <span class="fc-review-face fc-review-face-back">
-                            ${reviewFaceHtml(card.backLabel, card.backKind, card.backText)}
+                            ${reviewFaceHtml(card.backLabel, card.backKind, card.backText, "", card.backParts, card.backPartsRequired)}
                         </span>
                     </span>
                 </button>`;
@@ -843,7 +865,7 @@ function renderReviewViewer() {
             } else {
                 reviewState.currentIndex = index;
                 reviewState.flipped.delete(index);
-                renderReviewViewer();
+                updateReviewActiveCard();
             }
         });
     });
@@ -869,17 +891,24 @@ function syncReviewRailPosition() {
     const rail = document.querySelector(".fc-review-rail");
     const cards = Array.from(document.querySelectorAll(".fc-review-card"));
     if (!viewport || !rail || cards.length === 0) return;
-    const first = cards[0];
-    const second = cards[1] || first;
-    const viewportStyle = window.getComputedStyle(viewport);
-    const viewportPaddingLeft = parseFloat(viewportStyle.paddingLeft) || 0;
-    const viewportPaddingRight = parseFloat(viewportStyle.paddingRight) || 0;
-    const viewportContentWidth = viewport.clientWidth - viewportPaddingLeft - viewportPaddingRight;
-    const slotWidth = first.offsetWidth;
-    const step = cards.length > 1 ? second.offsetLeft - first.offsetLeft : slotWidth;
-    const gutter = Math.max(0, viewportContentWidth / 2 - slotWidth / 2);
+
+    const vpStyle = window.getComputedStyle(viewport);
+    const vpPadL = parseFloat(vpStyle.paddingLeft) || 0;
+    const vpPadR = parseFloat(vpStyle.paddingRight) || 0;
+    const vpContentW = viewport.clientWidth - vpPadL - vpPadR;
+
+    const railStyle = window.getComputedStyle(rail);
+    const gapPx = parseFloat(railStyle.gap) || parseFloat(railStyle.columnGap) || 0;
+    const cardW = cards[0].offsetWidth;
+
+    const gutter = Math.max(0, vpContentW / 2 - cardW / 2);
     rail.style.paddingInline = `${gutter}px`;
-    rail.style.transform = `translateX(${-reviewState.currentIndex * step}px)`;
+
+    const idx = reviewState.currentIndex;
+    const activeCard = cards[idx];
+    const activeMarginL = parseFloat(window.getComputedStyle(activeCard).marginLeft) || 0;
+    const activeCenter = idx * (cardW + gapPx) + activeMarginL + cardW / 2;
+    rail.style.transform = `translateX(${vpContentW / 2 - gutter - activeCenter}px)`;
 }
 
 function hydrateReviewImages() {
@@ -915,12 +944,34 @@ function fitReviewFaceText() {
     });
 }
 
+function updateReviewActiveCard() {
+    const total = reviewState.cards.length;
+    const current = reviewState.currentIndex;
+    const title = exerciseTitle();
+    if (title) title.textContent = `kaart ${current + 1} van ${total}`;
+    document.querySelectorAll(".fc-review-card").forEach((card) => {
+        const index = Number(card.dataset.index);
+        const distance = index - current;
+        card.dataset.distance = distance;
+        card.classList.toggle("is-active", index === current);
+        card.classList.toggle("is-near", Math.abs(distance) <= 1);
+        card.classList.toggle("is-far", Math.abs(distance) > 1);
+    });
+    const counter = document.querySelector(".fc-review-counter");
+    if (counter) counter.textContent = `${current + 1} / ${total}`;
+    const prev = document.getElementById("fc-review-prev");
+    const next = document.getElementById("fc-review-next");
+    if (prev) prev.disabled = current === 0;
+    if (next) next.disabled = current >= total - 1;
+    syncReviewRailPosition();
+}
+
 function moveReviewBy(step) {
     if (!reviewState.active || !reviewState.cards.length) return;
     const nextIndex = Math.max(0, Math.min(reviewState.cards.length - 1, reviewState.currentIndex + step));
     if (nextIndex === reviewState.currentIndex) return;
     reviewState.currentIndex = nextIndex;
-    renderReviewViewer();
+    updateReviewActiveCard();
 }
 
 function toggleReviewFlip(index) {
