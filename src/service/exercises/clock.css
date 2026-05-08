@@ -42,7 +42,7 @@
    visible strokes. */
 .clock .hand-hit {
     stroke: transparent;
-    stroke-width: 9;
+    stroke-width: 6;
     stroke-linecap: round;
     pointer-events: stroke;
     cursor: grab;
