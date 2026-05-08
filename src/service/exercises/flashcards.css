@@ -575,6 +575,7 @@
     max-width: 100%;
     overflow: hidden;
     transition: opacity 80ms linear;
+    touch-action: pan-y;
 }
 
 .fc-review-stage.is-resizing {
@@ -586,35 +587,24 @@
     width: 100%;
     max-width: min(100%, 66rem);
     margin-inline: auto;
-    overflow-x: scroll;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-    padding: 1.9rem 0.85rem 2.1rem;
+    padding: 1.9rem 0 2.1rem;
     user-select: none;
 }
 
-.fc-review-viewport::-webkit-scrollbar {
-    display: none;
-}
-
 .fc-review-rail {
-    /* Defined here so the padding-inline calc() can read it;
-       cards inherit the value from this parent. */
     --fc-review-card-w: clamp(168px, min(19vw, 27vh), 248px);
     display: flex;
     align-items: stretch;
     gap: 0.9rem;
-    /* Half-viewport padding lets the first and last card scroll to centre. */
+    /* padding centres card 0; JS translateX slides to each card */
     padding-inline: calc(50% - var(--fc-review-card-w) / 2);
+    will-change: transform;
 }
 
 .fc-review-card {
-    --fc-review-scale: 0.78;
     --fc-review-rotate: 0deg;
     flex: 0 0 var(--fc-review-card-w);
     width: var(--fc-review-card-w);
-    scroll-snap-align: center;
     min-width: 0;
     aspect-ratio: 5 / 7;
     padding: 0.7rem 0.15rem;
@@ -622,21 +612,16 @@
     background: none;
     perspective: 1200px;
     transform-origin: center center;
-    transition: opacity 180ms ease-out, filter 180ms ease-out;
+    scale: 0.82;
+    opacity: 0.7;
+    transition: scale 180ms ease-out, opacity 180ms ease-out;
     position: relative;
 }
 
 .fc-review-card.is-active {
-    --fc-review-scale: 1.18;
+    scale: 1;
     opacity: 1;
-    filter: brightness(1);
     z-index: 2;
-}
-
-.fc-review-card:not(.is-active) {
-    opacity: 0.82;
-    filter: brightness(0.84) saturate(0.9);
-    z-index: 1;
 }
 
 .fc-review-card-inner {
@@ -645,8 +630,8 @@
     width: 100%;
     height: 100%;
     transform-style: preserve-3d;
-    transform: scale(var(--fc-review-scale)) rotateY(var(--fc-review-rotate));
-    transition: transform 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    rotate: y var(--fc-review-rotate);
+    transition: rotate 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .fc-review-card.is-flipped .fc-review-card-inner {
