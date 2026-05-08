@@ -33,10 +33,19 @@ async fn flashcards_one_sided_deck_completes_session() -> TestResult<()> {
         ".deck-item[data-deck-id='test-one'] .deck-select-btn",
     )
     .await?;
+    poll_until(Duration::from_secs(5), || async {
+        let value = driver
+            .execute(
+                "return document.querySelector('#selected-deck-id')?.value || '';",
+                vec![],
+            )
+            .await?;
+        Ok(value.json().as_str().unwrap_or("") == "test-one")
+    })
+    .await?;
     click(driver, "#form-setup button[type='submit']").await?;
 
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
-    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(5)).await?;
     set_input_value(driver, "#answer", "aap").await?;
     click(driver, "#button-check").await?;
 

@@ -16,6 +16,124 @@ function normalize(s) {
         .trim();
 }
 
+function cardParts(card) {
+    const explicitParts = Array.isArray(card?.parts)
+        ? card.parts.map((part) => String(part || "").trim()).filter(Boolean)
+        : [];
+    if (explicitParts.length > 0) return explicitParts;
+
+    const rawBack = String(card?.back || "").trim();
+    if (!rawBack) return [];
+
+    const backParts = rawBack.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return backParts.length > 1 ? backParts : [rawBack];
+}
+
+function normalizeStoredCard(card) {
+    if (!card || typeof card !== "object") return null;
+    const normalized = { ...card };
+    let changed = false;
+
+    if (typeof normalized.front === "string") {
+        const front = normalized.front.trim();
+        if (front !== normalized.front) changed = true;
+        normalized.front = front;
+    }
+
+    if (typeof normalized.wikimedia === "string") {
+        const wikimedia = normalized.wikimedia.trim();
+        if (wikimedia !== normalized.wikimedia) changed = true;
+        normalized.wikimedia = wikimedia;
+    }
+
+    if (Array.isArray(normalized.parts)) {
+        const parts = normalized.parts.map((part) => String(part || "").trim()).filter(Boolean);
+        if (parts.length > 1) {
+            if (JSON.stringify(parts) !== JSON.stringify(normalized.parts)) changed = true;
+            normalized.parts = parts;
+            if (normalized.back !== parts[0]) {
+                normalized.back = parts[0];
+                changed = true;
+            }
+        } else if (parts.length === 1) {
+            if (normalized.back !== parts[0] || Object.prototype.hasOwnProperty.call(normalized, "parts")) changed = true;
+            normalized.back = parts[0];
+            delete normalized.parts;
+        } else {
+            delete normalized.parts;
+            changed = true;
+        }
+    } else {
+        const back = String(normalized.back || "").trim();
+        if (back) {
+            const parts = back.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+            if (parts.length > 1) {
+                normalized.parts = parts;
+                normalized.back = parts[0];
+                changed = true;
+            } else if (parts.length === 1 && normalized.back !== parts[0]) {
+                normalized.back = parts[0];
+                changed = true;
+            }
+        }
+    }
+
+    if (normalized.partsRequired != null && Array.isArray(normalized.parts)) {
+        const max = normalized.parts.length;
+        const clamped = Math.min(Math.max(1, Number(normalized.partsRequired) || max), max);
+        if (clamped !== normalized.partsRequired) {
+            normalized.partsRequired = clamped;
+            changed = true;
+        }
+        if (normalized.parts.length <= 1) {
+            delete normalized.partsRequired;
+            changed = true;
+        }
+    }
+
+    return changed ? normalized : card;
+}
+
+function normalizeStoredDeck(deck) {
+    if (!deck || typeof deck !== "object") return null;
+    if (!Array.isArray(deck.cards)) return null;
+
+    const normalizedCards = [];
+    let changed = false;
+    for (const card of deck.cards) {
+        const normalizedCard = normalizeStoredCard(card);
+        if (normalizedCard) {
+            normalizedCards.push(normalizedCard);
+            if (normalizedCard !== card) changed = true;
+        } else {
+            changed = true;
+        }
+    }
+
+    const name = typeof deck.name === "string" ? deck.name.trim() : "";
+    if (!name) return null;
+    if (name !== deck.name) changed = true;
+
+    const mode = deck.mode === "one-sided" || deck.mode === "two-sided"
+        ? deck.mode
+        : normalizedCards.some((card) => card.back)
+            ? "two-sided"
+            : "one-sided";
+    if (mode !== deck.mode) changed = true;
+
+    const bidirectional = deck.bidirectional === true;
+    if (bidirectional !== deck.bidirectional) changed = true;
+
+    const normalized = {
+        ...deck,
+        name,
+        mode,
+        bidirectional,
+        cards: normalizedCards,
+    };
+    return changed ? normalized : deck;
+}
+
 // Optimised O(n) space Levenshtein distance.
 function levenshtein(a, b) {
     const m = a.length, n = b.length;
@@ -197,15 +315,23 @@ function validateDeckData(raw) {
     if (!raw || typeof raw.name !== "string" || !Array.isArray(raw.cards)) return null;
     const name = raw.name.trim();
     if (!name) return null;
-    const cards = raw.cards.filter((c) => {
-        if (!c) return false;
-        if (typeof c.wikimedia === "string" && c.wikimedia.trim()) return true;
-        return typeof c.front === "string" && c.front.trim();
-    });
+    const cards = raw.cards
+        .filter((c) => {
+            if (!c) return false;
+            if (typeof c.wikimedia === "string" && c.wikimedia.trim()) return true;
+            return typeof c.front === "string" && c.front.trim();
+        })
+        .map((c) => normalizeStoredCard(c))
+        .filter(Boolean);
     if (cards.length === 0) return null;
+    const mode = raw.mode === "one-sided" || raw.mode === "two-sided"
+        ? raw.mode
+        : cards.some((card) => card.back)
+            ? "two-sided"
+            : "one-sided";
     return {
         name,
-        mode: raw.mode === "one-sided" ? "one-sided" : "two-sided",
+        mode,
         bidirectional: raw.bidirectional === true,
         cards,
     };
@@ -218,7 +344,20 @@ const FC_LAST_DECK_KEY = "homework_fc_last_deck";
 
 function loadDecks() {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        if (!Array.isArray(parsed)) return [];
+        let changed = false;
+        const normalized = parsed
+            .map((deck) => {
+                const next = normalizeStoredDeck(deck);
+                if (next !== deck) changed = true;
+                return next;
+            })
+            .filter(Boolean);
+        if (changed) {
+            saveDecks(normalized);
+        }
+        return normalized;
     } catch {
         return [];
     }
@@ -729,9 +868,7 @@ function syncReviewLaunchButton() {
 }
 
 function reviewCardBackText(card) {
-    const parts = Array.isArray(card?.parts)
-        ? card.parts.map((part) => String(part || "").trim()).filter(Boolean)
-        : [];
+    const parts = cardParts(card);
     if (parts.length > 0) return parts.join(" / ");
     return String(card?.back || card?.front || "").trim();
 }
@@ -740,9 +877,7 @@ function buildReviewCards(deck) {
     const mode = deckMode(deck);
     return deck.cards.map((card, index) => {
         const isImage = !!card.wikimedia;
-        const rawParts = Array.isArray(card.parts)
-            ? card.parts.map((p) => String(p || "").trim()).filter(Boolean)
-            : [];
+        const rawParts = isImage ? [] : cardParts(card);
         const hasParts = rawParts.length > 1;
         const backText = rawParts.length > 0
             ? rawParts.join(" / ")
@@ -1152,7 +1287,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
     const isImageCard = !!(card?.wikimedia);
     const hintVal = escapeHtml(card?.hint || "");
     const hintRevVal = escapeHtml(card?.hintReverse || "");
-    const rawParts = card?.parts || (card?.back ? [card.back] : []);
+    const rawParts = isImageCard ? (card?.back ? [card.back] : []) : cardParts(card);
     const backVal = escapeHtml(rawParts.join("\n"));
     const partsCount = rawParts.length;
     const hasMinRequired = partsCount > 1 && card?.partsRequired != null && card.partsRequired < partsCount;
@@ -2163,13 +2298,15 @@ runExercise({
             const isBidirectional = deck.bidirectional === true;
             const cardGroups = textCards.map((c) => {
                 if (isBidirectional && Math.random() < 0.5) {
-                    return [{ kind: "two-sided", front: c.back || (c.parts?.[0] ?? ""), back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
+                    const parts = cardParts(c);
+                    return [{ kind: "two-sided", front: parts[0] || c.back || "", back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
                 }
-                const isMultiPart = c.parts && c.parts.length > 1;
+                const parts = cardParts(c);
+                const isMultiPart = parts.length > 1;
                 if (isMultiPart) {
                     const requiredCount = c.partsRequired != null
-                        ? Math.min(Math.max(1, c.partsRequired), c.parts.length)
-                        : c.parts.length;
+                        ? Math.min(Math.max(1, c.partsRequired), parts.length)
+                        : parts.length;
                     const sharedState = {
                         matched: new Set(),
                         revealAtEnd: false,
@@ -2179,7 +2316,7 @@ runExercise({
                     return Array.from({ length: requiredCount }, (_, pi) => ({
                         kind: "multi-part",
                         front: c.front,
-                        allParts: c.parts,
+                        allParts: parts,
                         requiredCount,
                         sharedState,
                         partIndex: pi,

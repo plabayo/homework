@@ -1,6 +1,6 @@
 use super::helpers::{
-    click, generate_import_param, inject_deck_json, set_input_value, text_of, wait_for_css,
-    wait_for_enabled, wait_for_nonempty_text, wait_for_text,
+    click, generate_import_param, inject_deck_json, select_deck_and_start, set_input_value,
+    text_of, wait_for_css, wait_for_enabled, wait_for_nonempty_text, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
@@ -211,6 +211,105 @@ async fn flashcards_unsaved_editor_home_link_can_discard_changes() -> TestResult
         !saved.json().as_bool().unwrap_or(true),
         "expected the unsaved draft to be discarded when leaving via the home link"
     );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_newline_back_without_parts_is_treated_as_multi_component() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-egypt-newline","name":"Egypte newline","mode":"two-sided",
+            "cards":[{"front":"egypte","back":"de nijl\nde woestijn"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-egypt-newline']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    let normalized = driver
+        .execute(
+            r#"
+            const decks = JSON.parse(localStorage.getItem('homework_flashcard_decks') || '[]');
+            const deck = decks.find((d) => d.id === 'test-egypt-newline');
+            return {
+                parts: deck?.cards?.[0]?.parts || null,
+                back: deck?.cards?.[0]?.back || null,
+            };
+            "#,
+            vec![],
+        )
+        .await?;
+    let normalized = normalized.json();
+    let parts_len = normalized["parts"].as_array().map(|v| v.len()).unwrap_or(0);
+    assert_eq!(
+        parts_len, 2,
+        "expected load-time normalization to rewrite the raw newline answer into 2 parts"
+    );
+    assert_eq!(
+        normalized["back"].as_str().unwrap_or_default(),
+        "de nijl",
+        "expected load-time normalization to keep the first line as the canonical back"
+    );
+
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-egypt-newline'] [data-action='edit']",
+    )
+    .await?;
+
+    wait_for_css(driver, "#card-back-0", Duration::from_secs(5)).await?;
+    let back_value = driver
+        .find(By::Css("#card-back-0"))
+        .await?
+        .prop("value")
+        .await?
+        .unwrap_or_default();
+    assert!(
+        back_value.contains('\n'),
+        "expected the editor to keep the newline-backed answer visible"
+    );
+
+    wait_for_text(
+        driver,
+        ".card-row[data-index='0'] .card-parts-total",
+        "2",
+        Duration::from_secs(5),
+    )
+    .await?;
+    let parts_hidden = driver
+        .execute(
+            "return document.querySelector('.card-row[data-index=\"0\"] .card-parts-required')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !parts_hidden.json().as_bool().unwrap_or(true),
+        "expected the editor to treat a newline-backed answer as two components"
+    );
+
+    click(driver, "#fc-cancel-edit").await?;
+    select_deck_and_start(driver, "test-egypt-newline").await?;
+
+    wait_for_css(driver, ".fc-mp-progress", Duration::from_secs(5)).await?;
+    wait_for_text(driver, ".fc-mp-progress", "0/2", Duration::from_secs(5)).await?;
+
+    set_input_value(driver, "#answer", "de nijl").await?;
+    click(driver, "#button-check").await?;
+    wait_for_text(driver, ".fc-mp-progress", "1/2", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
