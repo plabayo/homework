@@ -574,6 +574,12 @@
     width: 100%;
     max-width: 100%;
     overflow: hidden;
+    transition: opacity 80ms linear;
+}
+
+.fc-review-stage.is-resizing {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .fc-review-viewport {

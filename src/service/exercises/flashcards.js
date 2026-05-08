@@ -1054,13 +1054,16 @@ async function startReviewSession() {
         }
     };
     reviewState.resizeHandler = () => {
+        const stage = document.querySelector(".fc-review-stage");
         const rail = document.querySelector(".fc-review-rail");
+        stage?.classList.add("is-resizing");
         rail?.classList.add("is-resizing");
         if (reviewState.resizeTimer) clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = setTimeout(() => {
             reviewState.resizeTimer = null;
             syncReviewRailPosition();
             fitReviewFaceText();
+            document.querySelector(".fc-review-stage")?.classList.remove("is-resizing");
             document.querySelector(".fc-review-rail")?.classList.remove("is-resizing");
         }, 120);
     };
