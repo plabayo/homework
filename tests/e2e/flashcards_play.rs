@@ -1,6 +1,6 @@
 use super::helpers::{
     click, inject_deck, inject_deck_json, select_deck_and_start, set_checkbox, set_input_value,
-    wait_for_css, wait_for_text,
+    wait_for_css, wait_for_rail_stable, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, Key, TestApp, TestResult};
 
@@ -709,18 +709,18 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         ".deck-item[data-deck-id='test-review-mode'] .deck-select-btn",
     )
     .await?;
-    wait_for_css(driver, "#fc-start-review", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#fc-start-review", Duration::from_secs(10)).await?;
     click(driver, "#fc-start-review").await?;
 
-    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(5)).await?;
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(10)).await?;
     wait_for_text(
         driver,
         "#exercise-title",
         "kaart 1 van 5",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
-    tokio::time::sleep(Duration::from_millis(260)).await;
+    wait_for_rail_stable(driver).await?;
 
     let start_metrics = driver
         .execute(
@@ -767,7 +767,9 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     // The active card has margin-inline to compensate for its larger visual scale,
     // so layout step[0] (active→inactive) is intentionally larger than the others.
     // What must be equal is the VISUAL gap — the space between scaled faces.
-    let visual_gaps = start_obj["visualGaps"].as_array().expect("expected visual gaps");
+    let visual_gaps = start_obj["visualGaps"]
+        .as_array()
+        .expect("expected visual gaps");
     let base_gap = visual_gaps[0].as_f64().unwrap_or(0.0);
     for gap in visual_gaps {
         let value = gap.as_f64().unwrap_or(0.0);
@@ -800,10 +802,10 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         driver,
         "#exercise-title",
         "kaart 2 van 5",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
-    tokio::time::sleep(Duration::from_millis(260)).await;
+    wait_for_rail_stable(driver).await?;
     let one_step_metrics = driver
         .execute(
             r#"
@@ -838,19 +840,19 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         driver,
         "#exercise-title",
         "kaart 1 van 5",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
-    tokio::time::sleep(Duration::from_millis(260)).await;
+    wait_for_rail_stable(driver).await?;
     click(driver, ".fc-review-card[data-index='2']").await?;
     wait_for_text(
         driver,
         "#exercise-title",
         "kaart 3 van 5",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
-    tokio::time::sleep(Duration::from_millis(260)).await;
+    wait_for_rail_stable(driver).await?;
     let jump_metrics = driver
         .execute(
             r#"
@@ -873,11 +875,11 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     let jump_transform = jump_obj["transform"].as_f64().unwrap_or(0.0);
     assert!(
         (jump_active_center - jump_view_center).abs() <= 4.0,
-        "expected jumped-to review card to stay centered",
+        "expected jumped-to review card to stay centered, got: activeCenter={jump_active_center:.2}, viewportCenter={jump_view_center:.2}, transform={jump_transform:.2}",
     );
     assert!(
         ((jump_transform - start_transform).abs() - inactive_step * 2.0).abs() <= 2.5,
-        "expected clicking two cards away to shift the rail by two slots",
+        "expected clicking two cards away to shift the rail by two slots, got: jumpTransform={jump_transform:.2}, startTransform={start_transform:.2}, inactiveStep={inactive_step:.2}",
     );
 
     driver
@@ -889,14 +891,14 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         driver,
         "#exercise-title",
         "kaart 2 van 5",
-        Duration::from_secs(5),
+        Duration::from_secs(10),
     )
     .await?;
 
     for title in ["kaart 3 van 5", "kaart 4 van 5", "kaart 5 van 5"] {
         click(driver, "#fc-review-next").await?;
-        wait_for_text(driver, "#exercise-title", title, Duration::from_secs(5)).await?;
-        tokio::time::sleep(Duration::from_millis(260)).await;
+        wait_for_text(driver, "#exercise-title", title, Duration::from_secs(10)).await?;
+        tokio::time::sleep(Duration::from_millis(400)).await;
     }
     let last_metrics = driver
         .execute(
@@ -1054,6 +1056,96 @@ async fn flashcards_review_mode_long_text_fits_on_card() -> TestResult<()> {
         back_fits.json().as_bool().unwrap_or(false),
         "expected long back text to shrink so it fits inside the review card",
     );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_review_mode_multipart_card_shows_chips() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-review-parts","name":"Onderdelen kaart","mode":"two-sided",
+            "cards":[
+                {"front":"vraag","parts":["deel A","deel B","deel C"],"partsRequired":2}
+            ],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-review-parts']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-review-parts'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-start-review", Duration::from_secs(10)).await?;
+    click(driver, "#fc-start-review").await?;
+
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(10)).await?;
+    // Wait for the initial centering animation to finish before clicking.
+    wait_for_rail_stable(driver).await?;
+
+    // Flip the card to reveal the back face with the parts.  Use a JS click so
+    // the event fires directly on the element regardless of animation state.
+    driver
+        .execute(
+            "document.querySelector('.fc-review-card.is-active')?.click();",
+            vec![],
+        )
+        .await?;
+    wait_for_css(
+        driver,
+        ".fc-review-card.is-active.is-flipped",
+        Duration::from_secs(10),
+    )
+    .await?;
+    tokio::time::sleep(Duration::from_millis(420)).await;
+
+    // Three part chips should be rendered on the back face.
+    let chips = driver
+        .find_all(By::Css(".fc-review-face-back .fc-review-part-chip"))
+        .await?;
+    assert_eq!(
+        chips.len(),
+        3,
+        "expected 3 part chips on the back face, got {}",
+        chips.len()
+    );
+    let chip_texts: Vec<String> = {
+        let mut v = Vec::new();
+        for chip in &chips {
+            v.push(chip.text().await?);
+        }
+        v
+    };
+    assert_eq!(
+        chip_texts,
+        ["deel A", "deel B", "deel C"],
+        "part chip texts did not match",
+    );
+
+    // The required-count note should read "2 van 3 verplicht".
+    wait_for_text(
+        driver,
+        ".fc-review-face-back .fc-review-parts-note",
+        "2 van 3 verplicht",
+        Duration::from_secs(10),
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())

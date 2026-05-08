@@ -575,8 +575,9 @@
 .fc-review-card {
     --fc-review-scale: 0.78;
     --fc-review-rotate: 0deg;
-    flex: 0 0 168px;
-    width: 168px;
+    --fc-review-card-w: 168px;
+    flex: 0 0 var(--fc-review-card-w);
+    width: var(--fc-review-card-w);
     min-width: 0;
     aspect-ratio: 5 / 7;
     padding: 0.7rem 0.15rem;
@@ -589,7 +590,9 @@
 
 .fc-review-card.is-active {
     --fc-review-scale: 1.3;
-    margin-inline: calc((1.3 - 0.78) / 2 * 84px);
+    /* Equal visual spacing: push neighbours by (Sa-Si)/2 * inner content width.
+       Inner width = card width minus the two horizontal padding sides (0.15rem each). */
+    margin-inline: calc((1.3 - 0.78) / 2 * (var(--fc-review-card-w) - 0.3rem));
     opacity: 1;
     filter: brightness(1);
 }
@@ -1080,6 +1083,7 @@
 
 @media (max-width: 640px) {
     .fc-review-card {
+        --fc-review-card-w: 148px;
         flex-basis: 148px;
         width: 148px;
     }
@@ -1100,8 +1104,34 @@
 
 @media (max-width: 460px) {
     .fc-review-card {
+        --fc-review-card-w: 128px;
         flex-basis: 128px;
         width: 128px;
+    }
+
+    /* Shrink hint text when review carousel is active */
+    #exercise:has(.fc-review-viewer) #exercise-feedback {
+        font-size: 0.78rem;
+        min-height: unset;
+        margin-block-end: 2px;
+    }
+
+    /* Keep prev/counter/next on one compact row */
+    .fc-review-controls {
+        flex-wrap: nowrap;
+        gap: 0.35rem;
+    }
+
+    .fc-review-controls button {
+        font-size: 0.82rem;
+        padding-block: 0.45rem;
+        padding-inline: 0.6rem;
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .fc-review-counter {
+        white-space: nowrap;
     }
 }
 
