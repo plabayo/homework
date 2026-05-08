@@ -2,7 +2,7 @@ use super::helpers::{
     click, inject_deck, inject_deck_json, select_deck_and_start, set_checkbox, set_input_value,
     wait_for_css, wait_for_text,
 };
-use super::{BrowserHarness, By, Duration, TestApp, TestResult};
+use super::{BrowserHarness, By, Duration, Key, TestApp, TestResult};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
@@ -668,6 +668,168 @@ async fn flashcards_one_sided_single_text_card_hides_partial_mode() -> TestResul
     assert!(
         !count_exists.json().as_bool().unwrap_or(true),
         "partial count input should not be rendered for a single text card"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-review-mode","name":"Kaarten bekijken","mode":"two-sided",
+            "cards":[
+                {"front":"zon","back":"soleil"},
+                {"front":"maan","back":"lune"},
+                {"front":"ster","back":"etoile"}
+            ],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-review-mode']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-review-mode'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-start-review", Duration::from_secs(5)).await?;
+    click(driver, "#fc-start-review").await?;
+
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(5)).await?;
+    wait_for_text(
+        driver,
+        "#exercise-title",
+        "kaart 1 van 3",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    click(driver, ".fc-review-card.is-active").await?;
+    let flipped = driver
+        .execute(
+            "return document.querySelector('.fc-review-card.is-active')?.classList.contains('is-flipped') ?? false;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        flipped.json().as_bool().unwrap_or(false),
+        "expected clicking the active review card to flip it",
+    );
+
+    click(driver, "#fc-review-next").await?;
+    wait_for_text(
+        driver,
+        "#exercise-title",
+        "kaart 2 van 3",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    click(driver, ".fc-review-card[data-index='2']").await?;
+    wait_for_text(
+        driver,
+        "#exercise-title",
+        "kaart 3 van 3",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    driver
+        .find(By::Css("body"))
+        .await?
+        .send_keys(Key::Left)
+        .await?;
+    wait_for_text(
+        driver,
+        "#exercise-title",
+        "kaart 2 van 3",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    let fits = driver
+        .execute(
+            r#"
+            const exercise = document.getElementById('exercise');
+            const viewer = document.querySelector('.fc-review-viewer');
+            const viewport = document.querySelector('.fc-review-viewport');
+            if (!exercise || !viewer || !viewport) return false;
+            const er = exercise.getBoundingClientRect();
+            const vr = viewer.getBoundingClientRect();
+            const pr = viewport.getBoundingClientRect();
+            return vr.left >= er.left - 0.5 &&
+                vr.right <= er.right + 0.5 &&
+                pr.left >= er.left - 0.5 &&
+                pr.right <= er.right + 0.5;
+            "#,
+            vec![],
+        )
+        .await?;
+    assert!(
+        fits.json().as_bool().unwrap_or(false),
+        "expected the review viewer to stay inside the exercise frame",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_review_mode_home_link_leaves_without_warning() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-review-exit","name":"Vrij bekijken","mode":"two-sided",
+            "cards":[{"front":"appel","back":"pomme"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-review-exit']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-review-exit'] .deck-select-btn",
+    )
+    .await?;
+    click(driver, "#fc-start-review").await?;
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(5)).await?;
+
+    click(driver, ".home-link").await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    let dialogs = driver
+        .find_all(By::Css("dialog.leave-guard-dialog"))
+        .await?;
+    assert!(
+        dialogs.is_empty(),
+        "expected review mode to leave without a warning dialog",
     );
 
     driver.clone().quit().await?;

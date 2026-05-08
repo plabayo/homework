@@ -492,6 +492,51 @@ let importPending = null; // { name, cards, _conflictId? } | null
 let _highlightNewDeck = false; // true → animate selected deck item on next renderList()
 const editorLeaveGuardId = Symbol("flashcards-editor");
 let editorBaseline = null;
+const reviewState = {
+    active: false,
+    deckId: null,
+    cards: [],
+    currentIndex: 0,
+    flipped: new Set(),
+    keyHandler: null,
+    resizeHandler: null,
+};
+
+function setupPage() {
+    return document.getElementById("page-setup");
+}
+
+function playPage() {
+    return document.getElementById("page-exercises");
+}
+
+function resultPage() {
+    return document.getElementById("page-result");
+}
+
+function exerciseBox() {
+    return document.getElementById("exercise");
+}
+
+function exerciseForm() {
+    return document.getElementById("form-exercise");
+}
+
+function exerciseContent() {
+    return document.getElementById("exercise-content");
+}
+
+function exerciseFeedback() {
+    return document.getElementById("exercise-feedback");
+}
+
+function exerciseTitle() {
+    return document.getElementById("exercise-title");
+}
+
+function reviewStartButton() {
+    return document.getElementById("fc-start-review");
+}
 
 function captureEditorDraft() {
     if (!managerRoot?.querySelector(".deck-editor")) return null;
@@ -572,6 +617,7 @@ function renderManager() {
     } else {
         renderList();
     }
+    syncReviewLaunchButton();
 }
 
 // ---------- Deck list view ----------
@@ -653,6 +699,305 @@ function renderList() {
 
     // Tell homework.js to refresh the history panel for the newly-selected deck.
     document.dispatchEvent(new CustomEvent("homework:refresh-history"));
+    syncReviewLaunchButton();
+}
+
+function ensureReviewLaunchButton() {
+    const actions = document.querySelector("#form-setup .button-row");
+    if (!actions) return null;
+    let btn = reviewStartButton();
+    if (btn) return btn;
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "fc-start-review";
+    btn.textContent = "👀 bekijk kaarten";
+    btn.addEventListener("click", () => {
+        void startReviewSession();
+    });
+    actions.appendChild(btn);
+    return btn;
+}
+
+function syncReviewLaunchButton() {
+    const btn = ensureReviewLaunchButton();
+    if (!btn) return;
+    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
+    const hasCards = !!(deck && deck.cards?.length);
+    btn.disabled = !hasCards;
+    btn.hidden = reviewState.active;
+}
+
+function reviewCardBackText(card) {
+    const parts = Array.isArray(card?.parts)
+        ? card.parts.map((part) => String(part || "").trim()).filter(Boolean)
+        : [];
+    if (parts.length > 0) return parts.join(" / ");
+    return String(card?.back || card?.front || "").trim();
+}
+
+function buildReviewCards(deck) {
+    const mode = deckMode(deck);
+    return deck.cards.map((card, index) => {
+        const isImage = !!card.wikimedia;
+        const backText = reviewCardBackText(card) || "—";
+        const hasParts = Array.isArray(card.parts) && card.parts.length > 1;
+        return {
+            index,
+            frontKind: isImage ? "image" : "text",
+            frontText: String(card.front || "").trim() || "—",
+            frontLabel: isImage ? "afbeelding" : mode === "two-sided" ? "voorkant" : "kaart",
+            backKind: "text",
+            backText: mode === "one-sided" && !card.back && !hasParts ? (String(card.front || "").trim() || "—") : backText,
+            backLabel: isImage ? "antwoord" : hasParts ? "onderdelen" : mode === "two-sided" ? "achterkant" : "kaart",
+            wikimedia: card.wikimedia || "",
+        };
+    });
+}
+
+function reviewImageHtml(filename) {
+    const src = imageObjectURLs.get(filename) || "";
+    if (src) {
+        return `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
+    }
+    return `<div class="fc-review-image-loading fc-review-face-image" data-wikimedia="${escapeHtml(filename)}">⏳ afbeelding laden…</div>`;
+}
+
+function reviewFaceHtml(label, kind, value, wikimedia = "") {
+    const body = kind === "image"
+        ? reviewImageHtml(wikimedia)
+        : `<span class="fc-review-face-text">${escapeHtml(value || "—")}</span>`;
+    return `
+        <span class="fc-review-face-body">
+            <span class="fc-review-face-label">${escapeHtml(label)}</span>
+            ${body}
+        </span>`;
+}
+
+function renderReviewViewer() {
+    if (!reviewState.active) return;
+    const root = exerciseContent();
+    const title = exerciseTitle();
+    const feedback = exerciseFeedback();
+    if (!root || !title || !feedback || reviewState.cards.length === 0) return;
+
+    const total = reviewState.cards.length;
+    const current = reviewState.cards[reviewState.currentIndex];
+    title.textContent = `kaart ${reviewState.currentIndex + 1} van ${total}`;
+    feedback.textContent = "Tik op de kaart om om te draaien. Gebruik pijltjes of de knoppen om te bladeren.";
+    feedback.classList.remove("is-bad");
+
+    const cardsHtml = reviewState.cards
+        .map((card, index) => {
+            const distance = index - reviewState.currentIndex;
+            const isActive = index === reviewState.currentIndex;
+            const classes = [
+                "fc-review-card",
+                isActive ? "is-active" : "",
+                reviewState.flipped.has(index) ? "is-flipped" : "",
+                Math.abs(distance) <= 1 ? "is-near" : "is-far",
+            ]
+                .filter(Boolean)
+                .join(" ");
+            return `
+                <button
+                    type="button"
+                    class="${classes}"
+                    data-index="${index}"
+                    data-distance="${distance}"
+                    aria-current="${isActive ? "true" : "false"}"
+                    aria-label="kaart ${index + 1} van ${total}"
+                >
+                    <span class="fc-review-card-inner">
+                        <span class="fc-review-face fc-review-face-front">
+                            ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
+                        </span>
+                        <span class="fc-review-face fc-review-face-back">
+                            ${reviewFaceHtml(card.backLabel, card.backKind, card.backText)}
+                        </span>
+                    </span>
+                </button>`;
+        })
+        .join("");
+
+    root.innerHTML = `
+        <div class="fc-review-viewer">
+            <div class="fc-review-stage">
+                <div class="fc-review-viewport">
+                    <div class="fc-review-rail">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            </div>
+            <div class="fc-review-controls">
+                <button type="button" id="fc-review-prev"${reviewState.currentIndex === 0 ? " disabled" : ""}>⬅ vorige</button>
+                <p class="fc-review-counter">${reviewState.currentIndex + 1} / ${total}</p>
+                <button type="button" id="fc-review-next"${reviewState.currentIndex >= total - 1 ? " disabled" : ""}>volgende ➡</button>
+            </div>
+        </div>`;
+
+    root.querySelectorAll(".fc-review-card").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const index = Number(btn.dataset.index);
+            if (index === reviewState.currentIndex) {
+                toggleReviewFlip(index);
+            } else {
+                reviewState.currentIndex = index;
+                reviewState.flipped.delete(index);
+                renderReviewViewer();
+            }
+        });
+    });
+
+    root.querySelector("#fc-review-prev")?.addEventListener("click", () => {
+        moveReviewBy(-1);
+    });
+    root.querySelector("#fc-review-next")?.addEventListener("click", () => {
+        moveReviewBy(1);
+    });
+
+    requestAnimationFrame(() => {
+        syncReviewRailPosition();
+        hydrateReviewImages();
+    });
+}
+
+function syncReviewRailPosition() {
+    if (!reviewState.active) return;
+    const viewport = document.querySelector(".fc-review-viewport");
+    const rail = document.querySelector(".fc-review-rail");
+    const cards = Array.from(document.querySelectorAll(".fc-review-card"));
+    if (!viewport || !rail || cards.length === 0) return;
+    const first = cards[0];
+    const second = cards[1] || first;
+    const viewportWidth = viewport.clientWidth;
+    const railWidth = rail.scrollWidth;
+    const firstCenter = first.offsetLeft + first.offsetWidth / 2;
+    const secondCenter = second.offsetLeft + second.offsetWidth / 2;
+    const step = cards.length > 1 ? secondCenter - firstCenter : 0;
+    const desiredFirstCenter = viewportWidth / 2;
+    let offset = desiredFirstCenter - firstCenter - reviewState.currentIndex * step;
+    const minOffset = Math.min(0, viewportWidth - railWidth);
+    offset = Math.max(minOffset, Math.min(0, offset));
+    rail.style.transform = `translateX(${offset}px)`;
+}
+
+function hydrateReviewImages() {
+    document.querySelectorAll(".fc-review-face-image[data-wikimedia]").forEach((el) => {
+        const filename = el.dataset.wikimedia;
+        if (!filename) return;
+        if (imageObjectURLs.has(filename)) {
+            el.outerHTML = `<img src="${imageObjectURLs.get(filename)}" alt="afbeelding" class="fc-review-image">`;
+            return;
+        }
+        wmLoad(filename).then((src) => {
+            if (!reviewState.active || !el.isConnected) return;
+            el.outerHTML = `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
+        }).catch(() => {
+            if (!el.isConnected) return;
+            el.textContent = "Afbeelding niet beschikbaar";
+        });
+    });
+}
+
+function moveReviewBy(step) {
+    if (!reviewState.active || !reviewState.cards.length) return;
+    const nextIndex = Math.max(0, Math.min(reviewState.cards.length - 1, reviewState.currentIndex + step));
+    if (nextIndex === reviewState.currentIndex) return;
+    reviewState.currentIndex = nextIndex;
+    renderReviewViewer();
+}
+
+function toggleReviewFlip(index) {
+    if (!reviewState.active) return;
+    const willFlip = !reviewState.flipped.has(index);
+    if (willFlip) reviewState.flipped.add(index);
+    else reviewState.flipped.delete(index);
+    const card = document.querySelector(`.fc-review-card[data-index='${index}']`);
+    if (card) card.classList.toggle("is-flipped", willFlip);
+}
+
+function showReviewPage() {
+    setupPage().hidden = true;
+    playPage().hidden = false;
+    resultPage().hidden = true;
+    playPage().scrollIntoView({ behavior: "smooth" });
+}
+
+function stopReviewSession({ keepPage = false } = {}) {
+    if (!reviewState.active) return;
+    reviewState.active = false;
+    reviewState.deckId = null;
+    reviewState.cards = [];
+    reviewState.currentIndex = 0;
+    reviewState.flipped.clear();
+    if (reviewState.keyHandler) {
+        document.removeEventListener("keydown", reviewState.keyHandler, true);
+        reviewState.keyHandler = null;
+    }
+    if (reviewState.resizeHandler) {
+        window.removeEventListener("resize", reviewState.resizeHandler);
+        reviewState.resizeHandler = null;
+    }
+    exerciseForm()?.removeAttribute("data-review-mode");
+    exerciseBox()?.classList.remove("fc-review-session");
+    const checkBtn = document.getElementById("button-check");
+    const skipBtn = document.getElementById("button-skip");
+    if (checkBtn) checkBtn.hidden = false;
+    if (skipBtn) skipBtn.hidden = true;
+    if (!keepPage) {
+        setupPage().hidden = false;
+        playPage().hidden = true;
+        resultPage().hidden = true;
+        setupPage().scrollIntoView({ behavior: "smooth" });
+    }
+    syncReviewLaunchButton();
+}
+
+async function startReviewSession() {
+    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
+    if (!deck || !deck.cards?.length) return;
+    stopReviewSession({ keepPage: true });
+    reviewState.active = true;
+    reviewState.deckId = deck.id;
+    reviewState.cards = buildReviewCards(deck);
+    reviewState.currentIndex = 0;
+    reviewState.flipped.clear();
+    exerciseForm()?.setAttribute("data-review-mode", "true");
+    exerciseBox()?.classList.add("fc-review-session");
+    const checkBtn = document.getElementById("button-check");
+    const skipBtn = document.getElementById("button-skip");
+    if (checkBtn) checkBtn.hidden = true;
+    if (skipBtn) skipBtn.hidden = true;
+
+    reviewState.keyHandler = (e) => {
+        if (!reviewState.active || e.altKey || e.ctrlKey || e.metaKey) return;
+        const targetTag = e.target?.tagName;
+        if (targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") return;
+        if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            moveReviewBy(-1);
+            return;
+        }
+        if (e.key === "ArrowRight") {
+            e.preventDefault();
+            moveReviewBy(1);
+            return;
+        }
+        if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            toggleReviewFlip(reviewState.currentIndex);
+        }
+    };
+    reviewState.resizeHandler = () => syncReviewRailPosition();
+    document.addEventListener("keydown", reviewState.keyHandler, true);
+    window.addEventListener("resize", reviewState.resizeHandler);
+    showReviewPage();
+    renderReviewViewer();
+    syncReviewLaunchButton();
+    const imageCards = deck.cards.some((card) => card.wikimedia?.trim());
+    if (imageCards) wmPreloadDeck(deck).then(() => {
+        if (reviewState.active) hydrateReviewImages();
+    }).catch(() => {});
 }
 
 function renderModeOptionsHtml(deck) {
@@ -1424,6 +1769,13 @@ async function initManager() {
         }
     });
 
+    document.querySelector("#page-exercises .button-reset")?.addEventListener("click", (e) => {
+        if (!reviewState.active) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        stopReviewSession();
+    }, true);
+
     ensureExamples();
 
     const importParam = new URLSearchParams(location.search).get("import");
@@ -1452,6 +1804,8 @@ async function initManager() {
     }
 
     renderManager();
+    ensureReviewLaunchButton();
+    syncReviewLaunchButton();
 
     // Pre-load image cards for the initially selected deck (set by restoreLastDeck).
     if (selectedDeckId) {

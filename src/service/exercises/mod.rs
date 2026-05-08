@@ -149,7 +149,7 @@ pub fn exercise_scaffold(
                 button!(
                     r#type = "button",
                     class = "button-reset",
-                    "begin opnieuw ↩️"
+                    "terug naar menu ↩️"
                 ),
                 p!(id = "exercise-title"),
                 // Filled in by homework.js when the session uses time mode.
@@ -198,7 +198,7 @@ pub fn exercise_scaffold(
                 button!(
                     r#type = "button",
                     class = "button-reset",
-                    "begin opnieuw ↩️"
+                    "terug naar menu ↩️"
                 ),
             ),
             div!(id = "result"),
