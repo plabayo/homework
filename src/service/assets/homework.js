@@ -325,6 +325,180 @@ function enableTouchSubmit(form) {
     });
 }
 
+// ---------- leave guards ----------
+
+const leaveGuards = new Map();
+let leaveGuardSentinelArmed = false;
+let suppressLeaveGuardPop = false;
+let leaveGuardNavigationInProgress = false;
+let leaveGuardDialogOpen = false;
+
+function activeLeaveGuardEntry() {
+    const entries = Array.from(leaveGuards.entries());
+    for (let i = entries.length - 1; i >= 0; i--) {
+        const [id, guard] = entries[i];
+        if (!guard) continue;
+        if (!guard.isActive || guard.isActive()) return { id, guard };
+    }
+    return null;
+}
+
+function pushLeaveGuardSentinel() {
+    history.pushState(
+        { ...(history.state || {}), __homeworkLeaveGuard: true },
+        "",
+        location.href,
+    );
+    leaveGuardSentinelArmed = true;
+}
+
+function syncLeaveGuardSentinel() {
+    if (leaveGuardNavigationInProgress) return;
+    const active = activeLeaveGuardEntry();
+    if (active && !leaveGuardSentinelArmed) {
+        pushLeaveGuardSentinel();
+        return;
+    }
+    if (!active && leaveGuardSentinelArmed) {
+        leaveGuardSentinelArmed = false;
+        if (history.state?.__homeworkLeaveGuard) {
+            suppressLeaveGuardPop = true;
+            history.back();
+        }
+    }
+}
+
+export function setLeaveGuard(id, guard) {
+    if (!id) return;
+    leaveGuards.set(id, guard);
+    syncLeaveGuardSentinel();
+}
+
+export function clearLeaveGuard(id) {
+    if (!id) return;
+    leaveGuards.delete(id);
+    syncLeaveGuardSentinel();
+}
+
+export function refreshLeaveGuards() {
+    syncLeaveGuardSentinel();
+}
+
+function getLeaveGuardDialogSpec(guard, reason) {
+    if (typeof guard.getDialog === "function") return guard.getDialog(reason);
+    return guard.dialog || null;
+}
+
+function showLeaveGuardDialog(spec) {
+    if (leaveGuardDialogOpen) return Promise.resolve("stay");
+    leaveGuardDialogOpen = true;
+    return new Promise((resolve) => {
+        const dlg = document.createElement("dialog");
+        dlg.className = "leave-guard-dialog";
+        const buttons = (spec.buttons || [])
+            .map((btn) => `
+                <button
+                    type="button"
+                    class="${escapeHtml(btn.className || "")}"
+                    data-choice="${escapeHtml(btn.value)}"
+                    ${btn.autofocus ? "autofocus" : ""}
+                    ${btn.id ? `id="${escapeHtml(btn.id)}"` : ""}
+                >${escapeHtml(btn.label)}</button>
+            `)
+            .join("");
+        dlg.innerHTML = `
+            <form method="dialog" class="leave-guard-form">
+                <h2>${escapeHtml(spec.title || "Pagina verlaten?")}</h2>
+                <p class="muted">${escapeHtml(spec.message || "")}</p>
+                <div class="button-row">${buttons}</div>
+            </form>
+        `;
+        document.body.appendChild(dlg);
+        const close = (choice) => {
+            leaveGuardDialogOpen = false;
+            dlg.remove();
+            resolve(choice || "stay");
+        };
+        dlg.addEventListener("close", () => close(dlg.returnValue));
+        dlg.querySelectorAll("[data-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => dlg.close(btn.dataset.choice || "stay"));
+        });
+        dlg.addEventListener("click", (e) => {
+            if (e.target === dlg) dlg.close("stay");
+        });
+        if (typeof dlg.showModal === "function") dlg.showModal();
+        else close("stay");
+    });
+}
+
+async function resolveLeaveGuard(reason) {
+    const active = activeLeaveGuardEntry();
+    if (!active) return true;
+    const { guard } = active;
+    const spec = getLeaveGuardDialogSpec(guard, reason);
+    const choice = spec ? await showLeaveGuardDialog(spec) : "leave";
+    if (!choice || choice === "stay") return false;
+
+    leaveGuardNavigationInProgress = true;
+    let allowed = true;
+    try {
+        if (typeof guard.onChoice === "function") {
+            allowed = (await guard.onChoice(choice, reason)) !== false;
+        }
+    } finally {
+        if (!allowed) leaveGuardNavigationInProgress = false;
+    }
+    if (!allowed) {
+        syncLeaveGuardSentinel();
+        return false;
+    }
+    leaveGuards.clear();
+    return true;
+}
+
+function setupLeaveGuardNavigation() {
+    window.addEventListener("beforeunload", (e) => {
+        if (leaveGuardNavigationInProgress) return;
+        const active = activeLeaveGuardEntry();
+        if (!active) return;
+        e.preventDefault();
+        e.returnValue = active.guard.beforeUnloadMessage || "";
+    });
+
+    document.addEventListener("click", (e) => {
+        const link = e.target.closest(".home-link[href]");
+        if (!link || leaveGuardNavigationInProgress) return;
+        if (!activeLeaveGuardEntry()) return;
+        e.preventDefault();
+        void (async () => {
+            const allowLeave = await resolveLeaveGuard("home");
+            if (!allowLeave) return;
+            window.location.href = link.href;
+        })();
+    }, true);
+
+    window.addEventListener("popstate", () => {
+        if (suppressLeaveGuardPop) {
+            suppressLeaveGuardPop = false;
+            return;
+        }
+        if (!leaveGuardSentinelArmed || leaveGuardNavigationInProgress) return;
+        if (!activeLeaveGuardEntry()) {
+            leaveGuardSentinelArmed = false;
+            return;
+        }
+        leaveGuardSentinelArmed = false;
+        void (async () => {
+            const allowLeave = await resolveLeaveGuard("back");
+            if (allowLeave) {
+                history.back();
+                return;
+            }
+            if (activeLeaveGuardEntry()) pushLeaveGuardSentinel();
+        })();
+    });
+}
+
 // ---------- offline / service worker ----------
 
 function setupOfflineIndicator() {
@@ -536,6 +710,7 @@ function renderTrickyList(session) {
  * }
  */
 export function runExercise(spec) {
+    const leaveGuardId = Symbol(`leave-guard:${spec.id}`);
     const setup = document.getElementById("page-setup");
     const play = document.getElementById("page-exercises");
     const result = document.getElementById("page-result");
@@ -665,6 +840,23 @@ export function runExercise(spec) {
         if (which !== "play") cleanupCurrentQuestion();
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
+        if (which === "play") {
+            setLeaveGuard(leaveGuardId, {
+                beforeUnloadMessage: "Je oefening is nog niet klaar.",
+                getDialog() {
+                    return {
+                        title: "Oefening stoppen?",
+                        message: "Je verliest je voortgang als je weggaat.",
+                        buttons: [
+                            { value: "stay", label: "Blijf hier", className: "primary", id: "leave-stay", autofocus: true },
+                            { value: "leave", label: "Stop oefening", id: "leave-leave" },
+                        ],
+                    };
+                },
+            });
+        } else {
+            clearLeaveGuard(leaveGuardId);
+        }
     }
 
     // --- setup ---
@@ -1435,6 +1627,7 @@ document.addEventListener("input", (e) => {
 });
 
 setupOfflineIndicator();
+setupLeaveGuardNavigation();
 registerServiceWorker();
 window.addEventListener("DOMContentLoaded", () => {
     hydrateHomeStats();

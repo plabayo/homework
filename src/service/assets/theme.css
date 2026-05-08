@@ -579,7 +579,8 @@ input.split-part {
 .footer-block { display: flex; flex-direction: column; gap: 8px; }
 
 /* ---------- mistake picker dialog ---------- */
-dialog.mistake-picker {
+dialog.mistake-picker,
+dialog.leave-guard-dialog {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--bg);
@@ -590,10 +591,12 @@ dialog.mistake-picker {
     max-height: 85vh;
     overflow: hidden;
 }
-dialog.mistake-picker::backdrop {
+dialog.mistake-picker::backdrop,
+dialog.leave-guard-dialog::backdrop {
     background: rgba(0, 0, 0, 0.45);
 }
-.mistake-picker-form {
+.mistake-picker-form,
+.leave-guard-form {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -601,12 +604,17 @@ dialog.mistake-picker::backdrop {
     max-height: 85vh;
     overflow: hidden;
 }
-.mistake-picker h2 {
+.mistake-picker h2,
+.leave-guard-dialog h2 {
     font-size: 1.2rem;
 }
-.mistake-picker .muted {
+.mistake-picker .muted,
+.leave-guard-dialog .muted {
     color: var(--muted);
     font-size: 0.95rem;
+}
+.leave-guard-form .button-row {
+    justify-content: flex-end;
 }
 .mistake-picker .all-toggle {
     display: inline-flex;
@@ -890,7 +898,8 @@ body.is-offline .offline-banner {
     .history-session:nth-child(n+4) { animation-delay: 120ms; }
 
     /* Mistake picker dialog entrance */
-    dialog.mistake-picker[open] {
+    dialog.mistake-picker[open],
+    dialog.leave-guard-dialog[open] {
         animation: page-in 180ms ease both;
     }
 

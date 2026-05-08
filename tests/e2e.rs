@@ -200,6 +200,86 @@ async fn wrong_answer_creates_reviewable_result_and_history() -> TestResult<()> 
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    click(driver, ".home-link").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    wait_for_text(
+        driver,
+        "dialog.leave-guard-dialog .muted",
+        "Je verliest je voortgang als je weggaat.",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    click(driver, "#leave-stay").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    click(driver, ".home-link").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-leave").await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn exercise_browser_back_warns_before_losing_progress() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-3", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    driver.back().await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-stay").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn clock_set_mode_renders_interactive_widget() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -515,6 +595,135 @@ async fn flashcards_create_two_sided_deck_and_practice() -> TestResult<()> {
     click(driver, "#button-check").await?;
 
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_unsaved_editor_home_link_can_save_before_leaving() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#deck-name-input", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#deck-name-input", "Bewaar mij").await?;
+    set_input_value(driver, "#card-front-0", "zon").await?;
+
+    click(driver, ".home-link").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    wait_for_text(
+        driver,
+        "dialog.leave-guard-dialog .muted",
+        "Je wijzigingen zijn nog niet opgeslagen.",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-save").await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    let saved = driver
+        .execute(
+            "return JSON.parse(localStorage.getItem('homework_flashcard_decks') || '[]').some(d => d.name === 'Bewaar mij');",
+            vec![],
+        )
+        .await?;
+    assert!(
+        saved.json().as_bool().unwrap_or(false),
+        "expected the deck to be saved before leaving via the home link"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_unsaved_editor_browser_back_can_stay_on_page() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='flashcards']").await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#deck-name-input", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#deck-name-input", "Niet bewaren").await?;
+    set_input_value(driver, "#card-front-0", "maan").await?;
+
+    driver.back().await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-stay").await?;
+    wait_for_css(driver, "#deck-name-input", Duration::from_secs(5)).await?;
+
+    let name_value = driver
+        .find(By::Css("#deck-name-input"))
+        .await?
+        .prop("value")
+        .await?
+        .unwrap_or_default();
+    assert!(
+        name_value.contains("Niet bewaren"),
+        "expected the editor to stay open after cancelling browser-back navigation"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_unsaved_editor_home_link_can_discard_changes() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#deck-name-input", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#deck-name-input", "Niet bewaren").await?;
+    set_input_value(driver, "#card-front-0", "maan").await?;
+
+    click(driver, ".home-link").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-discard").await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    let saved = driver
+        .execute(
+            "return JSON.parse(localStorage.getItem('homework_flashcard_decks') || '[]').some(d => d.name === 'Niet bewaren');",
+            vec![],
+        )
+        .await?;
+    assert!(
+        !saved.json().as_bool().unwrap_or(true),
+        "expected the unsaved draft to be discarded when leaving via the home link"
+    );
 
     driver.clone().quit().await?;
     Ok(())

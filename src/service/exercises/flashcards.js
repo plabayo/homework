@@ -1,4 +1,4 @@
-import { runExercise, shuffle, escapeHtml } from "@homework";
+import { runExercise, shuffle, escapeHtml, setLeaveGuard, clearLeaveGuard, refreshLeaveGuards } from "@homework";
 
 // ---------- Fuzzy matching ----------
 
@@ -490,6 +490,78 @@ let selectedDeckId = null;
 let editorState = null; // null | { mode: 'new' } | { mode: 'edit', id: string }
 let importPending = null; // { name, cards, _conflictId? } | null
 let _highlightNewDeck = false; // true → animate selected deck item on next renderList()
+const editorLeaveGuardId = Symbol("flashcards-editor");
+let editorBaseline = null;
+
+function captureEditorDraft() {
+    if (!managerRoot?.querySelector(".deck-editor")) return null;
+    return {
+        name: managerRoot.querySelector("#deck-name-input")?.value || "",
+        mode: managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked
+            ? "two-sided"
+            : "one-sided",
+        bidirectional: !!managerRoot.querySelector("#deck-bidirectional")?.checked,
+        cards: Array.from(managerRoot.querySelectorAll(".card-row")).map((row) => ({
+            cardType: row.dataset.cardType || "text",
+            front: row.querySelector(".card-front")?.value || "",
+            wikimedia: row.querySelector(".card-wikimedia")?.value || "",
+            thumb: row.querySelector(".card-wikimedia")?.dataset.thumb || "",
+            back: row.querySelector(".card-back")?.value || "",
+            minChecked: !!row.querySelector(".card-parts-min-check")?.checked,
+            minCount: row.querySelector(".card-parts-min-count")?.value || "",
+            hintChecked: !!row.querySelector(".card-hint-check[data-dir='fwd']")?.checked,
+            hint: row.querySelector(".card-hint-input[data-dir='fwd']")?.value || "",
+            hintReverseChecked: !!row.querySelector(".card-hint-check[data-dir='bwd']")?.checked,
+            hintReverse: row.querySelector(".card-hint-input[data-dir='bwd']")?.value || "",
+        })),
+    };
+}
+
+function clearEditorLeaveGuard() {
+    editorBaseline = null;
+    clearLeaveGuard(editorLeaveGuardId);
+}
+
+function updateEditorLeaveGuard() {
+    const draft = captureEditorDraft();
+    if (!draft) {
+        clearEditorLeaveGuard();
+        return;
+    }
+    if (editorBaseline == null) editorBaseline = JSON.stringify(draft);
+    setLeaveGuard(editorLeaveGuardId, {
+        isActive() {
+            const current = captureEditorDraft();
+            return !!current && JSON.stringify(current) !== editorBaseline;
+        },
+        beforeUnloadMessage: "Je deck is nog niet opgeslagen.",
+        getDialog() {
+            return {
+                title: "Deck niet opgeslagen",
+                message: "Je wijzigingen zijn nog niet opgeslagen.",
+                buttons: [
+                    { value: "stay", label: "Blijf hier", className: "primary", id: "leave-stay", autofocus: true },
+                    { value: "save", label: "Opslaan en weg", id: "leave-save" },
+                    { value: "discard", label: "Weg zonder opslaan", id: "leave-discard" },
+                ],
+            };
+        },
+        onChoice(choice) {
+            if (choice === "discard") return true;
+            if (choice !== "save") return false;
+            saveDeckFromEditor(editorState?.mode === "edit" ? editorState.id : null);
+            return !managerRoot?.querySelector(".deck-editor");
+        },
+    });
+    refreshLeaveGuards();
+}
+
+function bindEditorLeaveGuardTracking() {
+    const editor = managerRoot?.querySelector(".deck-editor");
+    if (!editor) return;
+    editor.addEventListener("input", () => refreshLeaveGuards());
+    editor.addEventListener("change", () => refreshLeaveGuards());
+}
 
 function renderManager() {
     if (!managerRoot) return;
@@ -505,6 +577,7 @@ function renderManager() {
 // ---------- Deck list view ----------
 
 function renderList() {
+    clearEditorLeaveGuard();
     const decks = loadDecks();
 
     let html = `<div class="deck-list-header">
@@ -924,6 +997,9 @@ function renderEditor() {
         const emptyFront = managerRoot.querySelector(".card-front");
         if (emptyFront && !emptyFront.value) emptyFront.focus();
     }
+    editorBaseline = JSON.stringify(captureEditorDraft());
+    updateEditorLeaveGuard();
+    bindEditorLeaveGuardTracking();
 }
 
 // Show/hide hint rows based on current deck-type and bidirectional state.
@@ -1258,6 +1334,7 @@ async function doImport(name, replaceId) {
 }
 
 function renderImport() {
+    clearEditorLeaveGuard();
     // Hide the start button, time-mode fieldset, and history while importing.
     document.getElementById("page-setup")?.setAttribute("data-editing", "");
 
