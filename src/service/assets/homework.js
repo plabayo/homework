@@ -70,27 +70,27 @@ async function saveSession(session) {
 
 async function listSessions(exerciseId, limit = 20) {
     try {
-        return await withStore("readonly", (store) => {
-            return new Promise((resolve, reject) => {
-                const results = [];
-                const idx = store.index("by_exercise");
-                const req = idx.openCursor(IDBKeyRange.only(exerciseId), "prev");
-                req.onsuccess = (e) => {
-                    const cursor = e.target.result;
-                    if (cursor && results.length < limit) {
-                        results.push(cursor.value);
-                        cursor.continue();
-                    } else {
-                        // Sort newest first
-                        results.sort(
-                            (a, b) => (b.finishedAt || 0) - (a.finishedAt || 0),
-                        );
-                        resolve(results);
-                    }
-                };
-                req.onerror = () => reject(req.error);
-            });
-        }) ?? [];
+        return (
+            (await withStore("readonly", (store) => {
+                return new Promise((resolve, reject) => {
+                    const results = [];
+                    const idx = store.index("by_exercise");
+                    const req = idx.openCursor(IDBKeyRange.only(exerciseId), "prev");
+                    req.onsuccess = (e) => {
+                        const cursor = e.target.result;
+                        if (cursor && results.length < limit) {
+                            results.push(cursor.value);
+                            cursor.continue();
+                        } else {
+                            // Sort newest first
+                            results.sort((a, b) => (b.finishedAt || 0) - (a.finishedAt || 0));
+                            resolve(results);
+                        }
+                    };
+                    req.onerror = () => reject(req.error);
+                });
+            })) ?? []
+        );
     } catch {
         return [];
     }
@@ -128,7 +128,9 @@ function randomAnimal() {
 }
 
 /** Zero-pad a number to 2 digits. */
-export function pad(n) { return String(n).padStart(2, '0'); }
+export function pad(n) {
+    return String(n).padStart(2, "0");
+}
 
 /**
  * Read typed values out of a form.
@@ -138,12 +140,10 @@ export function pad(n) { return String(n).padStart(2, '0'); }
  *   read.checkbox(form, 'use-24h')              → boolean
  */
 export const read = {
-    number:     (form, name)           => Number(form.elements[name]?.value),
-    radio:      (form, name, fallback = '') =>
-                    form.querySelector(`input[name="${name}"]:checked`)?.value ?? fallback,
-    checkboxes: (form, name)           =>
-                    [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value),
-    checkbox:   (form, name)           => !!form.elements[name]?.checked,
+    number: (form, name) => Number(form.elements[name]?.value),
+    radio: (form, name, fallback = "") => form.querySelector(`input[name="${name}"]:checked`)?.value ?? fallback,
+    checkboxes: (form, name) => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map((cb) => cb.value),
+    checkbox: (form, name) => !!form.elements[name]?.checked,
 };
 
 /**
@@ -165,7 +165,7 @@ export const load = {
     },
     checkboxes(form, name, vals) {
         if (!Array.isArray(vals)) return;
-        form.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+        form.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
             cb.checked = vals.includes(cb.value);
         });
     },
@@ -176,7 +176,7 @@ export const load = {
 
 /** Dutch word for a clock hour (0/12 → "twaalf", 1 → "een", …). */
 export function hourName(h) {
-    const names = ['twaalf','een','twee','drie','vier','vijf','zes','zeven','acht','negen','tien','elf'];
+    const names = ["twaalf", "een", "twee", "drie", "vier", "vijf", "zes", "zeven", "acht", "negen", "tien", "elf"];
     return names[((h % 12) + 12) % 12];
 }
 
@@ -187,15 +187,15 @@ export function hourName(h) {
  */
 export function wireOptions(scope) {
     let chosen = null;
-    scope.querySelectorAll('.option').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
+    scope.querySelectorAll(".option").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
             e.preventDefault();
-            scope.querySelectorAll('.option').forEach((b) => {
-                b.classList.remove('selected');
-                b.setAttribute('aria-checked', 'false');
+            scope.querySelectorAll(".option").forEach((b) => {
+                b.classList.remove("selected");
+                b.setAttribute("aria-checked", "false");
             });
-            btn.classList.add('selected');
-            btn.setAttribute('aria-checked', 'true');
+            btn.classList.add("selected");
+            btn.setAttribute("aria-checked", "true");
             chosen = btn.dataset.value;
         });
     });
@@ -213,11 +213,7 @@ export function shuffle(arr) {
 }
 
 export function escapeHtml(s) {
-    return String(s)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
+    return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 /** Pick a random element from a non-empty array. */
@@ -227,11 +223,11 @@ export function pickRandom(arr) {
 
 /** Normalise a Dutch phrase for fuzzy comparison (strip diacritics, collapse whitespace). */
 export function normalizePhrase(s) {
-    return String(s || '')
+    return String(s || "")
         .toLowerCase()
-        .normalize('NFKD')
-        .replace(/[̀-ͯ]/g, '')
-        .replace(/\s+/g, ' ')
+        .normalize("NFKD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/\s+/g, " ")
         .trim();
 }
 
@@ -243,19 +239,32 @@ export function dutchTimePhrase(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
     switch (m) {
-        case 0:  return `${hourName(h12)} uur`;
-        case 5:  return `vijf over ${hourName(h12)}`;
-        case 10: return `tien over ${hourName(h12)}`;
-        case 15: return `kwart over ${hourName(h12)}`;
-        case 20: return `tien voor half ${hourName(next)}`;
-        case 25: return `vijf voor half ${hourName(next)}`;
-        case 30: return `half ${hourName(next)}`;
-        case 35: return `vijf over half ${hourName(next)}`;
-        case 40: return `tien over half ${hourName(next)}`;
-        case 45: return `kwart voor ${hourName(next)}`;
-        case 50: return `tien voor ${hourName(next)}`;
-        case 55: return `vijf voor ${hourName(next)}`;
-        default: return null;
+        case 0:
+            return `${hourName(h12)} uur`;
+        case 5:
+            return `vijf over ${hourName(h12)}`;
+        case 10:
+            return `tien over ${hourName(h12)}`;
+        case 15:
+            return `kwart over ${hourName(h12)}`;
+        case 20:
+            return `tien voor half ${hourName(next)}`;
+        case 25:
+            return `vijf voor half ${hourName(next)}`;
+        case 30:
+            return `half ${hourName(next)}`;
+        case 35:
+            return `vijf over half ${hourName(next)}`;
+        case 40:
+            return `tien over half ${hourName(next)}`;
+        case 45:
+            return `kwart voor ${hourName(next)}`;
+        case 50:
+            return `tien voor ${hourName(next)}`;
+        case 55:
+            return `vijf voor ${hourName(next)}`;
+        default:
+            return null;
     }
 }
 
@@ -266,16 +275,17 @@ export function dutchTimePhrase(h, m) {
  */
 export function optionListHtml(options, labelFn, valueFn = String) {
     const btns = options
-        .map((o) => `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(valueFn(o))}">${escapeHtml(String(labelFn(o)))}</button>`)
-        .join('');
+        .map(
+            (o) =>
+                `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(valueFn(o))}">${escapeHtml(String(labelFn(o)))}</button>`,
+        )
+        .join("");
     return `<div class="option-list" role="radiogroup">${btns}</div>`;
 }
 
 function uuid() {
     if (crypto.randomUUID) return crypto.randomUUID();
-    return "xxxxxxxxxxxxxxxx".replace(/x/g, () =>
-        Math.floor(Math.random() * 16).toString(16),
-    );
+    return "xxxxxxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
 }
 
 function formatDate(ts) {
@@ -313,9 +323,7 @@ function enableTouchSubmit(form) {
                 form.requestSubmit(btn);
                 return;
             }
-            form.dispatchEvent(
-                new Event("submit", { bubbles: true, cancelable: true }),
-            );
+            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         });
         btn.addEventListener("click", (e) => {
             if (Date.now() - lastTouchSubmitAt < 500) {
@@ -344,11 +352,7 @@ function activeLeaveGuardEntry() {
 }
 
 function pushLeaveGuardSentinel() {
-    history.pushState(
-        { ...(history.state || {}), __homeworkLeaveGuard: true },
-        "",
-        location.href,
-    );
+    history.pushState({ ...(history.state || {}), __homeworkLeaveGuard: true }, "", location.href);
     leaveGuardSentinelArmed = true;
 }
 
@@ -396,7 +400,8 @@ function showLeaveGuardDialog(spec) {
         const dlg = document.createElement("dialog");
         dlg.className = "leave-guard-dialog";
         const buttons = (spec.buttons || [])
-            .map((btn) => `
+            .map(
+                (btn) => `
                 <button
                     type="button"
                     class="${escapeHtml(btn.className || "")}"
@@ -404,7 +409,8 @@ function showLeaveGuardDialog(spec) {
                     ${btn.autofocus ? "autofocus" : ""}
                     ${btn.id ? `id="${escapeHtml(btn.id)}"` : ""}
                 >${escapeHtml(btn.label)}</button>
-            `)
+            `,
+            )
             .join("");
         dlg.innerHTML = `
             <form method="dialog" class="leave-guard-form">
@@ -465,17 +471,21 @@ function setupLeaveGuardNavigation() {
         e.returnValue = active.guard.beforeUnloadMessage || "";
     });
 
-    document.addEventListener("click", (e) => {
-        const link = e.target.closest(".home-link[href]");
-        if (!link || leaveGuardNavigationInProgress) return;
-        if (!activeLeaveGuardEntry()) return;
-        e.preventDefault();
-        void (async () => {
-            const allowLeave = await resolveLeaveGuard("home");
-            if (!allowLeave) return;
-            window.location.href = link.href;
-        })();
-    }, true);
+    document.addEventListener(
+        "click",
+        (e) => {
+            const link = e.target.closest(".home-link[href]");
+            if (!link || leaveGuardNavigationInProgress) return;
+            if (!activeLeaveGuardEntry()) return;
+            e.preventDefault();
+            void (async () => {
+                const allowLeave = await resolveLeaveGuard("home");
+                if (!allowLeave) return;
+                window.location.href = link.href;
+            })();
+        },
+        true,
+    );
 
     window.addEventListener("popstate", () => {
         if (suppressLeaveGuardPop) {
@@ -540,9 +550,7 @@ function pickMistakes(spec, mistakes) {
         dlg.className = "mistake-picker";
         const items = mistakes
             .map((q, i) => {
-                const desc = spec.describe
-                    ? spec.describe(q)
-                    : JSON.stringify(q);
+                const desc = spec.describe ? spec.describe(q) : JSON.stringify(q);
                 return `<li><label><input type="checkbox" data-i="${i}" checked> ${escapeHtml(desc)}</label></li>`;
             })
             .join("");
@@ -566,15 +574,17 @@ function pickMistakes(spec, mistakes) {
             startBtn.disabled = !Array.from(list).some((cb) => cb.checked);
         };
         all.addEventListener("change", () => {
-            list.forEach((cb) => (cb.checked = all.checked));
+            list.forEach((cb) => {
+                cb.checked = all.checked;
+            });
             syncStartEnabled();
         });
-        list.forEach((cb) =>
+        list.forEach((cb) => {
             cb.addEventListener("change", () => {
                 all.checked = Array.from(list).every((c) => c.checked);
                 syncStartEnabled();
-            }),
-        );
+            });
+        });
         dlg.addEventListener("close", () => {
             const action = dlg.returnValue;
             const selected = [];
@@ -603,18 +613,16 @@ function pickMistakes(spec, mistakes) {
 
 function cycleSummaryLine(session, n) {
     const wrong = (session.questions || []).filter((q) => !q.correct).length;
-    const tricky = (session.questions || []).filter(
-        (q) => q.correct && isPracticeMistake(q),
-    ).length;
-    const modeLabel =
-        session.mode === "mistakes" ? '<span class="cycle-mode">foutenmodus</span>' : "";
+    const tricky = (session.questions || []).filter((q) => q.correct && isPracticeMistake(q)).length;
+    const modeLabel = session.mode === "mistakes" ? '<span class="cycle-mode">foutenmodus</span>' : "";
     const detail = [];
     if (wrong > 0) detail.push(`<span class="badge bad">${wrong} fout</span>`);
     if (tricky > 0) detail.push(`<span class="badge tricky">${tricky} moeilijk</span>`);
     if (detail.length === 0) detail.push('<span class="cycle-perfect">✨ vlekkeloos</span>');
-    const time = session.timeMode && session.durationMs
-        ? `<span class="cycle-time">⏱️ ${formatMillis(session.durationMs)}</span>`
-        : "";
+    const time =
+        session.timeMode && session.durationMs
+            ? `<span class="cycle-time">⏱️ ${formatMillis(session.durationMs)}</span>`
+            : "";
     return `
         <div class="cycle-row">
             <span class="cycle-num">ronde ${n}</span>
@@ -647,17 +655,13 @@ function splitQuestionOutcomes(session) {
 }
 
 function renderOutcomeItem(q, kind) {
-    const desc = q.label
-        ? escapeHtml(q.label)
-        : escapeHtml(JSON.stringify(q.question));
+    const desc = q.label ? escapeHtml(q.label) : escapeHtml(JSON.stringify(q.question));
     if (kind === "wrong") {
         const metaParts = [];
         if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
         if (q.timedOut) metaParts.push("⏰ te traag");
         else if (q.skipped) metaParts.push("overgeslagen");
-        const metaLine = metaParts.length
-            ? `<span class="item-meta">${metaParts.join(" · ")}</span>`
-            : "";
+        const metaLine = metaParts.length ? `<span class="item-meta">${metaParts.join(" · ")}</span>` : "";
         return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
     }
     if (q.practiceAgain) {
@@ -769,10 +773,7 @@ export function runExercise(spec) {
         const elapsed = formatDuration(Date.now() - state.startedAt);
         let html = `⏱️ ${elapsed}`;
         if (deadlineSec()) {
-            const remain = Math.max(
-                0,
-                deadlineSec() * 1000 - (Date.now() - state.questionStartedAt),
-            );
+            const remain = Math.max(0, deadlineSec() * 1000 - (Date.now() - state.questionStartedAt));
             const danger = remain < deadlineSec() * 250 ? " danger" : "";
             html += ` &nbsp; <span class="deadline${danger}">⏰ ${formatDuration(remain)}</span>`;
         }
@@ -821,10 +822,7 @@ export function runExercise(spec) {
         }
         if (controller && typeof controller.getAnswer === "function") {
             state.getAnswer = controller.getAnswer;
-            state.currentCleanup =
-                typeof controller.cleanup === "function"
-                    ? controller.cleanup
-                    : null;
+            state.currentCleanup = typeof controller.cleanup === "function" ? controller.cleanup : null;
             return;
         }
         state.getAnswer = null;
@@ -848,7 +846,13 @@ export function runExercise(spec) {
                         title: "Oefening stoppen?",
                         message: "Je verliest je voortgang als je weggaat.",
                         buttons: [
-                            { value: "stay", label: "Blijf hier", className: "primary", id: "leave-stay", autofocus: true },
+                            {
+                                value: "stay",
+                                label: "Blijf hier",
+                                className: "primary",
+                                id: "leave-stay",
+                                autofocus: true,
+                            },
                             { value: "leave", label: "Stop oefening", id: "leave-leave" },
                         ],
                     };
@@ -863,17 +867,13 @@ export function runExercise(spec) {
 
     function loadSavedConfig() {
         try {
-            const saved = JSON.parse(
-                localStorage.getItem("homework:" + spec.id) || "null",
-            );
+            const saved = JSON.parse(localStorage.getItem(`homework:${spec.id}`) || "null");
             if (saved && spec.loadConfig) spec.loadConfig(formSetup, saved);
             if (saved) {
                 const tm = formSetup?.elements?.["time-mode"];
-                if (tm && typeof saved.timeMode === "boolean")
-                    tm.checked = saved.timeMode;
+                if (tm && typeof saved.timeMode === "boolean") tm.checked = saved.timeMode;
                 const dOn = formSetup?.elements?.["deadline-on"];
-                if (dOn && typeof saved.deadlineOn === "boolean")
-                    dOn.checked = saved.deadlineOn;
+                if (dOn && typeof saved.deadlineOn === "boolean") dOn.checked = saved.deadlineOn;
                 const ds = formSetup?.elements?.["deadline-seconds"];
                 if (ds && saved.deadlineSeconds) ds.value = saved.deadlineSeconds;
             }
@@ -895,12 +895,8 @@ export function runExercise(spec) {
         if (!timeOn && dOn) dOn.checked = false;
         if (field) field.hidden = !(timeOn && dOn?.checked);
     }
-    formSetup
-        ?.elements?.["time-mode"]
-        ?.addEventListener("change", syncTimeModeFields);
-    formSetup
-        ?.elements?.["deadline-on"]
-        ?.addEventListener("change", syncTimeModeFields);
+    formSetup?.elements?.["time-mode"]?.addEventListener("change", syncTimeModeFields);
+    formSetup?.elements?.["deadline-on"]?.addEventListener("change", syncTimeModeFields);
 
     // Augment whatever the exercise's readConfig returns with the shared
     // time-mode fields (read here, not in every exercise).
@@ -911,14 +907,13 @@ export function runExercise(spec) {
         const ds = form.elements?.["deadline-seconds"];
         cfg.timeMode = !!tm?.checked;
         cfg.deadlineOn = !!(cfg.timeMode && dOn?.checked);
-        cfg.deadlineSeconds =
-            cfg.deadlineOn && ds?.value ? Number(ds.value) : 0;
+        cfg.deadlineSeconds = cfg.deadlineOn && ds?.value ? Number(ds.value) : 0;
         return cfg;
     }
 
     function persistConfig(cfg) {
         try {
-            localStorage.setItem("homework:" + spec.id, JSON.stringify(cfg));
+            localStorage.setItem(`homework:${spec.id}`, JSON.stringify(cfg));
         } catch {}
     }
 
@@ -977,8 +972,8 @@ export function runExercise(spec) {
             }),
         );
         // Label any unlabeled answer inputs so screen readers know their purpose.
-        contentEl.querySelectorAll('input:not([aria-label]):not([aria-labelledby])').forEach((input) => {
-            input.setAttribute('aria-label', 'jouw antwoord');
+        contentEl.querySelectorAll("input:not([aria-label]):not([aria-labelledby])").forEach((input) => {
+            input.setAttribute("aria-label", "jouw antwoord");
         });
         // Trigger entrance animation after content is in the DOM.
         void contentEl.offsetWidth;
@@ -988,8 +983,7 @@ export function runExercise(spec) {
         updateClock();
 
         const firstInput = contentEl.querySelector("input, [tabindex]");
-        if (firstInput && typeof firstInput.focus === "function")
-            firstInput.focus();
+        if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
     }
 
     function recordOutcome(correct, given, skipped, opts = {}) {
@@ -1046,9 +1040,7 @@ export function runExercise(spec) {
     }
 
     function normalizeAnswerEvaluation(q, given) {
-        const result = spec.evaluateAnswer
-            ? spec.evaluateAnswer(q, given)
-            : spec.isCorrect(q, given);
+        const result = spec.evaluateAnswer ? spec.evaluateAnswer(q, given) : spec.isCorrect(q, given);
         if (typeof result === "boolean") return { correct: result };
         return result && typeof result === "object" ? result : { correct: false };
     }
@@ -1130,9 +1122,7 @@ export function runExercise(spec) {
     function onSkip() {
         state.streak = 0;
         recordOutcome(false, state.currentGiven, true);
-        const skipEval = spec.evaluateSkip
-            ? spec.evaluateSkip(state.currentQuestion)
-            : null;
+        const skipEval = spec.evaluateSkip ? spec.evaluateSkip(state.currentQuestion) : null;
         if (skipEval?.showReview) {
             showReviewState({
                 given: state.currentGiven,
@@ -1175,22 +1165,16 @@ export function runExercise(spec) {
     }
 
     function renderResult(session) {
-        const wrong = session.questions.filter((q) => !q.correct);
-        const tricky = session.questions.filter(
-            (q) => q.correct && isPracticeMistake(q),
-        );
+        const _wrong = session.questions.filter((q) => !q.correct);
+        const _tricky = session.questions.filter((q) => q.correct && isPracticeMistake(q));
         const score = session.correct;
         const total = session.total;
         const cycleNum = state.cycles.length;
         const isMultiCycle = cycleNum > 1;
 
-        const headline = isMultiCycle
-            ? `<h2>🎉 ronde ${cycleNum} afgerond</h2>`
-            : `<h2>🎉 klaar</h2>`;
+        const headline = isMultiCycle ? `<h2>🎉 ronde ${cycleNum} afgerond</h2>` : `<h2>🎉 klaar</h2>`;
 
-        const cyclesList = state.cycles
-            .map((c, i) => cycleSummaryLine(c, i + 1))
-            .join("");
+        const cyclesList = state.cycles.map((c, i) => cycleSummaryLine(c, i + 1)).join("");
 
         const trickyList = renderTrickyList(session);
 
@@ -1200,7 +1184,7 @@ export function runExercise(spec) {
             session.timeMode && session.durationMs
                 ? ` <small class="muted">in ⏱️ ${formatMillis(session.durationMs)}</small>`
                 : "";
-        let html = `
+        const html = `
             ${headline}
             <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
             ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
@@ -1228,9 +1212,7 @@ export function runExercise(spec) {
 
         const repeatBtn = document.getElementById("review-button-repeat");
         repeatBtn?.addEventListener("click", () => {
-            const deck = shuffle(
-                session.questions.filter(isPracticeMistake).map((q) => q.question),
-            );
+            const deck = shuffle(session.questions.filter(isPracticeMistake).map((q) => q.question));
             startSession(deck, state.config, "mistakes");
         });
     }
@@ -1299,9 +1281,7 @@ export function runExercise(spec) {
                     "Nog niets om te herhalen 💪 maak eerst een oefening, daarna kan je hier de moeilijke vragen terugzien.",
                 );
             } else {
-                setError(
-                    "Goed bezig 🎉 alle recente oefeningen zijn juist gemaakt — geen fouten om te herhalen.",
-                );
+                setError("Goed bezig 🎉 alle recente oefeningen zijn juist gemaakt — geen fouten om te herhalen.");
             }
             return;
         }
@@ -1346,8 +1326,7 @@ async function setupHistoryView() {
         if (clearBtn) clearBtn.disabled = sessions.length === 0;
 
         if (sessions.length === 0) {
-            list.innerHTML =
-                '<p class="history-empty">Nog geen oefeningen gemaakt.</p>';
+            list.innerHTML = '<p class="history-empty">Nog geen oefeningen gemaakt.</p>';
             return;
         }
         list.innerHTML = sessions
@@ -1357,10 +1336,8 @@ async function setupHistoryView() {
                 const items = renderOutcomeItems({ wrong, tricky });
 
                 const scoreParts = [`${s.correct} / ${s.total}`];
-                if (s.timeMode && s.durationMs)
-                    scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
-                if (s.config?.deadlineSeconds)
-                    scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
+                if (s.timeMode && s.durationMs) scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
+                if (s.config?.deadlineSeconds) scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
                 if (s.mode === "mistakes") scoreParts.push("foutenmodus");
 
                 return `
@@ -1369,9 +1346,10 @@ async function setupHistoryView() {
                             <span>${formatDate(s.finishedAt || s.startedAt)}</span>
                             <span>${scoreParts.join(" · ")}</span>
                         </div>
-                        ${hasMistakes
-                            ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
-                            : `<p class="history-perfect">✨ alles vlekkeloos</p>`
+                        ${
+                            hasMistakes
+                                ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
+                                : `<p class="history-perfect">✨ alles vlekkeloos</p>`
                         }
                     </article>
                 `;
@@ -1391,12 +1369,7 @@ async function setupHistoryView() {
 
     const clearBtn = root.querySelector("[data-action='clear-history']");
     clearBtn?.addEventListener("click", async () => {
-        if (
-            !confirm(
-                "Alle geschiedenis voor deze oefening wissen? Dit kan niet ongedaan worden gemaakt.",
-            )
-        )
-            return;
+        if (!confirm("Alle geschiedenis voor deze oefening wissen? Dit kan niet ongedaan worden gemaakt.")) return;
         try {
             const exerciseId = root.dataset.exerciseId;
             await withStore("readwrite", (store) => {
@@ -1454,15 +1427,7 @@ export function startConfetti() {
     confettiState.running = true;
     canvas.dataset.active = "true";
     canvas.style.opacity = "1";
-    const colors = [
-        "#ff7336",
-        "#f9e038",
-        "#02cca4",
-        "#383082",
-        "#fed3f5",
-        "#b1245a",
-        "#f2733f",
-    ];
+    const colors = ["#ff7336", "#f9e038", "#02cca4", "#383082", "#fed3f5", "#b1245a", "#f2733f"];
     // Fewer particles on small screens; still a full celebratory burst.
     const N = window.innerWidth < 500 ? 40 : 60;
     const parts = [];
@@ -1491,7 +1456,7 @@ export function startConfetti() {
     // Confetti bursts for TOTAL ms then fades out over FADE ms and stops.
     // No respawning — avoids an indefinite rAF loop draining the battery.
     const TOTAL = 4000;
-    const FADE  = 700;
+    const FADE = 700;
     const t0 = Date.now();
     function draw() {
         if (!confettiState.running) return;
@@ -1501,9 +1466,7 @@ export function startConfetti() {
             return;
         }
         // Smooth opacity fade-out during the last FADE ms.
-        canvas.style.opacity = elapsed < TOTAL - FADE
-            ? "1"
-            : String(1 - (elapsed - (TOTAL - FADE)) / FADE);
+        canvas.style.opacity = elapsed < TOTAL - FADE ? "1" : String(1 - (elapsed - (TOTAL - FADE)) / FADE);
         confettiState.rafId = requestAnimationFrame(draw);
         ctx.clearRect(0, 0, confettiState.width, confettiState.height);
         for (let i = 0; i < N; i++) {
@@ -1532,12 +1495,7 @@ export function stopConfetti() {
         confettiState.resizeHandler = null;
     }
     if (confettiState.ctx && confettiState.canvas) {
-        confettiState.ctx.clearRect(
-            0,
-            0,
-            confettiState.canvas.width,
-            confettiState.canvas.height,
-        );
+        confettiState.ctx.clearRect(0, 0, confettiState.canvas.width, confettiState.canvas.height);
     }
     if (confettiState.canvas) {
         confettiState.canvas.dataset.active = "false";
@@ -1574,10 +1532,16 @@ async function listRecentWithPrefix(prefix, limit = 5) {
                 const req = idx.openCursor(null, "prev");
                 req.onsuccess = (e) => {
                     const cursor = e.target.result;
-                    if (!cursor) { resolve(results); return; }
+                    if (!cursor) {
+                        resolve(results);
+                        return;
+                    }
                     if (cursor.value.exerciseId.startsWith(prefix)) {
                         results.push(cursor.value);
-                        if (results.length >= limit) { resolve(results); return; }
+                        if (results.length >= limit) {
+                            resolve(results);
+                            return;
+                        }
                     }
                     cursor.continue();
                 };
@@ -1596,7 +1560,7 @@ async function hydrateHomeStats() {
         const id = slot.dataset.statsFor;
         let sessions = await listSessions(id, 5);
         // Fallback: exercise may use per-variant IDs (e.g. "flashcards-<deckId>").
-        if (sessions.length === 0) sessions = await listRecentWithPrefix(id + "-", 5);
+        if (sessions.length === 0) sessions = await listRecentWithPrefix(`${id}-`, 5);
         if (sessions.length === 0) {
             slot.textContent = "nog niet geoefend";
             continue;
@@ -1624,9 +1588,7 @@ document.addEventListener("input", (e) => {
     if (t.inputMode !== "numeric") return;
     const allowNeg = (t.pattern || "").includes("-");
     let v = t.value;
-    v = allowNeg
-        ? v.replace(/[^0-9-]/g, "").replace(/(?!^)-/g, "")
-        : v.replace(/[^0-9]/g, "");
+    v = allowNeg ? v.replace(/[^0-9-]/g, "").replace(/(?!^)-/g, "") : v.replace(/[^0-9]/g, "");
     if (v !== t.value) {
         const pos = t.selectionStart;
         t.value = v;

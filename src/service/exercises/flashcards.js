@@ -1,19 +1,21 @@
-import { runExercise, shuffle, escapeHtml, setLeaveGuard, clearLeaveGuard, refreshLeaveGuards } from "@homework";
+﻿import { clearLeaveGuard, escapeHtml, refreshLeaveGuards, runExercise, setLeaveGuard, shuffle } from "@homework";
 
 // ---------- Fuzzy matching ----------
 
 function normalize(s) {
-    return String(s || "")
-        .trim()
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/\p{Extended_Pictographic}/gu, "")
-        // Strip variation selectors (U+FE00-FE0F), ZWJ (U+200D) and keycap combiner
-        // (U+20E3) left behind after Extended_Pictographic removal (e.g. U+FE0F after ❄).
-        .replace(/[︀-️‍⃣]|\p{Emoji_Modifier}/gu, "")
-        .replace(/\s+/g, " ")
-        .trim();
+    return (
+        String(s || "")
+            .trim()
+            .toLowerCase()
+            .normalize("NFKD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/\p{Extended_Pictographic}/gu, "")
+            // Strip variation selectors (U+FE00-FE0F), ZWJ (U+200D) and keycap combiner
+            // (U+20E3) left behind after Extended_Pictographic removal (e.g. U+FE0F after ❄).
+            .replace(/[\uFE00-\uFE0F\u20E3]|\u200D|\p{Emoji_Modifier}/gu, "")
+            .replace(/\s+/g, " ")
+            .trim()
+    );
 }
 
 function cardParts(card) {
@@ -25,7 +27,10 @@ function cardParts(card) {
     const rawBack = String(card?.back || "").trim();
     if (!rawBack) return [];
 
-    const backParts = rawBack.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const backParts = rawBack
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
     return backParts.length > 1 ? backParts : [rawBack];
 }
 
@@ -57,7 +62,7 @@ function normalizeStoredCard(card) {
                 changed = true;
             }
         } else if (parts.length === 1) {
-            if (normalized.back !== parts[0] || Object.prototype.hasOwnProperty.call(normalized, "parts")) changed = true;
+            if (normalized.back !== parts[0] || Object.hasOwn(normalized, "parts")) changed = true;
             normalized.back = parts[0];
             delete normalized.parts;
         } else {
@@ -67,7 +72,10 @@ function normalizeStoredCard(card) {
     } else {
         const back = String(normalized.back || "").trim();
         if (back) {
-            const parts = back.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+            const parts = back
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter(Boolean);
             if (parts.length > 1) {
                 normalized.parts = parts;
                 normalized.back = back;
@@ -115,11 +123,12 @@ function normalizeStoredDeck(deck) {
     if (!name) return null;
     if (name !== deck.name) changed = true;
 
-    const mode = deck.mode === "one-sided" || deck.mode === "two-sided"
-        ? deck.mode
-        : normalizedCards.some((card) => card.back)
-            ? "two-sided"
-            : "one-sided";
+    const mode =
+        deck.mode === "one-sided" || deck.mode === "two-sided"
+            ? deck.mode
+            : normalizedCards.some((card) => card.back)
+              ? "two-sided"
+              : "one-sided";
     if (mode !== deck.mode) changed = true;
 
     const bidirectional = deck.bidirectional === true;
@@ -137,7 +146,8 @@ function normalizeStoredDeck(deck) {
 
 // Optimised O(n) space Levenshtein distance.
 function levenshtein(a, b) {
-    const m = a.length, n = b.length;
+    const m = a.length,
+        n = b.length;
     if (m === 0) return n;
     if (n === 0) return m;
     const row = Array.from({ length: n + 1 }, (_, i) => i);
@@ -169,18 +179,56 @@ function fuzzyEqual(given, expected) {
 
 // Dutch stopwords to skip when checking content-word coverage of a phrase.
 const PHRASE_STOPWORDS = new Set([
-    "van", "de", "het", "een", "en", "in", "op", "of", "met", "te",
-    "aan", "bij", "tot", "voor", "door", "als", "die", "dat", "om",
-    "er", "zijn", "naar", "dan", "nog", "al", "zo", "af", "uit",
-    "is", "was", "waren", "heeft", "hebben", "had", "worden", "je", "ze", "we",
+    "van",
+    "de",
+    "het",
+    "een",
+    "en",
+    "in",
+    "op",
+    "of",
+    "met",
+    "te",
+    "aan",
+    "bij",
+    "tot",
+    "voor",
+    "door",
+    "als",
+    "die",
+    "dat",
+    "om",
+    "er",
+    "zijn",
+    "naar",
+    "dan",
+    "nog",
+    "al",
+    "zo",
+    "af",
+    "uit",
+    "is",
+    "was",
+    "waren",
+    "heeft",
+    "hebben",
+    "had",
+    "worden",
+    "je",
+    "ze",
+    "we",
 ]);
 
 // Check that ≥60% of content words (non-stopwords) are fuzzily present.
 function phraseCoverageMatch(given, expected) {
-    const bWords = normalize(expected).split(" ").filter((w) => w.length > 0);
+    const bWords = normalize(expected)
+        .split(" ")
+        .filter((w) => w.length > 0);
     const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
     if (contentWords.length === 0) return false;
-    const aWords = normalize(given).split(" ").filter((w) => w.length > 0);
+    const aWords = normalize(given)
+        .split(" ")
+        .filter((w) => w.length > 0);
     let matched = 0;
     for (const cw of contentWords) {
         if (aWords.some((aw) => fuzzyEqual(aw, cw))) matched++;
@@ -273,10 +321,14 @@ function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = tr
     // Only runs when pass 1 left parts unmatched.  Always lenient by definition.
     for (const part of remaining) {
         if (newlyMatched.some((m) => m.part === part)) continue;
-        const bWords = normalize(part).split(" ").filter((w) => w.length > 0);
+        const bWords = normalize(part)
+            .split(" ")
+            .filter((w) => w.length > 0);
         const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
         if (contentWords.length === 0) continue;
-        const aWords = normalize(given).split(" ").filter((w) => w.length > 0);
+        const aWords = normalize(given)
+            .split(" ")
+            .filter((w) => w.length > 0);
         let matched = 0;
         for (const cw of contentWords) {
             if (aWords.some((aw) => fuzzyEqual(aw, cw))) matched++;
@@ -325,11 +377,12 @@ function validateDeckData(raw) {
         .map((c) => normalizeStoredCard(c))
         .filter(Boolean);
     if (cards.length === 0) return null;
-    const mode = raw.mode === "one-sided" || raw.mode === "two-sided"
-        ? raw.mode
-        : cards.some((card) => card.back)
-            ? "two-sided"
-            : "one-sided";
+    const mode =
+        raw.mode === "one-sided" || raw.mode === "two-sided"
+            ? raw.mode
+            : cards.some((card) => card.back)
+              ? "two-sided"
+              : "one-sided";
     return {
         name,
         mode,
@@ -432,9 +485,9 @@ async function wmDb() {
     if (_wmDbHandle) return _wmDbHandle;
     _wmDbHandle = await new Promise((resolve, reject) => {
         const req = indexedDB.open(WM_DB_NAME, 1);
-        req.onupgradeneeded = e => e.target.result.createObjectStore(WM_STORE);
-        req.onsuccess = e => resolve(e.target.result);
-        req.onerror = e => reject(e.target.error);
+        req.onupgradeneeded = (e) => e.target.result.createObjectStore(WM_STORE);
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e.target.error);
     });
     return _wmDbHandle;
 }
@@ -442,12 +495,14 @@ async function wmDb() {
 async function wmDbGet(filename) {
     try {
         const db = await wmDb();
-        return await new Promise(resolve => {
+        return await new Promise((resolve) => {
             const req = db.transaction(WM_STORE).objectStore(WM_STORE).get(filename);
             req.onsuccess = () => resolve(req.result ?? null);
             req.onerror = () => resolve(null);
         });
-    } catch { return null; }
+    } catch {
+        return null;
+    }
 }
 
 async function wmDbPut(filename, blob) {
@@ -457,16 +512,23 @@ async function wmDbPut(filename, blob) {
             const tx = db.transaction(WM_STORE, "readwrite");
             tx.objectStore(WM_STORE).put(blob, filename);
             tx.oncomplete = resolve;
-            tx.onerror = e => reject(e.target.error);
+            tx.onerror = (e) => reject(e.target.error);
         });
-    } catch (e) { console.warn("wmDbPut failed", e); }
+    } catch (e) {
+        console.warn("wmDbPut failed", e);
+    }
 }
 
 // Resolve a Commons filename to a thumbnail URL via the action API.
 async function wmResolveThumb(filename, width) {
     const params = new URLSearchParams({
-        action: "query", titles: filename, prop: "imageinfo",
-        iiprop: "url", iiurlwidth: String(width), format: "json", origin: "*",
+        action: "query",
+        titles: filename,
+        prop: "imageinfo",
+        iiprop: "url",
+        iiurlwidth: String(width),
+        format: "json",
+        origin: "*",
     });
     const resp = await fetch(`${WM_API}?${params}`);
     const data = await resp.json();
@@ -496,12 +558,20 @@ async function wmLoad(filename) {
 
 // Pre-load all image cards in a deck. Returns { loaded, failed } filename arrays.
 async function wmPreloadDeck(deck) {
-    const filenames = [...new Set(deck.cards.filter(c => c.wikimedia).map(c => c.wikimedia))];
-    const loaded = [], failed = [];
-    await Promise.all(filenames.map(async fn => {
-        try { await wmLoad(fn); loaded.push(fn); }
-        catch (e) { console.warn(`Failed to load ${fn}:`, e); failed.push(fn); }
-    }));
+    const filenames = [...new Set(deck.cards.filter((c) => c.wikimedia).map((c) => c.wikimedia))];
+    const loaded = [],
+        failed = [];
+    await Promise.all(
+        filenames.map(async (fn) => {
+            try {
+                await wmLoad(fn);
+                loaded.push(fn);
+            } catch (e) {
+                console.warn(`Failed to load ${fn}:`, e);
+                failed.push(fn);
+            }
+        }),
+    );
     return { loaded, failed };
 }
 
@@ -510,17 +580,26 @@ async function wmPreloadDeck(deck) {
 async function wmSearch(term) {
     if (!term.trim()) return [];
     const params = new URLSearchParams({
-        action: "query", generator: "search", gsrsearch: term,
-        gsrnamespace: "6", gsrlimit: "15", prop: "imageinfo",
-        iiprop: "url", iiurlwidth: "120", format: "json", origin: "*",
+        action: "query",
+        generator: "search",
+        gsrsearch: term,
+        gsrnamespace: "6",
+        gsrlimit: "15",
+        prop: "imageinfo",
+        iiprop: "url",
+        iiurlwidth: "120",
+        format: "json",
+        origin: "*",
     });
     try {
         const resp = await fetch(`${WM_API}?${params}`);
         const data = await resp.json();
         return Object.values(data.query?.pages ?? {})
-            .filter(p => p.imageinfo?.[0]?.thumburl)
-            .map(p => ({ title: p.title, thumbUrl: p.imageinfo[0].thumburl }));
-    } catch { return []; }
+            .filter((p) => p.imageinfo?.[0]?.thumburl)
+            .map((p) => ({ title: p.title, thumbUrl: p.imageinfo[0].thumburl }));
+    } catch {
+        return [];
+    }
 }
 
 // ---------- Compression for sharing ----------
@@ -547,7 +626,7 @@ async function encodeDeck(deck) {
         mode: deck.mode,
         bidirectional: deck.bidirectional || false,
         // Strip editor-only fields (thumbUrl) so shared deck URLs stay lean.
-        cards: deck.cards.map(c => {
+        cards: deck.cards.map((c) => {
             if (c.wikimedia) {
                 const card = { wikimedia: c.wikimedia };
                 if (c.back) card.back = c.back;
@@ -585,12 +664,7 @@ const EXAMPLE_DECKS = [
         id: "__example_seasons__",
         name: "De seizoenen 🌸",
         mode: "one-sided",
-        cards: [
-            { front: "lente 🌸" },
-            { front: "zomer ☀️" },
-            { front: "herfst 🍂" },
-            { front: "winter ❄️" },
-        ],
+        cards: [{ front: "lente 🌸" }, { front: "zomer ☀️" }, { front: "herfst 🍂" }, { front: "winter ❄️" }],
         createdAt: 0,
     },
     {
@@ -614,7 +688,7 @@ const EXAMPLE_DECKS = [
 const RETIRED_EXAMPLE_IDS = new Set(["__example_animals__", "__example_numbers__"]);
 
 function ensureExamples() {
-    let decks = loadDecks().filter((d) => !RETIRED_EXAMPLE_IDS.has(d.id));
+    const decks = loadDecks().filter((d) => !RETIRED_EXAMPLE_IDS.has(d.id));
     for (let i = EXAMPLE_DECKS.length - 1; i >= 0; i--) {
         const ex = EXAMPLE_DECKS[i];
         if (!decks.some((d) => d.id === ex.id)) decks.unshift(ex);
@@ -806,9 +880,7 @@ function renderList() {
     // Sync history section so it shows the selected deck's sessions.
     const histEl = document.getElementById("history");
     if (histEl) {
-        histEl.dataset.exerciseId = selectedDeckId
-            ? `flashcards-${selectedDeckId}`
-            : "flashcards";
+        histEl.dataset.exerciseId = selectedDeckId ? `flashcards-${selectedDeckId}` : "flashcards";
     }
 
     // Leave editing mode — show the start button, time-mode fieldset, and history.
@@ -863,12 +935,12 @@ function syncReviewLaunchButton() {
     const btn = ensureReviewLaunchButton();
     if (!btn) return;
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    const hasCards = !!(deck && deck.cards?.length);
+    const hasCards = !!deck?.cards?.length;
     btn.disabled = !hasCards;
     btn.hidden = reviewState.active;
 }
 
-function reviewCardBackText(card) {
+function _reviewCardBackText(card) {
     const parts = cardParts(card);
     if (parts.length > 0) return parts.join(" / ");
     return String(card?.back || card?.front || "").trim();
@@ -880,20 +952,17 @@ function buildReviewCards(deck) {
         const isImage = !!card.wikimedia;
         const rawParts = isImage ? [] : cardParts(card);
         const hasParts = rawParts.length > 1;
-        const backText = rawParts.length > 0
-            ? rawParts.join(" / ")
-            : String(card?.back || card?.front || "").trim();
+        const backText = rawParts.length > 0 ? rawParts.join(" / ") : String(card?.back || card?.front || "").trim();
         const partsRequired =
-            hasParts && card.partsRequired != null && card.partsRequired < rawParts.length
-                ? card.partsRequired
-                : null;
+            hasParts && card.partsRequired != null && card.partsRequired < rawParts.length ? card.partsRequired : null;
         return {
             index,
             frontKind: isImage ? "image" : "text",
             frontText: String(card.front || "").trim() || "—",
             frontLabel: isImage ? "afbeelding" : mode === "two-sided" ? "voorkant" : "kaart",
             backKind: "text",
-            backText: mode === "one-sided" && !card.back && !hasParts ? (String(card.front || "").trim() || "—") : backText,
+            backText:
+                mode === "one-sided" && !card.back && !hasParts ? String(card.front || "").trim() || "—" : backText,
             backParts: hasParts ? rawParts : null,
             backPartsRequired: partsRequired,
             backLabel: isImage ? "antwoord" : hasParts ? "onderdelen" : mode === "two-sided" ? "achterkant" : "kaart",
@@ -915,12 +984,11 @@ function reviewFaceHtml(label, kind, value, wikimedia = "", parts = null, partsR
     if (kind === "image") {
         body = reviewImageHtml(wikimedia);
     } else if (parts && parts.length > 1) {
-        const chips = parts
-            .map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`)
-            .join("");
-        const note = partsRequired != null
-            ? `<span class="fc-review-parts-note">${partsRequired} van ${parts.length} verplicht</span>`
-            : "";
+        const chips = parts.map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`).join("");
+        const note =
+            partsRequired != null
+                ? `<span class="fc-review-parts-note">${partsRequired} van ${parts.length} verplicht</span>`
+                : "";
         body = `<span class="fc-review-parts">${chips}${note}</span>`;
     } else {
         body = `<span class="fc-review-face-text">${escapeHtml(value || "—")}</span>`;
@@ -994,13 +1062,15 @@ function hydrateReviewImages() {
             el.outerHTML = `<img src="${imageObjectURLs.get(filename)}" alt="afbeelding" class="fc-review-image">`;
             return;
         }
-        wmLoad(filename).then((src) => {
-            if (!reviewState.active || !el.isConnected) return;
-            el.outerHTML = `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
-        }).catch(() => {
-            if (!el.isConnected) return;
-            el.textContent = "Afbeelding niet beschikbaar";
-        });
+        wmLoad(filename)
+            .then((src) => {
+                if (!reviewState.active || !el.isConnected) return;
+                el.outerHTML = `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
+            })
+            .catch(() => {
+                if (!el.isConnected) return;
+                el.textContent = "Afbeelding niet beschikbaar";
+            });
     });
 }
 
@@ -1012,7 +1082,12 @@ function fitReviewFaceText() {
         const computed = window.getComputedStyle(el);
         let size = parseFloat(computed.fontSize) || 22;
         const minSize = 11;
-        while (size > minSize && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1 || body.scrollHeight > body.clientHeight + 1)) {
+        while (
+            size > minSize &&
+            (el.scrollHeight > el.clientHeight + 1 ||
+                el.scrollWidth > el.clientWidth + 1 ||
+                body.scrollHeight > body.clientHeight + 1)
+        ) {
             size -= 0.5;
             el.style.fontSize = `${size}px`;
         }
@@ -1095,7 +1170,7 @@ function stopReviewSession({ keepPage = false } = {}) {
 
 async function startReviewSession() {
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    if (!deck || !deck.cards?.length) return;
+    if (!deck?.cards?.length) return;
     stopReviewSession({ keepPage: true });
     reviewState.active = true;
     reviewState.deckId = deck.id;
@@ -1141,23 +1216,29 @@ async function startReviewSession() {
     renderReviewViewer();
     syncReviewLaunchButton();
     const imageCards = deck.cards.some((card) => card.wikimedia?.trim());
-    if (imageCards) wmPreloadDeck(deck).then(() => {
-        if (reviewState.active) hydrateReviewImages();
-    }).catch(() => {});
+    if (imageCards)
+        wmPreloadDeck(deck)
+            .then(() => {
+                if (reviewState.active) hydrateReviewImages();
+            })
+            .catch(() => {});
 }
 
 function renderModeOptionsHtml(deck) {
     // Only text cards participate in the fill-in grid; image cards are standalone.
-    const n = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
+    const n = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
     if (n === 0) return "";
     const defaultCount = Math.max(1, Math.ceil(n / 2));
-    const partialModeHtml = n >= 2 ? `
+    const partialModeHtml =
+        n >= 2
+            ? `
             <label class="fc-mode-radio">
                 <input type="radio" name="fc-mode" value="partial">
                 vul ontbrekende in:
                 <input type="number" name="fc-count" id="fc-count" min="1" max="${n - 1}" value="${defaultCount}" disabled>
                 van ${n} lege vakjes — de rest zie je als hint
-            </label>` : "";
+            </label>`
+            : "";
     return `
         <div class="fc-mode-options">
             <p class="fc-mode-label">Hoe wil je oefenen?</p>
@@ -1178,7 +1259,9 @@ function wireModeOptions() {
     const partialRadio = managerRoot.querySelector("input[name='fc-mode'][value='partial']");
     const countInput = managerRoot.querySelector("input[name='fc-count']");
     if (!partialRadio || !countInput) return;
-    const sync = () => { countInput.disabled = !partialRadio.checked; };
+    const sync = () => {
+        countInput.disabled = !partialRadio.checked;
+    };
     allRadio?.addEventListener("change", sync);
     partialRadio.addEventListener("change", sync);
 }
@@ -1192,10 +1275,15 @@ function handleDeckAction(e) {
         case "select":
             selectedDeckId = deckId;
             if (hiddenDeckInput) hiddenDeckInput.value = deckId;
-            try { localStorage.setItem(FC_LAST_DECK_KEY, deckId); } catch {}
+            try {
+                localStorage.setItem(FC_LAST_DECK_KEY, deckId);
+            } catch {}
             renderList();
             // Pre-load image cards in the background so they're ready when the session starts.
-            { const sel = getDeck(deckId); if (sel) wmPreloadDeck(sel); }
+            {
+                const sel = getDeck(deckId);
+                if (sel) wmPreloadDeck(sel);
+            }
             break;
         case "edit":
             editorState = { mode: "edit", id: deckId };
@@ -1217,7 +1305,7 @@ function handleDeckAction(e) {
 // ---------- Deck editor view ----------
 
 function cardRowHtml(card, i, isTwoSided, isBidirectional) {
-    const isImageCard = !!(card?.wikimedia);
+    const isImageCard = !!card?.wikimedia;
     const hintVal = escapeHtml(card?.hint || "");
     const hintRevVal = escapeHtml(card?.hintReverse || "");
     const rawParts = isImageCard ? (card?.back ? [card.back] : []) : cardParts(card);
@@ -1302,7 +1390,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
 // Toggle between text and image front for a card row.
 function bindCardTypeToggle(row) {
     const isTwoSided = () => managerRoot.querySelector("input[name='deck-type'][value='two-sided']")?.checked;
-    row.querySelectorAll("input[name^='card-type-']").forEach(radio => {
+    row.querySelectorAll("input[name^='card-type-']").forEach((radio) => {
         radio.addEventListener("change", () => {
             if (!radio.checked) return;
             const isImage = radio.value === "image";
@@ -1333,7 +1421,11 @@ function bindImageSearch(row) {
     searchInput.addEventListener("input", () => {
         clearTimeout(debounce);
         const term = searchInput.value.trim();
-        if (!term) { resultsDiv.hidden = true; resultsDiv.innerHTML = ""; return; }
+        if (!term) {
+            resultsDiv.hidden = true;
+            resultsDiv.innerHTML = "";
+            return;
+        }
         debounce = setTimeout(async () => {
             resultsDiv.hidden = false;
             resultsDiv.innerHTML = `<div class="wm-search-status">Zoeken…</div>`;
@@ -1343,14 +1435,17 @@ function bindImageSearch(row) {
                 resultsDiv.innerHTML = `<div class="wm-search-status">Geen afbeeldingen gevonden.</div>`;
                 return;
             }
-            resultsDiv.innerHTML = results.map(r =>
-                `<button type="button" class="wm-result-btn"
+            resultsDiv.innerHTML = results
+                .map(
+                    (r) =>
+                        `<button type="button" class="wm-result-btn"
                     data-filename="${escapeHtml(r.title)}" data-thumb="${escapeHtml(r.thumbUrl)}"
                     title="${escapeHtml(r.title)}">
                     <img src="${escapeHtml(r.thumbUrl)}" alt="${escapeHtml(r.title)}" loading="lazy">
                 </button>`,
-            ).join("");
-            resultsDiv.querySelectorAll(".wm-result-btn").forEach(btn => {
+                )
+                .join("");
+            resultsDiv.querySelectorAll(".wm-result-btn").forEach((btn) => {
                 btn.addEventListener("click", () => {
                     const filename = btn.dataset.filename;
                     const thumb = btn.dataset.thumb;
@@ -1400,7 +1495,10 @@ function renderEditor() {
     let deck;
     if (editorState.mode === "edit") {
         deck = decks.find((d) => d.id === editorState.id) || {
-            id: editorState.id, name: "", cards: [], createdAt: Date.now(),
+            id: editorState.id,
+            name: "",
+            cards: [],
+            createdAt: Date.now(),
         };
     } else {
         deck = { id: null, name: "", cards: [{ front: "" }], createdAt: Date.now() };
@@ -1466,16 +1564,16 @@ function renderEditor() {
     managerRoot.querySelector("#deck-bidirectional")?.addEventListener("change", syncCardHints);
 
     managerRoot.querySelector("#fc-add-card").addEventListener("click", addCardRow);
-    managerRoot.querySelector("#fc-save-deck").addEventListener("click", () =>
-        saveDeckFromEditor(editorState.mode === "edit" ? editorState.id : null),
-    );
+    managerRoot
+        .querySelector("#fc-save-deck")
+        .addEventListener("click", () => saveDeckFromEditor(editorState.mode === "edit" ? editorState.id : null));
     managerRoot.querySelector("#fc-cancel-edit").addEventListener("click", () => {
         editorState = null;
         renderManager();
     });
     bindRemoveButtons();
     bindHintCheckboxes();
-    managerRoot.querySelectorAll(".card-row").forEach(row => {
+    managerRoot.querySelectorAll(".card-row").forEach((row) => {
         bindCardPartHandlers(row);
         bindCardTypeToggle(row);
         bindImageSearch(row);
@@ -1502,7 +1600,9 @@ function syncCardHints() {
         const isImage = cardRow?.dataset.cardType === "image";
         h.hidden = !isTwoSided && !isImage;
     });
-    managerRoot.querySelectorAll(".card-hint-row-reverse").forEach((row) => { row.hidden = !isBidir; });
+    managerRoot.querySelectorAll(".card-hint-row-reverse").forEach((row) => {
+        row.hidden = !isBidir;
+    });
 }
 
 // Wire hint checkboxes within `root` so they show/hide their text input.
@@ -1525,7 +1625,7 @@ function bindHintCheckboxes() {
 function autoResizeTextarea(ta) {
     // Vertical: collapse then expand to content.
     ta.style.height = "auto";
-    ta.style.height = ta.scrollHeight + "px";
+    ta.style.height = `${ta.scrollHeight}px`;
 
     // Horizontal: with wrap="off", scrollWidth reflects true content width.
     // If it overflows the current column, switch the card-fields grid to a single
@@ -1550,7 +1650,10 @@ function bindCardPartHandlers(row) {
 
     const syncPartsUI = () => {
         autoResizeTextarea(textarea);
-        const parts = textarea.value.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+        const parts = textarea.value
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
         const n = parts.length;
         reqDiv.hidden = n <= 1;
         if (totalSpan) totalSpan.textContent = n;
@@ -1645,7 +1748,10 @@ function saveDeckFromEditor(existingId) {
             const hintInput = row.querySelector(".card-hint-input[data-dir='fwd']");
             if (hintCheck?.checked) {
                 const val = hintInput?.value.trim();
-                if (!val) { hintErrorInput = hintInput; return; }
+                if (!val) {
+                    hintErrorInput = hintInput;
+                    return;
+                }
                 card.hint = val;
             }
             cards.push(card);
@@ -1657,7 +1763,10 @@ function saveDeckFromEditor(existingId) {
         const card = { front };
         if (isTwoSided) {
             const backRaw = row.querySelector(".card-back")?.value || "";
-            const parts = backRaw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+            const parts = backRaw
+                .split(/\r?\n/)
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0);
             if (parts.length > 1) {
                 card.parts = parts;
                 card.back = parts[0]; // backward compat fallback
@@ -1674,7 +1783,10 @@ function saveDeckFromEditor(existingId) {
             const hintInput = row.querySelector(".card-hint-input[data-dir='fwd']");
             if (hintCheck?.checked) {
                 const val = hintInput?.value.trim();
-                if (!val) { hintErrorInput = hintInput; return; }
+                if (!val) {
+                    hintErrorInput = hintInput;
+                    return;
+                }
                 card.hint = val;
             }
 
@@ -1683,7 +1795,10 @@ function saveDeckFromEditor(existingId) {
                 const hintRevInput = row.querySelector(".card-hint-input[data-dir='bwd']");
                 if (hintRevCheck?.checked) {
                     const val = hintRevInput?.value.trim();
-                    if (!val) { hintErrorInput = hintRevInput; return; }
+                    if (!val) {
+                        hintErrorInput = hintRevInput;
+                        return;
+                    }
                     card.hintReverse = val;
                 }
             }
@@ -1774,7 +1889,9 @@ async function doImport(name, replaceId) {
     const imageCount = deck.cards.filter((c) => c.wikimedia).length;
 
     // Disable all action buttons in the import box while saving.
-    managerRoot.querySelectorAll(".fc-import-box button").forEach((b) => { b.disabled = true; });
+    managerRoot.querySelectorAll(".fc-import-box button").forEach((b) => {
+        b.disabled = true;
+    });
     if (imageCount > 0) {
         const primary = managerRoot.querySelector(".fc-import-box .primary");
         if (primary) primary.textContent = "⏳ Afbeeldingen laden…";
@@ -1814,9 +1931,11 @@ async function doImport(name, replaceId) {
 
     if (imageCount > 0) {
         const { failed } = await wmPreloadDeck({ cards: deck.cards });
-        showToast(failed.length > 0
-            ? `Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`
-            : `Deck "${name}" is geïmporteerd! 🎉`);
+        showToast(
+            failed.length > 0
+                ? `Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`
+                : `Deck "${name}" is geïmporteerd! 🎉`,
+        );
     } else {
         showToast(`Deck "${name}" is geïmporteerd! 🎉`);
     }
@@ -1836,9 +1955,10 @@ function renderImport() {
     const imageCount = deck.cards.filter((c) => c.wikimedia).length;
     const modeLabel = !isTwo ? "uit het hoofd" : isBidir ? "twee richtingen" : "voor-achterkant";
     const imageNote = imageCount > 0 ? ` · ${imageCount} afbeelding${imageCount === 1 ? "" : "en"}` : "";
-    const imageNoteParagraph = imageCount > 0
-        ? `<p class="fc-import-image-note">📥 Afbeeldingen worden na import automatisch gedownload.</p>`
-        : "";
+    const imageNoteParagraph =
+        imageCount > 0
+            ? `<p class="fc-import-image-note">📥 Afbeeldingen worden na import automatisch gedownload.</p>`
+            : "";
     const deckPreview = `
         <div class="deck-preview">
             <strong>${escapeHtml(deck.name)}</strong>
@@ -1915,12 +2035,16 @@ async function initManager() {
         }
     });
 
-    document.querySelector("#page-exercises .button-reset")?.addEventListener("click", (e) => {
-        if (!reviewState.active) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        stopReviewSession();
-    }, true);
+    document.querySelector("#page-exercises .button-reset")?.addEventListener(
+        "click",
+        (e) => {
+            if (!reviewState.active) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            stopReviewSession();
+        },
+        true,
+    );
 
     ensureExamples();
 
@@ -2027,7 +2151,10 @@ function renderFillInQuestion(q, root) {
 
     const skipBtn = document.getElementById("button-skip");
     const checkBtn = document.getElementById("button-check");
-    if (skipBtn) { skipBtn.hidden = false; skipBtn.textContent = "🤷 weet het niet"; }
+    if (skipBtn) {
+        skipBtn.hidden = false;
+        skipBtn.textContent = "🤷 weet het niet";
+    }
     if (checkBtn) checkBtn.textContent = "✅ controleer";
 
     const input = root.querySelector("#answer");
@@ -2119,11 +2246,12 @@ function renderMultiPartQuestion(q, root, mode) {
 
     // Normal play: show already-matched parts and an input for the next one.
     if (skipBtn) skipBtn.hidden = true;
-    if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
+    if (checkBtn) {
+        checkBtn.hidden = false;
+        checkBtn.textContent = "👉 antwoord";
+    }
 
-    const matchedHtml = [...matched]
-        .map((p) => `<div class="mp-part mp-matched">✅ ${escapeHtml(p)}</div>`)
-        .join("");
+    const matchedHtml = [...matched].map((p) => `<div class="mp-part mp-matched">✅ ${escapeHtml(p)}</div>`).join("");
 
     root.innerHTML = `
         <div class="flash-question">
@@ -2153,12 +2281,14 @@ runExercise({
     },
     label: "flitskaarten",
 
-    loadConfig(form, saved) {
+    loadConfig(_form, saved) {
         if (!saved?.deckId) return;
         const deck = getDeck(saved.deckId);
         if (!deck) return;
         selectedDeckId = saved.deckId;
-        try { localStorage.setItem(FC_LAST_DECK_KEY, saved.deckId); } catch {}
+        try {
+            localStorage.setItem(FC_LAST_DECK_KEY, saved.deckId);
+        } catch {}
         if (hiddenDeckInput) hiddenDeckInput.value = saved.deckId;
         renderList();
         // Re-apply mode options that were saved alongside the deck selection.
@@ -2199,7 +2329,7 @@ runExercise({
         if (!deck.cards.length) return "Dit deck heeft geen kaarten.";
         const isOneSided = deckMode(deck) === "one-sided";
         if (isOneSided && cfg.fcMode === "partial") {
-            const textCount = deck.cards.filter(c => !c.wikimedia && c.front?.trim()).length;
+            const textCount = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
             if (textCount < 2) {
                 return "Deze modus heeft minstens 2 tekstkaarten nodig.";
             }
@@ -2215,11 +2345,11 @@ runExercise({
         const deck = getDeck(cfg.deckId);
         if (!deck) return [];
         // Image cards always produce standalone questions regardless of deck mode.
-        const imageCards = deck.cards.filter(c => c.wikimedia?.trim());
-        const textCards = deck.cards.filter(c => !c.wikimedia && c.front?.trim());
+        const imageCards = deck.cards.filter((c) => c.wikimedia?.trim());
+        const textCards = deck.cards.filter((c) => !c.wikimedia && c.front?.trim());
         const isOneSided = deckMode(deck) === "one-sided";
 
-        const imageQuestions = imageCards.map(c => ({
+        const imageQuestions = imageCards.map((c) => ({
             kind: "image",
             wikimedia: c.wikimedia,
             back: c.back || "",
@@ -2232,14 +2362,21 @@ runExercise({
             const cardGroups = textCards.map((c) => {
                 if (isBidirectional && Math.random() < 0.5) {
                     const parts = cardParts(c);
-                    return [{ kind: "two-sided", front: parts[0] || c.back || "", back: c.front, hint: c.hintReverse || null, direction: "bwd" }];
+                    return [
+                        {
+                            kind: "two-sided",
+                            front: parts[0] || c.back || "",
+                            back: c.front,
+                            hint: c.hintReverse || null,
+                            direction: "bwd",
+                        },
+                    ];
                 }
                 const parts = cardParts(c);
                 const isMultiPart = parts.length > 1;
                 if (isMultiPart) {
-                    const requiredCount = c.partsRequired != null
-                        ? Math.min(Math.max(1, c.partsRequired), parts.length)
-                        : parts.length;
+                    const requiredCount =
+                        c.partsRequired != null ? Math.min(Math.max(1, c.partsRequired), parts.length) : parts.length;
                     const sharedState = {
                         matched: new Set(),
                         revealAtEnd: false,
@@ -2261,7 +2398,7 @@ runExercise({
             });
             // Wrap each image question as a single-item group so it shuffles in
             // with text card groups rather than always appearing first.
-            const allGroups = [...imageQuestions.map(q => [q]), ...cardGroups];
+            const allGroups = [...imageQuestions.map((q) => [q]), ...cardGroups];
             shuffle(allGroups);
             return allGroups.flat();
         }
@@ -2302,7 +2439,10 @@ runExercise({
             case "multi-part":
                 return renderMultiPartQuestion(q, root, mode);
             case "fill-in":
-                if (mode.kind === "review") { renderFillInReview(q, root); return; }
+                if (mode.kind === "review") {
+                    renderFillInReview(q, root);
+                    return;
+                }
                 return renderFillInQuestion(q, root);
             case "image": {
                 const skipBtn = document.getElementById("button-skip");
@@ -2313,9 +2453,11 @@ runExercise({
                         <div class="flash-review">
                             <div class="flash-side flash-front-side flash-image-side">
                                 <span class="flash-side-label">afbeelding</span>
-                                ${imgSrc
-                                    ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
-                                    : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`}
+                                ${
+                                    imgSrc
+                                        ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                        : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`
+                                }
                             </div>
                             <div class="flash-side flash-back-side">
                                 <span class="flash-side-label">antwoord</span>
@@ -2327,23 +2469,31 @@ runExercise({
                 root.innerHTML = `
                     <div class="flash-question">
                         <div class="flash-image-container">
-                            ${imgSrc
-                                ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
-                                : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`}
+                            ${
+                                imgSrc
+                                    ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                    : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`
+                            }
                         </div>
                         ${hintToggleHtml(q.hint)}
                         <input type="text" id="answer" autocomplete="off"
                             placeholder="wat zie je?" aria-label="jouw antwoord">
                     </div>`;
                 if (skipBtn) skipBtn.hidden = true;
-                if (checkBtn) { checkBtn.hidden = false; checkBtn.textContent = "👉 antwoord"; }
+                if (checkBtn) {
+                    checkBtn.hidden = false;
+                    checkBtn.textContent = "👉 antwoord";
+                }
                 wireHintToggle(root);
                 // If not cached yet, retry once the load completes in the background.
                 if (!imgSrc) {
-                    wmLoad(q.wikimedia).then(url => {
-                        const container = root.querySelector(".flash-image-container");
-                        if (container) container.innerHTML = `<img src="${url}" alt="afbeelding" class="flash-card-image">`;
-                    }).catch(() => {});
+                    wmLoad(q.wikimedia)
+                        .then((url) => {
+                            const container = root.querySelector(".flash-image-container");
+                            if (container)
+                                container.innerHTML = `<img src="${url}" alt="afbeelding" class="flash-card-image">`;
+                        })
+                        .catch(() => {});
                 }
                 const input = root.querySelector("#answer");
                 return () => input?.value ?? "";
@@ -2396,13 +2546,7 @@ runExercise({
                 }
                 const { sharedState, allParts } = q;
                 const partialRequired = q.requiredCount < allParts.length;
-                const newlyMatched = tryMatchParts(
-                    given,
-                    allParts,
-                    sharedState.matched,
-                    q.front,
-                    !partialRequired,
-                );
+                const newlyMatched = tryMatchParts(given, allParts, sharedState.matched, q.front, !partialRequired);
                 if (newlyMatched.length > 0) {
                     for (const match of newlyMatched) sharedState.matched.add(match.part);
                     const exactThisStep = partialRequired || newlyMatched.every((match) => match.exact);
@@ -2410,7 +2554,8 @@ runExercise({
                     if (!partialRequired && !exactThisStep) sharedState.revealAtEnd = true;
                     if (practiceAgainThisStep) sharedState.revealPracticeAgain = true;
                     const finished = sharedState.matched.size >= q.requiredCount;
-                    const showReview = !partialRequired && finished && sharedState.revealAtEnd && !sharedState.revealShown;
+                    const showReview =
+                        !partialRequired && finished && sharedState.revealAtEnd && !sharedState.revealShown;
                     if (showReview) sharedState.revealShown = true;
                     return {
                         correct: true,
@@ -2419,10 +2564,10 @@ runExercise({
                         practiceAgain: practiceAgainThisStep,
                         feedback: showReview
                             ? buildAcceptedFeedback(
-                                allParts.join(" / "),
-                                sharedState.revealPracticeAgain,
-                                allParts.length > 1,
-                            )
+                                  allParts.join(" / "),
+                                  sharedState.revealPracticeAgain,
+                                  allParts.length > 1,
+                              )
                             : undefined,
                     };
                 }
@@ -2455,28 +2600,24 @@ runExercise({
                 const match = matchAndTrackLenient(given, q.back, q.wikimedia);
                 return match
                     ? {
-                        correct: true,
-                        exact: match.exact,
-                        showReview: !match.exact,
-                        practiceAgain: match.practiceAgain,
-                        feedback: match.exact
-                            ? undefined
-                            : buildAcceptedFeedback(q.back, match.practiceAgain),
-                    }
+                          correct: true,
+                          exact: match.exact,
+                          showReview: !match.exact,
+                          practiceAgain: match.practiceAgain,
+                          feedback: match.exact ? undefined : buildAcceptedFeedback(q.back, match.practiceAgain),
+                      }
                     : { correct: false };
             }
             case "two-sided": {
                 const match = matchAndTrackLenient(given, q.back, q.front);
                 return match
                     ? {
-                        correct: true,
-                        exact: match.exact,
-                        showReview: !match.exact,
-                        practiceAgain: match.practiceAgain,
-                        feedback: match.exact
-                            ? undefined
-                            : buildAcceptedFeedback(q.back, match.practiceAgain),
-                    }
+                          correct: true,
+                          exact: match.exact,
+                          showReview: !match.exact,
+                          practiceAgain: match.practiceAgain,
+                          feedback: match.exact ? undefined : buildAcceptedFeedback(q.back, match.practiceAgain),
+                      }
                     : { correct: false };
             }
             default:
@@ -2496,11 +2637,16 @@ runExercise({
 
     describe(q) {
         switch (q.kind) {
-            case "multi-part": return `${q.front} → [${q.allParts.join(" / ")}]`;
-            case "two-sided":  return `${q.front} → ${q.back}`;
-            case "image":      return `[🖼️ ${q.wikimedia}] → ${q.back}`;
-            case "fill-in":    return q.front;
-            default: throw new Error(`Unknown card kind: ${q.kind}`);
+            case "multi-part":
+                return `${q.front} → [${q.allParts.join(" / ")}]`;
+            case "two-sided":
+                return `${q.front} → ${q.back}`;
+            case "image":
+                return `[🖼️ ${q.wikimedia}] → ${q.back}`;
+            case "fill-in":
+                return q.front;
+            default:
+                throw new Error(`Unknown card kind: ${q.kind}`);
         }
     },
 });

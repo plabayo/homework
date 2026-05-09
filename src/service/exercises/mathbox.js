@@ -1,4 +1,4 @@
-import { runExercise, shuffle, read, load, pickRandom } from "@homework";
+import { load, pickRandom, read, runExercise } from "@homework";
 
 function buildDeck(cfg) {
     const deck = [];
@@ -22,16 +22,8 @@ function buildDeck(cfg) {
             case "delen": {
                 let tries = 0;
                 do {
-                    a = Math.floor(
-                        Math.random() *
-                            Math.max(1, Math.floor(cfg.countUntil / 2) + 1),
-                    );
-                    b =
-                        1 +
-                        Math.floor(
-                            Math.random() *
-                                Math.max(1, Math.floor(cfg.countUntil / 2)),
-                        );
+                    a = Math.floor(Math.random() * Math.max(1, Math.floor(cfg.countUntil / 2) + 1));
+                    b = 1 + Math.floor(Math.random() * Math.max(1, Math.floor(cfg.countUntil / 2)));
                     answer = a * b;
                     tries++;
                 } while (answer > cfg.countUntil && tries < 50);
@@ -71,7 +63,10 @@ function renderPlay(q) {
             const visibleCell = `<span class="box split-part">${visibleVal}</span>`;
             const left = q.hide === "a" ? inputCell : visibleCell;
             const right = q.hide === "a" ? visibleCell : inputCell;
-            return { feedback: fb, html: `<div class="split-stack"><div class="split-top"><span class="box split-part">${q.answer}</span></div>${SPLIT_LEGS}<div class="split-bottom">${left}${right}</div></div>` };
+            return {
+                feedback: fb,
+                html: `<div class="split-stack"><div class="split-top"><span class="box split-part">${q.answer}</span></div>${SPLIT_LEGS}<div class="split-bottom">${left}${right}</div></div>`,
+            };
         }
     }
 }
@@ -123,24 +118,21 @@ runExercise({
     id: "mathbox",
     label: "rekendoos",
     loadConfig(form, saved) {
-        load.number(form, 'count-until', saved.countUntil);
-        load.number(form, 'num-exercises', saved.numExercises);
-        load.checkboxes(form, 'practice', saved.kinds);
+        load.number(form, "count-until", saved.countUntil);
+        load.number(form, "num-exercises", saved.numExercises);
+        load.checkboxes(form, "practice", saved.kinds);
     },
     readConfig(form) {
         return {
-            countUntil:   read.number(form, 'count-until'),
-            numExercises: read.number(form, 'num-exercises'),
-            kinds:        read.checkboxes(form, 'practice'),
+            countUntil: read.number(form, "count-until"),
+            numExercises: read.number(form, "num-exercises"),
+            kinds: read.checkboxes(form, "practice"),
         };
     },
     validateConfig(cfg) {
-        if (!cfg.kinds.length)
-            return "Gelieve minstens één soort oefening te selecteren.";
-        if (!cfg.numExercises || cfg.numExercises < 1)
-            return "Gelieve een geldig aantal oefeningen op te geven.";
-        if (!cfg.countUntil || cfg.countUntil < 3)
-            return "Tot hoeveel kan het kind tellen? Minimum 3.";
+        if (!cfg.kinds.length) return "Gelieve minstens één soort oefening te selecteren.";
+        if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
+        if (!cfg.countUntil || cfg.countUntil < 3) return "Tot hoeveel kan het kind tellen? Minimum 3.";
         return null;
     },
     buildDeck,
@@ -156,9 +148,7 @@ runExercise({
         return () => input.value;
     },
     isCorrect(q, given) {
-        const expect = q.kind === "splitsen"
-            ? (q.hide === "a" ? q.a : q.b)
-            : q.answer;
+        const expect = q.kind === "splitsen" ? (q.hide === "a" ? q.a : q.b) : q.answer;
         return Number(given) === expect;
     },
     describe(q) {

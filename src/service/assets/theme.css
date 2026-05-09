@@ -65,9 +65,7 @@ a.nowrap,
     --space: 16px;
     --content-width: 720px;
     font-size: 16px;
-    font-family:
-        system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-        sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     color: var(--fg);
     background: var(--bg);
 }
@@ -439,14 +437,24 @@ input.split-part {
     color: var(--muted);
     min-width: 5em;
 }
-.cycle-score { font-weight: 700; }
+.cycle-score {
+    font-weight: 700;
+}
 .cycle-mode {
     font-size: 0.85rem;
     color: var(--muted);
     font-style: italic;
 }
-.cycle-perfect { color: var(--good); font-weight: 600; }
-.cycle-detail { display: flex; flex-wrap: wrap; gap: 4px; margin-inline-start: auto; }
+.cycle-perfect {
+    color: var(--good);
+    font-weight: 600;
+}
+.cycle-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-inline-start: auto;
+}
 .result-detail {
     width: 100%;
     max-width: 520px;
@@ -577,7 +585,11 @@ input.split-part {
     font-size: 1rem;
     color: var(--fg);
 }
-.footer-block { display: flex; flex-direction: column; gap: 6px; }
+.footer-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
 /* ---------- mistake picker dialog ---------- */
 dialog.mistake-picker,
@@ -813,14 +825,19 @@ body.is-offline .offline-banner {
 @media (prefers-reduced-motion: no-preference) {
     /* Smooth lock/unlock transition when a deadline expires */
     #exercise-content {
-        transition: opacity 220ms ease, filter 220ms ease;
+        transition:
+            opacity 220ms ease,
+            filter 220ms ease;
     }
 
     /* Button: hover lift, press sink */
     button {
-        transition: transform 90ms ease, box-shadow 100ms ease,
-                    background-color 130ms ease, border-color 130ms ease,
-                    opacity 130ms ease;
+        transition:
+            transform 90ms ease,
+            box-shadow 100ms ease,
+            background-color 130ms ease,
+            border-color 130ms ease,
+            opacity 130ms ease;
     }
     button:not(:disabled):hover {
         transform: translateY(-1px);
@@ -836,7 +853,9 @@ body.is-offline .offline-banner {
     input[type="number"],
     input[type="text"],
     input[inputmode="numeric"] {
-        transition: border-color 130ms ease, outline-offset 80ms ease;
+        transition:
+            border-color 130ms ease,
+            outline-offset 80ms ease;
     }
     input[type="number"]:focus,
     input[type="text"]:focus,
@@ -846,7 +865,10 @@ body.is-offline .offline-banner {
 
     /* Exercise catalog cards */
     .exercise-list a {
-        transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
+        transition:
+            transform 130ms ease,
+            box-shadow 130ms ease,
+            border-color 130ms ease;
     }
     .exercise-list a:hover {
         transform: translateY(-2px);
@@ -856,7 +878,10 @@ body.is-offline .offline-banner {
 
     /* Option buttons: smooth selection */
     .option {
-        transition: background-color 110ms ease, color 110ms ease, border-color 110ms ease;
+        transition:
+            background-color 110ms ease,
+            color 110ms ease,
+            border-color 110ms ease;
     }
 
     /* Page-level entrance when switching from setup → play / play → result */
@@ -893,10 +918,18 @@ body.is-offline .offline-banner {
     }
 
     /* History sessions: stagger fade so they don't all flash at once */
-    .history-session { animation: question-in 180ms ease-out both; }
-    .history-session:nth-child(2) { animation-delay:  40ms; }
-    .history-session:nth-child(3) { animation-delay:  80ms; }
-    .history-session:nth-child(n+4) { animation-delay: 120ms; }
+    .history-session {
+        animation: question-in 180ms ease-out both;
+    }
+    .history-session:nth-child(2) {
+        animation-delay: 40ms;
+    }
+    .history-session:nth-child(3) {
+        animation-delay: 80ms;
+    }
+    .history-session:nth-child(n + 4) {
+        animation-delay: 120ms;
+    }
 
     /* Mistake picker dialog entrance */
     dialog.mistake-picker[open],
@@ -905,41 +938,90 @@ body.is-offline .offline-banner {
     }
 
     @keyframes page-in {
-        from { opacity: 0; transform: translateY(8px); }
-        to   { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     @keyframes question-in {
-        from { opacity: 0; transform: translateY(5px); }
-        to   { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(5px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     @keyframes pop-in {
-        from { opacity: 0; transform: scale(0.88); }
-        to   { opacity: 1; transform: scale(1); }
+        from {
+            opacity: 0;
+            transform: scale(0.88);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
     }
     @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        15%      { transform: translateX(-6px); }
-        35%      { transform: translateX( 5px); }
-        52%      { transform: translateX(-4px); }
-        68%      { transform: translateX( 3px); }
-        84%      { transform: translateX(-1px); }
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+        15% {
+            transform: translateX(-6px);
+        }
+        35% {
+            transform: translateX(5px);
+        }
+        52% {
+            transform: translateX(-4px);
+        }
+        68% {
+            transform: translateX(3px);
+        }
+        84% {
+            transform: translateX(-1px);
+        }
     }
     /* streak 1-2: barely-there whisper */
     @keyframes correct-flash {
-        0%   { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
-        40%  { box-shadow: 0 0 10px 0px rgba(21, 128, 61, 0.22); }
-        100% { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
+        0% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
+        40% {
+            box-shadow: 0 0 10px 0px rgba(21, 128, 61, 0.22);
+        }
+        100% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
     }
     /* streak 3-4: clearly visible ring */
     @keyframes correct-flash-mid {
-        0%   { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
-        35%  { box-shadow: 0 0 18px 3px rgba(21, 128, 61, 0.40); }
-        100% { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
+        0% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
+        35% {
+            box-shadow: 0 0 18px 3px rgba(21, 128, 61, 0.4);
+        }
+        100% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
     }
     /* streak 5+: vivid but brief */
     @keyframes correct-flash-high {
-        0%   { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
-        30%  { box-shadow: 0 0 26px 5px rgba(21, 128, 61, 0.55); }
-        100% { box-shadow: 0 0  0px 0px rgba(21, 128, 61, 0.00); }
+        0% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
+        30% {
+            box-shadow: 0 0 26px 5px rgba(21, 128, 61, 0.55);
+        }
+        100% {
+            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        }
     }
 }

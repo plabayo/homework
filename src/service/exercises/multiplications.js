@@ -1,4 +1,4 @@
-import { runExercise, shuffle, read, load } from "@homework";
+import { load, read, runExercise, shuffle } from "@homework";
 
 function getSelectedTables(form) {
     const list = [];
@@ -21,10 +21,11 @@ function buildDeck(cfg) {
 
 function bindSelectAll(form) {
     const all = form.querySelector("#select-all");
-    const boxes = () =>
-        Array.from(form.querySelectorAll("#tables input[type=checkbox]"));
+    const boxes = () => Array.from(form.querySelectorAll("#tables input[type=checkbox]"));
     all.addEventListener("change", () => {
-        boxes().forEach((cb) => (cb.checked = all.checked));
+        boxes().forEach((cb) => {
+            cb.checked = all.checked;
+        });
     });
     form.querySelector("#tables").addEventListener("change", () => {
         const all = form.querySelector("#select-all");
@@ -40,7 +41,7 @@ runExercise({
     id: "multiplications",
     label: "maaltafels",
     loadConfig(form, saved) {
-        load.number(form, 'num-exercises', saved.numExercises);
+        load.number(form, "num-exercises", saved.numExercises);
         if (Array.isArray(saved.tables)) {
             saved.tables.forEach((t) => {
                 const cb = form.querySelector(`input[data-table="${t}"]`);
@@ -53,15 +54,13 @@ runExercise({
     },
     readConfig(form) {
         return {
-            numExercises: read.number(form, 'num-exercises'),
+            numExercises: read.number(form, "num-exercises"),
             tables: getSelectedTables(form),
         };
     },
     validateConfig(cfg) {
-        if (!cfg.tables.length)
-            return "Gelieve minstens één maaltafel te selecteren.";
-        if (!cfg.numExercises || cfg.numExercises < 1)
-            return "Gelieve een geldig aantal oefeningen op te geven.";
+        if (!cfg.tables.length) return "Gelieve minstens één maaltafel te selecteren.";
+        if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
         return null;
     },
     buildDeck,

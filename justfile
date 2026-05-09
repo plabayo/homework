@@ -11,7 +11,30 @@ sort:
 	@cargo install cargo-sort
 	cargo sort --grouped
 
-lint: fmt sort
+[unix]
+_ensure-biome:
+	@which biome >/dev/null 2>&1 || npm install -g @biomejs/biome
+
+[windows]
+_ensure-biome:
+	@if (-not (Get-Command biome -ErrorAction SilentlyContinue)) { npm install -g @biomejs/biome }
+
+# Auto-format JS and CSS (writes in place)
+fmt-web:
+	just _ensure-biome
+	biome format --write src/service
+
+# Lint JS and CSS (report only, no writes)
+lint-web:
+	just _ensure-biome
+	biome lint src/service
+
+# CI-style check: lint + format, no writes, warnings → errors
+check-web:
+	just _ensure-biome
+	biome ci src/service
+
+lint: fmt sort fmt-web
 
 check:
 	cargo check --all-targets --all-features
@@ -52,7 +75,7 @@ lighthouse URL="http://localhost:8080":
 	$r = npx --yes lighthouse@12 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
 	Write-Host "score: $($r.categories.accessibility.score) ($($r.categories.accessibility.title))"
 
-qq: lint check clippy doc
+qq: lint check clippy doc check-web
 
 qa: qq test
 

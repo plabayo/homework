@@ -71,6 +71,16 @@ jobs:
           CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
         run: cargo test --test e2e -- --ignored --test-threads=1
 
+  lint-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: biomejs/setup-biome@v2
+        with:
+          version: latest
+      - name: Biome CI
+        run: biome ci src/service
+
   dependencies-are-sorted:
     needs: [check]
     runs-on: ubuntu-latest
@@ -141,6 +151,7 @@ jobs:
       - test-e2e
       - lighthouse
       - dependencies-are-sorted
+      - lint-web
     steps:
       - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master

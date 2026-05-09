@@ -9,15 +9,33 @@
     margin-inline: auto;
 }
 @media (min-width: 600px) {
-    .clock { --clock-size: min(55vw, 55dvh, 300px); }
+    .clock {
+        --clock-size: min(55vw, 55dvh, 300px);
+    }
 }
 @media (min-width: 960px) {
-    .clock { --clock-size: min(45vw, 60dvh, 340px); }
+    .clock {
+        --clock-size: min(45vw, 60dvh, 340px);
+    }
 }
-.clock svg { display: block; width: 100%; height: 100%; }
-.clock .face { fill: var(--paper); stroke: color-mix(in srgb, currentColor 70%, transparent); stroke-width: 1.4; }
-.clock .tick { stroke: color-mix(in srgb, currentColor 55%, transparent); stroke-width: 0.9; }
-.clock .tick.major { stroke: currentColor; stroke-width: 1.6; }
+.clock svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+.clock .face {
+    fill: var(--paper);
+    stroke: color-mix(in srgb, currentColor 70%, transparent);
+    stroke-width: 1.4;
+}
+.clock .tick {
+    stroke: color-mix(in srgb, currentColor 55%, transparent);
+    stroke-width: 0.9;
+}
+.clock .tick.major {
+    stroke: currentColor;
+    stroke-width: 1.6;
+}
 .clock .num {
     font-size: 8.5px;
     font-weight: 600;
@@ -47,13 +65,33 @@
     pointer-events: stroke;
     cursor: grab;
 }
-.clock.interactive:active .hand-hit { cursor: grabbing; }
-.clock .pivot { fill: var(--accent); }
-.clock.interactive { user-select: none; touch-action: none; cursor: grab; }
-.clock.interactive:active { cursor: grabbing; }
-.time-pair { display: flex; gap: 6px; align-items: baseline; }
-.time-pair input { width: 3.5em; }
-.time-readout { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; }
+.clock.interactive:active .hand-hit {
+    cursor: grabbing;
+}
+.clock .pivot {
+    fill: var(--accent);
+}
+.clock.interactive {
+    user-select: none;
+    touch-action: none;
+    cursor: grab;
+}
+.clock.interactive:active {
+    cursor: grabbing;
+}
+.time-pair {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+}
+.time-pair input {
+    width: 3.5em;
+}
+.time-readout {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
 .clock-choice-label {
     margin-block-start: 10px;
     color: var(--muted);
@@ -67,7 +105,9 @@
     max-width: 360px;
     margin-block-start: 10px;
 }
-.option-list button { font-size: 1.05rem; }
+.option-list button {
+    font-size: 1.05rem;
+}
 .option-list button.selected {
     background: var(--accent);
     color: var(--accent-fg);

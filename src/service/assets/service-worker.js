@@ -50,12 +50,7 @@ self.addEventListener("activate", (event) => {
             const names = await caches.keys();
             await Promise.all(
                 names
-                    .filter(
-                        (n) =>
-                            n.startsWith("homework-") &&
-                            n !== STATIC_CACHE &&
-                            n !== PAGES_CACHE,
-                    )
+                    .filter((n) => n.startsWith("homework-") && n !== STATIC_CACHE && n !== PAGES_CACHE)
                     .map((n) => caches.delete(n)),
             );
             await self.clients.claim();
@@ -86,7 +81,7 @@ async function staleWhileRevalidate(request) {
     const cached = await cache.match(request);
     const fetchPromise = fetch(request)
         .then((res) => {
-            if (res && res.ok) cache.put(request, res.clone());
+            if (res?.ok) cache.put(request, res.clone());
             return res;
         })
         .catch(() => null);
@@ -96,22 +91,20 @@ async function staleWhileRevalidate(request) {
 async function networkFirstHtml(request) {
     const cache = await caches.open(PAGES_CACHE);
     // Race network against a 2.5s timeout.
-    const timeout = new Promise((resolve) =>
-        setTimeout(() => resolve(null), 2500),
-    );
+    const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 2500));
     const network = fetch(request)
         .then((res) => {
-            if (res && res.ok) cache.put(request, res.clone());
+            if (res?.ok) cache.put(request, res.clone());
             return res;
         })
         .catch(() => null);
     const winner = await Promise.race([network, timeout]);
-    if (winner && winner.ok) return winner;
+    if (winner?.ok) return winner;
     const cached = await caches.match(request);
     if (cached) return cached;
     // Last resort: maybe network finishes after timeout
     const late = await network;
-    if (late && late.ok) return late;
+    if (late?.ok) return late;
     const fallback = await caches.match("/offline");
     return (
         fallback ||

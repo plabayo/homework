@@ -1,4 +1,4 @@
-import { runExercise, read, load, pickRandom } from "@homework";
+import { load, pickRandom, read, runExercise } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -33,13 +33,9 @@ function drawThermometer({ value, vmin, vmax, filled }) {
         const x1 = TUBE.x + TUBE.w + 1;
         const x2 = x1 + tickLen;
         const cls = `tick${major ? " major" : ""}${negative ? " neg" : ""}`;
-        ticks.push(
-            `<line class="${cls}" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/>`,
-        );
+        ticks.push(`<line class="${cls}" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/>`);
         if (major) {
-            numbers.push(
-                `<text class="num${negative ? " neg" : ""}" x="${x2 + 2}" y="${y}">${v}</text>`,
-            );
+            numbers.push(`<text class="num${negative ? " neg" : ""}" x="${x2 + 2}" y="${y}">${v}</text>`);
         }
     }
 
@@ -126,8 +122,7 @@ function buildDeck(cfg) {
     const seen = new Set();
     const tries = cfg.numExercises * 5 + 20;
     for (let i = 0; i < tries && deck.length < cfg.numExercises; i++) {
-        const v =
-            cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
+        const v = cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
         const kind = pickRandom(cfg.kinds.length ? cfg.kinds : KINDS);
         const key = `${kind}:${v}`;
         if (seen.has(key)) continue;
@@ -155,41 +150,36 @@ runExercise({
     id: "thermometer",
     label: "thermometer",
     loadConfig(form, saved) {
-        load.number(form, 'vmax', saved.vmax);
-        load.number(form, 'num-exercises', saved.numExercises);
-        load.number(form, 'vmin-neg', saved.vminNeg);
-        load.checkbox(form, 'allow-negative', saved.allowNegative);
-        load.checkboxes(form, 'tk', saved.kinds);
+        load.number(form, "vmax", saved.vmax);
+        load.number(form, "num-exercises", saved.numExercises);
+        load.number(form, "vmin-neg", saved.vminNeg);
+        load.checkbox(form, "allow-negative", saved.allowNegative);
+        load.checkboxes(form, "tk", saved.kinds);
         syncVminField();
     },
     readConfig(form) {
-        const allowNegative = read.checkbox(form, 'allow-negative');
-        const vminNeg       = read.number(form, 'vmin-neg');
-        const kinds         = read.checkboxes(form, 'tk');
+        const allowNegative = read.checkbox(form, "allow-negative");
+        const vminNeg = read.number(form, "vmin-neg");
+        const kinds = read.checkboxes(form, "tk");
         return {
-            vmax:         read.number(form, 'vmax'),
-            numExercises: read.number(form, 'num-exercises'),
+            vmax: read.number(form, "vmax"),
+            numExercises: read.number(form, "num-exercises"),
             allowNegative,
             vminNeg,
-            vmin:  allowNegative ? -Math.abs(vminNeg) : 0,
-            kinds: kinds.length ? kinds : ['teken', 'schrijf'],
+            vmin: allowNegative ? -Math.abs(vminNeg) : 0,
+            kinds: kinds.length ? kinds : ["teken", "schrijf"],
         };
     },
     validateConfig(cfg) {
-        if (!cfg.numExercises || cfg.numExercises < 1)
-            return "Geef een geldig aantal oefeningen op.";
+        if (!cfg.numExercises || cfg.numExercises < 1) return "Geef een geldig aantal oefeningen op.";
         if (!cfg.vmax || cfg.vmax < 3) return "De bovengrens moet minstens 3 zijn.";
-        if (cfg.allowNegative && cfg.vminNeg < 1)
-            return "De ondergrens (negatieve waarde) moet minstens 1 zijn.";
+        if (cfg.allowNegative && cfg.vminNeg < 1) return "De ondergrens (negatieve waarde) moet minstens 1 zijn.";
         return null;
     },
     buildDeck,
     renderQuestion(q, root, mode) {
         if (mode.kind === "review") {
-            const fb =
-                q.kind === "teken"
-                    ? "kleur de thermometer 🎨"
-                    : "lees de temperatuur ✏️";
+            const fb = q.kind === "teken" ? "kleur de thermometer 🎨" : "lees de temperatuur ✏️";
             root.innerHTML = `
                 <h3>${fb}</h3>
                 <div class="thermo-wrap">
@@ -199,10 +189,7 @@ runExercise({
             `;
             return;
         }
-        const fb =
-            q.kind === "teken"
-                ? "kleur de thermometer 🎨"
-                : "lees de temperatuur ✏️";
+        const fb = q.kind === "teken" ? "kleur de thermometer 🎨" : "lees de temperatuur ✏️";
         document.getElementById("exercise-feedback").textContent = fb;
         if (q.kind === "teken") {
             root.innerHTML = `

@@ -21,7 +21,9 @@
     opacity: 1;
     font-weight: 600;
 }
-.fc-type-label:hover { opacity: 0.9; }
+.fc-type-label:hover {
+    opacity: 0.9;
+}
 
 /* ---------- Image card editor ---------- */
 
@@ -84,7 +86,9 @@
     border-radius: 4px;
     cursor: pointer;
     padding: 2px;
-    transition: border-color 0.1s, background 0.1s;
+    transition:
+        border-color 0.1s,
+        background 0.1s;
     overflow: hidden;
 }
 .wm-result-btn:hover {
@@ -190,7 +194,9 @@
     font-size: 0.9rem;
     font-weight: 600;
     opacity: 0.75;
-    transition: opacity 0.15s, background 0.15s;
+    transition:
+        opacity 0.15s,
+        background 0.15s;
 }
 .fc-btn-new:hover {
     opacity: 1;
@@ -222,7 +228,9 @@
     border: 2px solid color-mix(in srgb, currentColor 18%, transparent);
     border-radius: 10px;
     background: color-mix(in srgb, currentColor 3%, transparent);
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
     overflow: hidden;
 }
 
@@ -391,7 +399,9 @@
     font-size: 0.85rem;
     width: 100%;
     text-align: center;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
     font-family: inherit;
     color: inherit;
 }
@@ -494,7 +504,9 @@
     font-size: 0.8rem;
     cursor: pointer;
     opacity: 0.6;
-    transition: opacity 0.15s, background 0.15s;
+    transition:
+        opacity 0.15s,
+        background 0.15s;
     font-family: inherit;
     color: inherit;
 }
@@ -608,8 +620,14 @@
 }
 
 @keyframes fc-card-appear {
-    from { opacity: 0.5; scale: 0.97; }
-    to   { opacity: 1;   scale: 1; }
+    from {
+        opacity: 0.5;
+        scale: 0.97;
+    }
+    to {
+        opacity: 1;
+        scale: 1;
+    }
 }
 
 .fc-review-card-inner {
@@ -641,9 +659,7 @@
 }
 
 .fc-review-face-front {
-    background:
-        linear-gradient(155deg, color-mix(in srgb, #2d6cdf 16%, transparent), transparent 52%),
-        var(--paper);
+    background: linear-gradient(155deg, color-mix(in srgb, #2d6cdf 16%, transparent), transparent 52%), var(--paper);
 }
 
 .fc-review-face-back {
@@ -889,8 +905,14 @@
 }
 
 @keyframes toast-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(0.5rem); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 /* ---- Fill-in grid (one-sided play mode) ---- */
@@ -957,7 +979,6 @@
     font-size: 1.3rem;
     letter-spacing: 0.15em;
 }
-
 
 .fill-answer-ok {
     background: color-mix(in srgb, #15803d 12%, transparent);
@@ -1070,13 +1091,17 @@
     text-align: center;
 }
 
-.mp-matched, .mp-part-matched {
+.mp-matched,
+.mp-part-matched {
     background: color-mix(in srgb, #15803d 12%, transparent);
     color: #15803d;
 }
 
 @media (prefers-color-scheme: dark) {
-    .mp-matched, .mp-part-matched { color: #4ade80; }
+    .mp-matched,
+    .mp-part-matched {
+        color: #4ade80;
+    }
 }
 
 .mp-missed {
@@ -1085,7 +1110,9 @@
 }
 
 @media (prefers-color-scheme: dark) {
-    .mp-missed { color: #f87171; }
+    .mp-missed {
+        color: #f87171;
+    }
 }
 
 .mp-required-label {
@@ -1110,9 +1137,15 @@
 /* ---------- Deck-item highlight (after save / import) ---------- */
 
 @keyframes fc-deck-new {
-    0%   { box-shadow: 0 0 0 3px #2d6cdf; }
-    65%  { box-shadow: 0 0 0 3px #2d6cdf; }
-    100% { box-shadow: none; }
+    0% {
+        box-shadow: 0 0 0 3px #2d6cdf;
+    }
+    65% {
+        box-shadow: 0 0 0 3px #2d6cdf;
+    }
+    100% {
+        box-shadow: none;
+    }
 }
 
 .deck-item-new {
@@ -1197,18 +1230,36 @@
 }
 
 @keyframes fc-card-wave {
-    0%   { opacity: 0; transform: translateY(0) scale(1); }
-    20%  { opacity: 1; }
-    45%  { transform: translateY(-18px) scale(1.13); }
-    100% { opacity: 1; transform: translateY(0) scale(1); }
+    0% {
+        opacity: 0;
+        transform: translateY(0) scale(1);
+    }
+    20% {
+        opacity: 1;
+    }
+    45% {
+        transform: translateY(-18px) scale(1.13);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 @keyframes fc-wave-bg-in {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fc-wave-bg-out {
-    from { opacity: 1; }
-    to   { opacity: 0; }
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
