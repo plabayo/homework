@@ -285,7 +285,7 @@ input.bad {
     gap: var(--space);
 }
 #exercise {
-    margin-block: 8px 0;
+    margin-block: 12px 0;
     padding: var(--space);
 }
 #exercise-title {
@@ -316,7 +316,7 @@ input.bad {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     color: var(--muted);
-    font-size: 0.95rem;
+    font-size: 1.15rem;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -342,7 +342,7 @@ input.bad {
     text-align: center;
     min-height: 1.6em;
     font-size: 1.1rem;
-    margin-block-end: 6px;
+    margin-block-end: 10px;
 }
 #exercise-feedback.is-bad {
     color: var(--bad);
@@ -351,9 +351,9 @@ input.bad {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
     font-size: 1.25rem;
-    margin-block: 4px;
+    margin-block: 6px;
     max-width: 100%;
 }
 #exercise-content > p {

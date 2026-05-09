@@ -954,14 +954,15 @@ function buildReviewCards(deck) {
         const backText = rawParts.length > 0 ? rawParts.join(" / ") : String(card?.back || card?.front || "").trim();
         const partsRequired =
             hasParts && card.partsRequired != null && card.partsRequired < rawParts.length ? card.partsRequired : null;
+        const oneSided = mode === "one-sided" && !card.back && !hasParts;
         return {
             index,
+            oneSided,
             frontKind: isImage ? "image" : "text",
             frontText: String(card.front || "").trim() || "—",
             frontLabel: isImage ? "afbeelding" : mode === "two-sided" ? "voorkant" : "kaart",
             backKind: "text",
-            backText:
-                mode === "one-sided" && !card.back && !hasParts ? String(card.front || "").trim() || "—" : backText,
+            backText: oneSided ? String(card.front || "").trim() || "—" : backText,
             backParts: hasParts ? rawParts : null,
             backPartsRequired: partsRequired,
             backLabel: isImage ? "antwoord" : hasParts ? "onderdelen" : mode === "two-sided" ? "achterkant" : "kaart",
@@ -1002,7 +1003,7 @@ function reviewFaceHtml(label, kind, value, wikimedia = "", parts = null, partsR
 function buildReviewCardHtml(index) {
     const card = reviewState.cards[index];
     const total = reviewState.cards.length;
-    return `<button type="button" class="fc-review-card is-active${reviewState.flipped.has(index) ? " is-flipped" : ""}" data-index="${index}" aria-label="kaart ${index + 1} van ${total}">
+    return `<button type="button" class="fc-review-card is-active${card.oneSided ? " no-flip" : ""}${reviewState.flipped.has(index) ? " is-flipped" : ""}" data-index="${index}" aria-label="kaart ${index + 1} van ${total}">
         <span class="fc-review-card-inner">
             <span class="fc-review-face fc-review-face-front">
                 ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
@@ -1023,7 +1024,10 @@ function renderReviewViewer() {
 
     const total = reviewState.cards.length;
     title.textContent = `kaart 1 van ${total}`;
-    feedback.textContent = "Tik op de kaart om om te draaien. Gebruik pijltjes of de knoppen om te bladeren.";
+    const canFlip = reviewState.cards.some((c) => !c.oneSided);
+    feedback.textContent = canFlip
+        ? "Tik op de kaart om om te draaien. Gebruik pijltjes of de knoppen om te bladeren."
+        : "Gebruik pijltjes of de knoppen om te bladeren.";
     feedback.classList.remove("is-bad");
 
     root.innerHTML = `
@@ -1120,6 +1124,7 @@ function moveReviewBy(step) {
 
 function toggleReviewFlip(index) {
     if (!reviewState.active) return;
+    if (reviewState.cards[index]?.oneSided) return;
     const willFlip = !reviewState.flipped.has(index);
     if (willFlip) reviewState.flipped.add(index);
     else reviewState.flipped.delete(index);
@@ -2623,6 +2628,9 @@ runExercise({
     },
 
     evaluateSkip(q) {
+        if (q.kind === "two-sided" || q.kind === "image") {
+            return { showReview: true, feedback: buildRevealFeedback(q.back) };
+        }
         if (q.kind !== "multi-part") return null;
         if (q.partIndex !== q.sharedState.matched.size) return null;
         q.sharedState.revealShown = true;
