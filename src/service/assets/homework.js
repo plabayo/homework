@@ -599,9 +599,14 @@ function registerServiceWorker() {
     if (location.protocol === "file:") return;
     // When a new service worker activates it posts SW_ACTIVATED. Reload the
     // page so fresh HTML (with matching asset hashes) is loaded — but only
-    // when the user is not in the middle of an active exercise session.
+    // when the user is not in the middle of an active exercise session, AND
+    // only on upgrades (hadController=true). A fresh install means the page
+    // already loaded from the network so no reload is needed; reloading on
+    // fresh installs also breaks e2e tests where every session starts clean.
+    const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener("message", (e) => {
         if (e.data?.type !== "SW_ACTIVATED") return;
+        if (!hadController) return;
         const exercisesSection = document.getElementById("page-exercises");
         if (!exercisesSection || exercisesSection.hidden) {
             location.reload();

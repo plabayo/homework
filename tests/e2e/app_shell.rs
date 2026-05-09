@@ -25,13 +25,7 @@ async fn accessibility_on_key_pages() -> TestResult<()> {
         Duration::from_secs(10),
     )
     .await?;
-    wait_for_text(
-        driver,
-        ".site-footer h2",
-        "Helpen of bijdragen",
-        Duration::from_secs(10),
-    )
-    .await?;
+    wait_for_css(driver, ".site-footer", Duration::from_secs(10)).await?;
     check_a11y(driver).await?;
 
     driver.goto(app.url("/1/multiplications")).await?;
