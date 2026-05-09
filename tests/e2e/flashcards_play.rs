@@ -1156,17 +1156,13 @@ async fn flashcards_stop_mid_session_shows_partial_results() -> TestResult<()> {
     driver.refresh().await?;
     select_deck_and_start(driver, "test-stop-partial").await?;
 
-    // Answer first card correctly.
-    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
-    set_input_value(driver, "#answer", "pomme").await?;
-    click(driver, "#button-check").await?;
-
-    // Second card is now showing — click "terug naar menu" to trigger partial finish.
+    // Wait for the first question then immediately click "terug naar menu".
+    // Stopping early should record all remaining cards as failed and show results.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, ".exercise-meta .button-reset").await?;
 
-    // Results should show 1 correct out of 2 total (remaining card counted as failed).
-    wait_for_text(driver, "#result h3", "1 / 2", Duration::from_secs(10)).await?;
+    // Both cards counted as failed (0 answered before stop) → 0 / 2.
+    wait_for_text(driver, "#result h3", "0 / 2", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

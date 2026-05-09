@@ -922,7 +922,7 @@ export function runExercise(spec) {
                 getDialog() {
                     return {
                         title: "Oefening stoppen?",
-                        message: "Klik 'terug naar menu' in de oefening om resultaten te bewaren.",
+                        message: "Je verliest je voortgang als je weggaat.",
                         buttons: [
                             {
                                 value: "stay",
@@ -931,7 +931,7 @@ export function runExercise(spec) {
                                 id: "leave-stay",
                                 autofocus: true,
                             },
-                            { value: "leave", label: "Toch weggaan", id: "leave-leave" },
+                            { value: "leave", label: "Stop oefening", id: "leave-leave" },
                         ],
                     };
                 },
