@@ -1,12 +1,14 @@
 use rama::http::service::web::response::IntoResponse;
 use rama::http::{
-    StatusCode,
+    Request, StatusCode,
     html::{a, p},
 };
 
+use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
-pub async fn offline() -> impl IntoResponse {
+pub async fn offline(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
     page(
         PageMeta {
             title: "Offline — Oefeningen Basisschool",
@@ -29,10 +31,12 @@ pub async fn offline() -> impl IntoResponse {
             ),
         ),
         "",
+        banner,
     )
 }
 
-pub async fn not_found() -> impl IntoResponse {
+pub async fn not_found(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
     let mut res = page(
         PageMeta {
             title: "Pagina Niet Gevonden — Oefeningen Basisschool",
@@ -54,6 +58,7 @@ pub async fn not_found() -> impl IntoResponse {
             ),
         ),
         "",
+        banner,
     )
     .into_response();
     *res.status_mut() = StatusCode::NOT_FOUND;

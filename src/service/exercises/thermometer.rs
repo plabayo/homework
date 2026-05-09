@@ -1,7 +1,9 @@
+use rama::http::Request;
 use rama::http::html::{div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_scaffold};
+use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
 const INFO: ExerciseInfo = ExerciseInfo {
@@ -16,7 +18,8 @@ const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("thermometer.css");
 const SCRIPT: &str = include_str!("thermometer.js");
 
-pub async fn handler() -> impl IntoResponse {
+pub async fn handler(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
     let body = (
         page_header("thermometer 🌡️"),
         exercise_scaffold(
@@ -37,6 +40,7 @@ pub async fn handler() -> impl IntoResponse {
         STYLE,
         body,
         SCRIPT,
+        banner,
     )
 }
 

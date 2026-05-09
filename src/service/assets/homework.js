@@ -1624,9 +1624,28 @@ document.addEventListener("input", (e) => {
     }
 });
 
+// ---------- language banner ----------
+
+function setupLangBanner() {
+    const banner = document.getElementById("lang-banner");
+    if (!banner) return;
+    // On cached/offline pages the server-rendered banner might be stale:
+    // remove it immediately if the user already dismissed it in a live session.
+    if (document.cookie.split(";").some((c) => c.trim() === "lang_ok=1")) {
+        banner.remove();
+        return;
+    }
+    const btn = document.getElementById("lang-banner-dismiss");
+    btn?.addEventListener("click", () => {
+        document.cookie = "lang_ok=1; path=/; max-age=31536000; SameSite=Lax";
+        banner.remove();
+    });
+}
+
 setupOfflineIndicator();
 setupLeaveGuardNavigation();
 registerServiceWorker();
+setupLangBanner();
 window.addEventListener("DOMContentLoaded", () => {
     hydrateHomeStats();
 });

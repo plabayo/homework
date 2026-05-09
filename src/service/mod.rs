@@ -18,6 +18,7 @@ use rama::{
 
 mod assets;
 mod exercises;
+mod language_banner;
 mod layout;
 mod pages;
 

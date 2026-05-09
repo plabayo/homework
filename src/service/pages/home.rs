@@ -1,10 +1,13 @@
+use rama::http::Request;
 use rama::http::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, all_exercises, niveau_label};
+use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
-pub async fn home() -> impl IntoResponse {
+pub async fn home(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
     let body = page_body();
 
     page(
@@ -17,6 +20,7 @@ pub async fn home() -> impl IntoResponse {
         "",
         body,
         "",
+        banner,
     )
 }
 

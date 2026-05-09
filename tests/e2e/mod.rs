@@ -15,3 +15,4 @@ mod exercise_flows;
 mod flashcards_decks;
 mod flashcards_play;
 mod helpers;
+mod language_banner;

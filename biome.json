@@ -11,6 +11,9 @@
       "complexity": {
         "noImportantStyles": "off"
       },
+      "suspicious": {
+        "noDocumentCookie": "off"
+      },
       "correctness": {
         "noUnusedImports": "error"
       }

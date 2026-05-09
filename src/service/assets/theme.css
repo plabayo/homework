@@ -672,6 +672,33 @@ dialog.leave-guard-dialog::backdrop {
     background: color-mix(in srgb, var(--fg) 6%, transparent);
 }
 
+/* ---------- language banner ---------- */
+.lang-banner {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    color: var(--fg);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    margin-block-end: var(--space);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    font-size: 0.9rem;
+}
+.lang-banner p {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.lang-banner button {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    min-height: 36px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 /* ---------- offline indicator ---------- */
 .offline-banner {
     display: none;

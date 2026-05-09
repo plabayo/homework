@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 
-use rama::http::Uri;
+use rama::http::Request;
 use rama::http::html::{div, input};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
+use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
 pub const INFO: ExerciseInfo = ExerciseInfo {
@@ -19,8 +20,9 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
 const STYLE: &str = include_str!("flashcards.css");
 const SCRIPT: &str = include_str!("flashcards.js");
 
-pub async fn handler(uri: Uri) -> impl IntoResponse {
-    let is_import = uri.query().is_some_and(|q| q.contains("import="));
+pub async fn handler(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
+    let is_import = req.uri().query().is_some_and(|q| q.contains("import="));
 
     let (title, description) = if is_import {
         (
@@ -35,7 +37,8 @@ pub async fn handler(uri: Uri) -> impl IntoResponse {
     };
 
     let og_path: Cow<'static, str> = if is_import {
-        let path_and_query = uri
+        let path_and_query = req
+            .uri()
             .path_and_query()
             .map(|pq| pq.as_str())
             .unwrap_or("/extra/flashcards");
@@ -64,6 +67,7 @@ pub async fn handler(uri: Uri) -> impl IntoResponse {
         STYLE,
         body,
         SCRIPT,
+        banner,
     )
 }
 

@@ -43,11 +43,13 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
 /// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
 /// they go into `<style>` / `<script type="module">` verbatim (not HTML-escaped).
 /// Inline exercise modules can import the shared runtime via `@homework`.
+/// `banner` is optional pre-rendered HTML inserted at the top of the page.
 pub fn page(
     meta_data: PageMeta,
     extra_style: &str,
     body_content: impl IntoHtml,
     extra_module_script: &str,
+    banner: Option<PreEscaped<String>>,
 ) -> impl IntoResponse {
     let favicon_data = format!(
         "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>{}</text></svg>",
@@ -58,7 +60,6 @@ pub fn page(
     let manifest_url = versioned_asset_url("/manifest.webmanifest");
     let shared_js_url = versioned_asset_url("/homework.js");
     let shared_js_import_map = shared_js_import_map(&shared_js_url);
-
     html!(
         lang = "nl",
         "data-asset-version" = ASSET_VERSION,
@@ -101,6 +102,7 @@ pub fn page(
             canvas!(id = "confetti", "aria-hidden" = "true"),
             div!(
                 class = "page",
+                PreEscaped(banner.map(|b| b.0).unwrap_or_default()),
                 div!(
                     class = "offline-banner",
                     "📴 Offline modus — je gebruikt een opgeslagen versie.",
