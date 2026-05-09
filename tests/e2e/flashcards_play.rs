@@ -1,6 +1,6 @@
 use super::helpers::{
     click, inject_deck, inject_deck_json, poll_until, select_deck_and_start, set_checkbox,
-    set_input_value, wait_for_css, wait_for_rail_stable, wait_for_text,
+    set_input_value, wait_for_css, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
@@ -770,7 +770,6 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
         Duration::from_secs(10),
     )
     .await?;
-    wait_for_rail_stable(driver).await?;
 
     let start_metrics = driver
         .execute(
@@ -1004,8 +1003,6 @@ async fn flashcards_review_mode_multipart_card_shows_chips() -> TestResult<()> {
     click(driver, "#fc-start-review").await?;
 
     wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(10)).await?;
-    // Wait for the initial centering animation to finish before clicking.
-    wait_for_rail_stable(driver).await?;
 
     click(driver, ".fc-review-card.is-active").await?;
     poll_until(Duration::from_secs(10), || async {

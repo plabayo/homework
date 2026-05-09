@@ -641,9 +641,6 @@ const reviewState = {
     keyHandler: null,
     resizeHandler: null,
     resizeTimer: null,
-    scrollSyncCleanup: null,
-    scrollStep: 0,
-    scrollStepRefresh: null,
 };
 
 function setupPage() {
@@ -935,6 +932,21 @@ function reviewFaceHtml(label, kind, value, wikimedia = "", parts = null, partsR
         </span>`;
 }
 
+function buildReviewCardHtml(index) {
+    const card = reviewState.cards[index];
+    const total = reviewState.cards.length;
+    return `<button type="button" class="fc-review-card is-active${reviewState.flipped.has(index) ? " is-flipped" : ""}" data-index="${index}" aria-label="kaart ${index + 1} van ${total}">
+        <span class="fc-review-card-inner">
+            <span class="fc-review-face fc-review-face-front">
+                ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
+            </span>
+            <span class="fc-review-face fc-review-face-back">
+                ${reviewFaceHtml(card.backLabel, card.backKind, card.backText, "", card.backParts, card.backPartsRequired)}
+            </span>
+        </span>
+    </button>`;
+}
+
 function renderReviewViewer() {
     if (!reviewState.active) return;
     const root = exerciseContent();
@@ -943,96 +955,35 @@ function renderReviewViewer() {
     if (!root || !title || !feedback || reviewState.cards.length === 0) return;
 
     const total = reviewState.cards.length;
-    const current = reviewState.cards[reviewState.currentIndex];
-    title.textContent = `kaart ${reviewState.currentIndex + 1} van ${total}`;
+    title.textContent = `kaart 1 van ${total}`;
     feedback.textContent = "Tik op de kaart om om te draaien. Gebruik pijltjes of de knoppen om te bladeren.";
     feedback.classList.remove("is-bad");
-
-    const cardsHtml = reviewState.cards
-        .map((card, index) => {
-            const distance = index - reviewState.currentIndex;
-            const isActive = index === reviewState.currentIndex;
-            const classes = [
-                "fc-review-card",
-                isActive ? "is-active" : "",
-                reviewState.flipped.has(index) ? "is-flipped" : "",
-                Math.abs(distance) <= 1 ? "is-near" : "is-far",
-            ]
-                .filter(Boolean)
-                .join(" ");
-            return `
-                <button
-                    type="button"
-                    class="${classes}"
-                    data-index="${index}"
-                    data-distance="${distance}"
-                    aria-current="${isActive ? "true" : "false"}"
-                    aria-label="kaart ${index + 1} van ${total}"
-                >
-                    <span class="fc-review-card-inner">
-                        <span class="fc-review-face fc-review-face-front">
-                            ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
-                        </span>
-                        <span class="fc-review-face fc-review-face-back">
-                            ${reviewFaceHtml(card.backLabel, card.backKind, card.backText, "", card.backParts, card.backPartsRequired)}
-                        </span>
-                    </span>
-                </button>`;
-        })
-        .join("");
 
     root.innerHTML = `
         <div class="fc-review-viewer">
             <div class="fc-review-stage">
                 <div class="fc-review-viewport">
-                    <div class="fc-review-rail">
-                        ${cardsHtml}
-                    </div>
+                    ${buildReviewCardHtml(0)}
                 </div>
             </div>
             <div class="fc-review-controls">
-                <button type="button" id="fc-review-prev"${reviewState.currentIndex === 0 ? " disabled" : ""}>⬅ vorige</button>
-                <p class="fc-review-counter">${reviewState.currentIndex + 1} / ${total}</p>
-                <button type="button" id="fc-review-next"${reviewState.currentIndex >= total - 1 ? " disabled" : ""}>volgende ➡</button>
+                <button type="button" id="fc-review-prev" disabled>⬅ vorige</button>
+                <p class="fc-review-counter">1 / ${total}</p>
+                <button type="button" id="fc-review-next"${total <= 1 ? " disabled" : ""}>volgende ➡</button>
             </div>
         </div>`;
 
-    root.querySelectorAll(".fc-review-card").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const index = Number(btn.dataset.index);
-            if (index === reviewState.currentIndex) {
-                toggleReviewFlip(index);
-            } else {
-                reviewState.currentIndex = index;
-                reviewState.flipped.delete(index);
-                updateReviewActiveCard();
-            }
-        });
+    root.querySelector(".fc-review-viewport").addEventListener("click", () => {
+        toggleReviewFlip(reviewState.currentIndex);
     });
+    root.querySelector("#fc-review-prev").addEventListener("click", () => moveReviewBy(-1));
+    root.querySelector("#fc-review-next").addEventListener("click", () => moveReviewBy(1));
 
-    root.querySelector("#fc-review-prev")?.addEventListener("click", () => {
-        moveReviewBy(-1);
-    });
-    root.querySelector("#fc-review-next")?.addEventListener("click", () => {
-        moveReviewBy(1);
-    });
-
-    bindReviewScrollSync();
-    syncReviewRailPosition();
     fitReviewFaceText();
     requestAnimationFrame(() => {
         fitReviewFaceText();
         hydrateReviewImages();
     });
-}
-
-function syncReviewRailPosition(animated = true) {
-    if (!reviewState.active || reviewState.scrollStep <= 0) return;
-    const rail = document.querySelector(".fc-review-rail");
-    if (!rail) return;
-    const offset = -reviewState.currentIndex * reviewState.scrollStep;
-    rail.style.transition = animated ? "transform 280ms ease-out" : "none";
-    rail.style.transform = `translateX(${offset}px)`;
 }
 
 function hydrateReviewImages() {
@@ -1068,94 +1019,21 @@ function fitReviewFaceText() {
     });
 }
 
-function updateReviewActiveCard({ scrollToActive = true } = {}) {
-    const total = reviewState.cards.length;
+function updateReviewActiveCard() {
     const current = reviewState.currentIndex;
+    const total = reviewState.cards.length;
     const title = exerciseTitle();
     if (title) title.textContent = `kaart ${current + 1} van ${total}`;
-    document.querySelectorAll(".fc-review-card").forEach((card) => {
-        const index = Number(card.dataset.index);
-        const distance = index - current;
-        card.dataset.distance = distance;
-        card.classList.toggle("is-active", index === current);
-        card.classList.toggle("is-near", Math.abs(distance) <= 1);
-        card.classList.toggle("is-far", Math.abs(distance) > 1);
-    });
+    const viewport = document.querySelector(".fc-review-viewport");
+    if (viewport) viewport.innerHTML = buildReviewCardHtml(current);
     const counter = document.querySelector(".fc-review-counter");
     if (counter) counter.textContent = `${current + 1} / ${total}`;
     const prev = document.getElementById("fc-review-prev");
     const next = document.getElementById("fc-review-next");
     if (prev) prev.disabled = current === 0;
     if (next) next.disabled = current >= total - 1;
-    if (scrollToActive) syncReviewRailPosition();
-}
-
-function bindReviewScrollSync() {
-    const stage = document.querySelector(".fc-review-stage");
-    const rail = document.querySelector(".fc-review-rail");
-    if (!stage || !rail) return;
-
-    const computeStep = () => {
-        const card = rail.querySelector(".fc-review-card");
-        if (!card) return 0;
-        return card.offsetWidth + (parseFloat(getComputedStyle(rail).columnGap) || 0);
-    };
-    reviewState.scrollStep = computeStep();
-    reviewState.scrollStepRefresh = () => { reviewState.scrollStep = computeStep(); };
-
-    let startX = 0, startY = 0, dragging = false;
-
-    const endDrag = (commitDx = 0, commitDy = 0) => {
-        if (!dragging) return;
-        dragging = false;
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onCancel);
-        if (Math.abs(commitDx) > Math.abs(commitDy) && Math.abs(commitDx) > 40) {
-            moveReviewBy(commitDx < 0 ? 1 : -1);
-        } else {
-            syncReviewRailPosition();
-        }
-    };
-
-    const onMove = (e) => {
-        if (!dragging || reviewState.scrollStep <= 0) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 12) return;
-        const base = -reviewState.currentIndex * reviewState.scrollStep;
-        const atStart = reviewState.currentIndex === 0 && dx > 0;
-        const atEnd = reviewState.currentIndex >= reviewState.cards.length - 1 && dx < 0;
-        const offset = base + (atStart || atEnd ? dx * 0.25 : dx);
-        rail.style.transition = "none";
-        rail.style.transform = `translateX(${offset}px)`;
-    };
-
-    const onUp = (e) => endDrag(e.clientX - startX, e.clientY - startY);
-    const onCancel = () => endDrag();
-
-    const onDown = (e) => {
-        if (e.pointerType === "mouse" && e.button !== 0) return;
-        startX = e.clientX;
-        startY = e.clientY;
-        dragging = true;
-        // Attach to window so drag continues outside the stage and click events
-        // on child cards are never redirected (no setPointerCapture).
-        window.addEventListener("pointermove", onMove, { passive: true });
-        window.addEventListener("pointerup", onUp);
-        window.addEventListener("pointercancel", onCancel);
-    };
-
-    stage.addEventListener("pointerdown", onDown);
-
-    reviewState.scrollSyncCleanup = () => {
-        stage.removeEventListener("pointerdown", onDown);
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onCancel);
-        reviewState.scrollStep = 0;
-        reviewState.scrollStepRefresh = null;
-    };
+    fitReviewFaceText();
+    hydrateReviewImages();
 }
 
 function moveReviewBy(step) {
@@ -1171,8 +1049,7 @@ function toggleReviewFlip(index) {
     const willFlip = !reviewState.flipped.has(index);
     if (willFlip) reviewState.flipped.add(index);
     else reviewState.flipped.delete(index);
-    const card = document.querySelector(`.fc-review-card[data-index='${index}']`);
-    if (card) card.classList.toggle("is-flipped", willFlip);
+    document.querySelector(".fc-review-card")?.classList.toggle("is-flipped", willFlip);
 }
 
 function showReviewPage() {
@@ -1200,10 +1077,6 @@ function stopReviewSession({ keepPage = false } = {}) {
     if (reviewState.resizeTimer) {
         clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = null;
-    }
-    if (reviewState.scrollSyncCleanup) {
-        reviewState.scrollSyncCleanup();
-        reviewState.scrollSyncCleanup = null;
     }
     exerciseForm()?.removeAttribute("data-review-mode");
     exerciseBox()?.classList.remove("fc-review-session");
@@ -1256,15 +1129,10 @@ async function startReviewSession() {
         }
     };
     reviewState.resizeHandler = () => {
-        const stage = document.querySelector(".fc-review-stage");
-        stage?.classList.add("is-resizing");
         if (reviewState.resizeTimer) clearTimeout(reviewState.resizeTimer);
         reviewState.resizeTimer = setTimeout(() => {
             reviewState.resizeTimer = null;
-            reviewState.scrollStepRefresh?.();
-            syncReviewRailPosition(false);
             fitReviewFaceText();
-            document.querySelector(".fc-review-stage")?.classList.remove("is-resizing");
         }, 120);
     };
     document.addEventListener("keydown", reviewState.keyHandler, true);

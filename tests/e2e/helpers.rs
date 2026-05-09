@@ -220,41 +220,6 @@ where
     }
 }
 
-/// Waits until the `.fc-review-rail` has stopped moving visually for three
-/// consecutive animation frames.  We track `getBoundingClientRect().left`
-/// rather than `getComputedStyle().transform` because `will-change: transform`
-/// promotes the rail to its own GPU compositor layer: the style property
-/// reflects the *final* target value immediately, but the compositor keeps
-/// animating and `getBoundingClientRect()` reads the actual visual position.
-pub(crate) async fn wait_for_rail_stable(driver: &WebDriver) -> TestResult<()> {
-    driver
-        .execute_async(
-            r#"
-            const done = arguments[arguments.length - 1];
-            const rail = document.querySelector('.fc-review-rail');
-            if (!rail) return done();
-            let prev = -99999;
-            let stable = 0;
-            function check() {
-                const cur = rail.getBoundingClientRect().left;
-                if (Math.abs(cur - prev) < 0.5) {
-                    stable++;
-                    if (stable >= 3) return done();
-                } else {
-                    stable = 0;
-                }
-                prev = cur;
-                window.requestAnimationFrame(check);
-            }
-            window.requestAnimationFrame(check);
-            setTimeout(done, 2000);
-            "#,
-            vec![],
-        )
-        .await?;
-    Ok(())
-}
-
 pub(crate) fn parse_product_answer(text: &str) -> TestResult<u32> {
     let mut numbers = text
         .split(|c: char| !c.is_ascii_digit())
