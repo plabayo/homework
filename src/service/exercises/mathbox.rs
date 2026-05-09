@@ -23,6 +23,7 @@ pub async fn handler() -> impl IntoResponse {
             INFO,
             "De digitale rekendoos: optellen, aftrekken, splitsen, vermenigvuldigen en delen.",
             config_fields(),
+            (),
         ),
     );
 

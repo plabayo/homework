@@ -196,7 +196,7 @@ function clockSvg(h, m, opts) {
     `;
 }
 
-function attachInteractive(root, q) {
+function attachInteractive(root, q, opts = {}) {
     const wrap = root.querySelector(".clock.interactive");
     const svg = wrap.querySelector("svg");
     const minHand = svg.querySelector(".hand-minute");
@@ -236,6 +236,7 @@ function attachInteractive(root, q) {
         setHand([hitMin], minuteAngle, 36, 8);
         setHand([hourHand], hourAngle, 24);
         setHand([hitHour], hourAngle, 24, 8);
+        opts.onSet?.(state.h, state.m);
     };
     set(state.h, state.m);
 
@@ -319,10 +320,10 @@ function attachInteractive(root, q) {
         }
         set(nh, m);
     };
-    const hourIncBtn = root.querySelector("#hour-inc");
-    const hourDecBtn = root.querySelector("#hour-dec");
-    const minIncBtn = root.querySelector("#min-inc");
-    const minDecBtn = root.querySelector("#min-dec");
+    const hourIncBtn = opts.hourIncBtn ?? root.querySelector("#hour-inc");
+    const hourDecBtn = opts.hourDecBtn ?? root.querySelector("#hour-dec");
+    const minIncBtn = opts.minIncBtn ?? root.querySelector("#min-inc");
+    const minDecBtn = opts.minDecBtn ?? root.querySelector("#min-dec");
     hourIncBtn?.addEventListener("click", onHourInc);
     hourDecBtn?.addEventListener("click", onHourDec);
     minIncBtn?.addEventListener("click", onMinInc);
@@ -347,6 +348,47 @@ function timeLabel(h, m) {
     const hh = h === 0 ? 12 : h;
     return `${pad(hh)}:${pad(m)}`;
 }
+
+function mountFreeplay() {
+    const clockDiv = document.getElementById("freeplay-clock");
+    if (!clockDiv) return;
+
+    const pageSetup = document.getElementById("page-setup");
+    const pageFreeplay = document.getElementById("page-freeplay");
+    const openBtn = document.getElementById("freeplay-open");
+    const backBtn = document.getElementById("freeplay-back");
+
+    openBtn?.addEventListener("click", () => {
+        pageSetup.hidden = true;
+        pageFreeplay.hidden = false;
+    });
+    backBtn?.addEventListener("click", () => {
+        pageFreeplay.hidden = true;
+        pageSetup.hidden = false;
+    });
+
+    clockDiv.innerHTML = clockSvg(6, 0, { interactive: true });
+
+    const digitalEl = document.getElementById("freeplay-digital");
+    const phraseEl = document.getElementById("freeplay-phrase");
+
+    attachInteractive(
+        clockDiv,
+        { granularity: "five" },
+        {
+            onSet(h, m) {
+                digitalEl.textContent = timeLabel(h, m);
+                phraseEl.textContent = dutchTimePhrase(h, m) ?? "";
+            },
+            hourIncBtn: document.getElementById("freeplay-hour-inc"),
+            hourDecBtn: document.getElementById("freeplay-hour-dec"),
+            minIncBtn: document.getElementById("freeplay-min-inc"),
+            minDecBtn: document.getElementById("freeplay-min-dec"),
+        },
+    );
+}
+
+mountFreeplay();
 
 runExercise({
     id: "clock",

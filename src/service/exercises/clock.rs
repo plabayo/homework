@@ -1,4 +1,4 @@
-use rama::http::html::{div, fieldset, input, label, legend};
+use rama::http::html::{button, div, fieldset, input, label, legend, p, section, span};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_scaffold};
@@ -19,10 +19,12 @@ const SCRIPT: &str = include_str!("clock.js");
 pub async fn handler() -> impl IntoResponse {
     let body = (
         page_header("analoge klok 🕐"),
+        freeplay_section(),
         exercise_scaffold(
             INFO,
             "Leer de analoge klok lezen en zetten. Kies de oefen-type en de moeilijkheidsgraad.",
             config_fields(),
+            freeplay_entry(),
         ),
     );
 
@@ -127,6 +129,61 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
             label!(
                 input!(r#type = "radio", name = "answer", value = "fill"),
                 " typ de tijd zelf in",
+            ),
+        ),
+    )
+}
+
+fn freeplay_entry() -> impl rama::http::html::IntoHtml {
+    div!(
+        class = "freeplay-entry",
+        p!(
+            class = "freeplay-entry-hint",
+            "Wil je de klok verkennen zonder oefeningen? Gebruik de vrije modus — handig om de klok samen uit te leggen.",
+        ),
+        button!(r#type = "button", id = "freeplay-open", "🕐 vrij verkennen",),
+    )
+}
+
+fn freeplay_section() -> impl rama::http::html::IntoHtml {
+    section!(
+        id = "page-freeplay",
+        hidden? = true,
+        div!(
+            class = "exercise-meta",
+            button!(
+                r#type = "button",
+                id = "freeplay-back",
+                class = "button-reset",
+                "terug naar menu ↩️",
+            ),
+            p!(id = "exercise-title", "vrij verkennen 🕐"),
+        ),
+        div!(id = "freeplay-clock"),
+        div!(
+            class = "freeplay-time",
+            p!(class = "time-readout", id = "freeplay-digital", "06:00"),
+            p!(class = "freeplay-phrase", id = "freeplay-phrase", "zes uur"),
+        ),
+        div!(
+            class = "clock-controls",
+            div!(
+                class = "clock-control-row",
+                span!(class = "label", "uur"),
+                div!(
+                    class = "button-pair",
+                    button!(r#type = "button", id = "freeplay-hour-dec", "➖"),
+                    button!(r#type = "button", id = "freeplay-hour-inc", "➕"),
+                ),
+            ),
+            div!(
+                class = "clock-control-row",
+                span!(class = "label", "minuut"),
+                div!(
+                    class = "button-pair",
+                    button!(r#type = "button", id = "freeplay-min-dec", "➖"),
+                    button!(r#type = "button", id = "freeplay-min-inc", "➕"),
+                ),
             ),
         ),
     )

@@ -6,6 +6,7 @@ export RUST_LOG := "info,homework=debug,rama_http=debug,rama_http_core=info"
 
 fmt *ARGS:
 	cargo fmt --all {{ARGS}}
+	just fmt-web
 
 sort:
 	@cargo install cargo-sort
@@ -34,7 +35,7 @@ check-web:
 	just _ensure-biome
 	biome ci src/service
 
-lint: fmt sort fmt-web
+lint: fmt sort
 
 check:
 	cargo check --all-targets --all-features

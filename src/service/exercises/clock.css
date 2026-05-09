@@ -119,6 +119,7 @@
     gap: 12px;
     align-items: center;
     margin-block-start: 8px;
+    user-select: none;
 }
 .clock-control-row {
     display: flex;
@@ -132,4 +133,57 @@
     color: var(--muted);
     min-width: 4em;
     text-align: end;
+}
+
+/* ---------- freeplay entry button ---------- */
+.freeplay-entry {
+    text-align: center;
+    padding-block-start: calc(var(--space) * 1.5);
+    padding-block-end: var(--space);
+    border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    margin-block-start: var(--space);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+.freeplay-entry-hint {
+    color: var(--muted);
+    font-size: 0.9rem;
+    max-width: 34em;
+    line-height: 1.5;
+}
+.freeplay-entry button {
+    background: none;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    color: var(--muted);
+    font-size: 0.95rem;
+    padding: 6px 18px;
+    border-radius: 6px;
+}
+.freeplay-entry button:hover {
+    color: currentColor;
+    border-color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
+/* ---------- free-play screen ---------- */
+#page-freeplay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.freeplay-time {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    user-select: none;
+}
+.freeplay-phrase {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+    min-height: 1.6em;
+    text-align: center;
 }

@@ -50,6 +50,7 @@ pub async fn handler(uri: Uri) -> impl IntoResponse {
             INFO,
             "Maak je eigen kaartjes en oefen ze. Kies een deck hieronder of maak een nieuw deck aan.",
             config_fields(),
+            (),
         ),
     );
 

@@ -23,6 +23,7 @@ pub async fn handler() -> impl IntoResponse {
             INFO,
             "Oefen de Nederlandse uitdrukkingen voor tijd: \"kwart over\", \"half\", \"kwart voor\", en het volle uur — vertaal tussen digitale tijd en woorden.",
             config_fields(),
+            (),
         ),
     );
 

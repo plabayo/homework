@@ -124,6 +124,7 @@ pub fn exercise_scaffold(
     info: ExerciseInfo,
     intro: impl IntoHtml,
     config_fields: impl IntoHtml,
+    setup_extra: impl IntoHtml,
 ) -> impl IntoHtml {
     (
         section!(
@@ -139,6 +140,7 @@ pub fn exercise_scaffold(
                     button!(r#type = "submit", class = "primary", "🟢 start met oefenen"),
                 ),
             ),
+            setup_extra,
             history_block(info),
         ),
         section!(

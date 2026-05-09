@@ -23,6 +23,7 @@ pub async fn handler() -> impl IntoResponse {
             INFO,
             "Leer werken met een analoge thermometer: kleur of lees de temperatuur. Optioneel ook met negatieve temperaturen.",
             config_fields(),
+            (),
         ),
     );
 

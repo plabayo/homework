@@ -37,6 +37,13 @@ h6 {
 }
 button {
     cursor: pointer;
+    user-select: none;
+}
+.button-row,
+.button-pair,
+.exercise-actions,
+.exercise-meta {
+    user-select: none;
 }
 a {
     color: var(--accent);

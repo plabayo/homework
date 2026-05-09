@@ -23,6 +23,7 @@ pub async fn handler() -> impl IntoResponse {
             INFO,
             "Oefen hier de maaltafels. Kies hoeveel oefeningen en welke tafels.",
             config_fields(),
+            (),
         ),
     );
 
