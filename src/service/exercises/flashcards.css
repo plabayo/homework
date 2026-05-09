@@ -614,9 +614,28 @@
     aspect-ratio: 5 / 7;
     border: none;
     background: none;
-    perspective: 1200px;
+    perspective: 900px;
     cursor: pointer;
     position: relative;
+    transition: transform 180ms ease;
+}
+
+.fc-review-card:focus {
+    outline: none;
+}
+
+.fc-review-card:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 6px;
+    border-radius: 22px;
+}
+
+.fc-review-card:hover {
+    transform: translateY(-5px);
+}
+
+.fc-review-card:active {
+    transform: translateY(-2px);
 }
 
 .fc-review-card.is-active {
@@ -657,9 +676,22 @@
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     border-radius: 18px;
-    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.07),
+        0 8px 20px rgba(0, 0, 0, 0.1),
+        0 22px 46px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
     overflow: hidden;
+    transition: box-shadow 180ms ease;
+}
+
+.fc-review-card:hover .fc-review-face {
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.07),
+        0 14px 32px rgba(0, 0, 0, 0.12),
+        0 32px 64px rgba(0, 0, 0, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .fc-review-face-front {
