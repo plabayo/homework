@@ -144,6 +144,22 @@ jobs:
         if: always()
         run: kill "$SERVER_PID" 2>/dev/null || true
 
+  copyright-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check copyright headers
+        run: |
+          missing=$(grep -rL "Copyright (C) 2024-2026 Plabayo" src/ tests/ \
+            --include="*.rs" --include="*.css" --include="*.js" \
+            --exclude-dir=fixtures 2>/dev/null || true)
+          if [ -n "$missing" ]; then
+            echo "Missing copyright header in:"
+            echo "$missing"
+            exit 1
+          fi
+          echo "All source files have copyright headers."
+
   deploy-fly:
     runs-on: ubuntu-latest
     needs:
@@ -152,6 +168,7 @@ jobs:
       - lighthouse
       - dependencies-are-sorted
       - lint-web
+      - copyright-headers
     steps:
       - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master

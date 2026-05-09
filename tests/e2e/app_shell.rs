@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use super::helpers::{
     click, collect_hrefs, set_checkbox, set_input_value, wait_for_css, wait_for_text,
 };

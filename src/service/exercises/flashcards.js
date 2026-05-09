@@ -1,4 +1,8 @@
-﻿import { clearLeaveGuard, escapeHtml, refreshLeaveGuards, runExercise, setLeaveGuard, shuffle } from "@homework";
+// Copyright (C) 2024-2026 Plabayo
+// License: https://github.com/plabayo/homework/blob/main/LICENSE
+// Source-available; non-commercial use only.
+
+import { clearLeaveGuard, escapeHtml, refreshLeaveGuards, runExercise, setLeaveGuard, shuffle } from "@homework";
 
 // ---------- Fuzzy matching ----------
 

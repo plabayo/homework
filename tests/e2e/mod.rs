@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 pub(crate) use std::thread::sleep;
 pub(crate) use std::time::{Duration, Instant};
 

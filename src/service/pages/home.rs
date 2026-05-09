@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use rama::http::Request;
 use rama::http::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
 use rama::http::service::web::response::IntoResponse;

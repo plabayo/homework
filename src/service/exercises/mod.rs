@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use rama::http::html::{IntoHtml, button, div, fieldset, form, input, label, legend, p, section};
 
 pub mod clock;

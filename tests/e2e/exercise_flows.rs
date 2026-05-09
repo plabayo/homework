@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use super::helpers::{
     click, parse_product_answer, selector_has_disabled, set_checkbox, set_input_value, text_of,
     wait_for_css, wait_for_nonempty_text, wait_for_text,

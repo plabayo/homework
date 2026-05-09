@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use super::helpers::{
     click, generate_import_param, inject_deck_json, select_deck_and_start, set_input_value,
     text_of, wait_for_css, wait_for_enabled, wait_for_nonempty_text, wait_for_text,

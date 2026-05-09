@@ -35,6 +35,30 @@ check-web:
 	just _ensure-biome
 	biome ci src/service
 
+# Verify every .rs/.css/.js source file starts with the copyright header
+[unix]
+check-copyright:
+	@missing=$$(grep -rL "Copyright (C) 2024-2026 Plabayo" src/ tests/ \
+	    --include="*.rs" --include="*.css" --include="*.js" \
+	    --exclude-dir=fixtures 2>/dev/null); \
+	if [ -n "$$missing" ]; then \
+	    echo "Missing copyright header in:"; \
+	    echo "$$missing"; \
+	    exit 1; \
+	fi; \
+	echo "All source files have copyright headers."
+
+[windows]
+check-copyright:
+	@$missing = Get-ChildItem -Recurse -Include "*.rs","*.css","*.js" -Path "src","tests" | \
+	    Where-Object { $_.FullName -notmatch "\\fixtures\\" } | \
+	    Where-Object { (Get-Content $_.FullName -Raw -Encoding UTF8) -notmatch "Copyright \(C\) 2024-2026 Plabayo" }; \
+	if ($missing) { \
+	    Write-Host "Missing copyright header in:"; \
+	    $missing | ForEach-Object { Write-Host $_.FullName }; \
+	    exit 1 \
+	} else { Write-Host "All source files have copyright headers." }
+
 lint: fmt sort
 
 check:
@@ -76,7 +100,7 @@ lighthouse URL="http://localhost:8080":
 	$r = npx --yes lighthouse@12 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
 	Write-Host "score: $($r.categories.accessibility.score) ($($r.categories.accessibility.title))"
 
-qq: lint check clippy doc check-web
+qq: lint check clippy doc check-web check-copyright
 
 qa: qq test
 

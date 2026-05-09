@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
 use std::borrow::Cow;
 
 use rama::http::html::{
@@ -64,6 +68,9 @@ pub fn page(
         lang = "nl",
         "data-asset-version" = ASSET_VERSION,
         head!(
+            PreEscaped(
+                "<!-- Copyright (C) 2024-2026 Plabayo. License: https://github.com/plabayo/homework/blob/main/LICENSE Source-available; non-commercial use only. -->"
+            ),
             meta!(charset = "UTF-8"),
             meta!(
                 name = "viewport",

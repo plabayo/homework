@@ -1,3 +1,7 @@
+// Copyright (C) 2024-2026 Plabayo
+// License: https://github.com/plabayo/homework/blob/main/LICENSE
+// Source-available; non-commercial use only.
+
 import { load, pickRandom, read, runExercise } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
