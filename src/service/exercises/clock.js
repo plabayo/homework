@@ -1,5 +1,6 @@
 import {
     dutchTimePhrase,
+    dutchTimePhraseVariants,
     load,
     optionListHtml,
     pad,
@@ -378,7 +379,12 @@ function mountFreeplay() {
         {
             onSet(h, m) {
                 digitalEl.textContent = timeLabel(h, m);
-                phraseEl.textContent = dutchTimePhrase(h, m) ?? "";
+                const variants = dutchTimePhraseVariants(h, m);
+                if (variants.length > 1) {
+                    phraseEl.innerHTML = `${variants[0]} <em class="phrase-or">of</em> ${variants[1]}`;
+                } else {
+                    phraseEl.textContent = variants[0] ?? "";
+                }
             },
             hourIncBtn: document.getElementById("freeplay-hour-inc"),
             hourDecBtn: document.getElementById("freeplay-hour-dec"),
@@ -471,7 +477,7 @@ runExercise({
             // q.kind === 'zet' or 'zet-woorden'
             const promptText =
                 q.promptStyle === "words"
-                    ? `zet de klok op "${dutchTimePhrase(q.h, q.m)}" ⏰`
+                    ? `zet de klok op "${pickRandom(dutchTimePhraseVariants(q.h, q.m))}" ⏰`
                     : `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
             document.getElementById("exercise-feedback").textContent = promptText;
             root.innerHTML = `

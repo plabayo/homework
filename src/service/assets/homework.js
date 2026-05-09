@@ -269,6 +269,31 @@ export function dutchTimePhrase(h, m) {
 }
 
 /**
+ * All valid Dutch time phrases for a given 5-minute time (1 or 2 variants).
+ * Traditional "half" form is always first; the modern direct form ("twintig
+ * over", "vijfentwintig over/voor") is second when applicable (m=20/25/35/40).
+ * Returns an empty array for times not on a 5-minute boundary.
+ */
+export function dutchTimePhraseVariants(h, m) {
+    const h12 = ((h % 12) + 12) % 12;
+    const next = (h12 + 1) % 12;
+    switch (m) {
+        case 20:
+            return [`tien voor half ${hourName(next)}`, `twintig over ${hourName(h12)}`];
+        case 25:
+            return [`vijf voor half ${hourName(next)}`, `vijfentwintig over ${hourName(h12)}`];
+        case 35:
+            return [`vijf over half ${hourName(next)}`, `vijfentwintig voor ${hourName(next)}`];
+        case 40:
+            return [`tien over half ${hourName(next)}`, `twintig voor ${hourName(next)}`];
+        default: {
+            const p = dutchTimePhrase(h, m);
+            return p !== null ? [p] : [];
+        }
+    }
+}
+
+/**
  * Build an option-list HTML string for multiple-choice exercises.
  * Pairs with wireOptions(). labelFn provides button text; valueFn provides
  * the encoded data-value (defaults to String).

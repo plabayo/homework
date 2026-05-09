@@ -187,3 +187,10 @@
     min-height: 1.6em;
     text-align: center;
 }
+.phrase-or {
+    font-style: normal;
+    font-weight: 400;
+    font-size: 0.85em;
+    color: var(--muted);
+    padding-inline: 0.3em;
+}

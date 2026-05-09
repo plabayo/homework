@@ -1,5 +1,6 @@
 import {
     dutchTimePhrase,
+    dutchTimePhraseVariants,
     load,
     normalizePhrase,
     optionListHtml,
@@ -60,6 +61,7 @@ function buildDeck(cfg) {
         granularity: cfg.granularity,
         h,
         m,
+        phraseVariant: pickRandom(dutchTimePhraseVariants(h, m)) || dutchTimePhrase(h, m),
     }));
 }
 
@@ -131,7 +133,7 @@ runExercise({
             return;
         }
         const dt = digitalLabel(q.h, q.m, q.use24h);
-        const correctPhrase = dutchTimePhrase(q.h, q.m);
+        const correctPhrase = q.phraseVariant || dutchTimePhrase(q.h, q.m);
         // Fill-in is only used for the words → digital direction. Going from
         // digital to free-typed Dutch phrases is too error-prone (typos,
         // alternative phrasings) so we always use multiple choice there.
@@ -198,7 +200,7 @@ runExercise({
     isCorrect(q, given) {
         if (!given) return false;
         if (q.dir === "digital-to-words") {
-            return normalizePhrase(given) === normalizePhrase(dutchTimePhrase(q.h, q.m));
+            return normalizePhrase(given) === normalizePhrase(q.phraseVariant || dutchTimePhrase(q.h, q.m));
         }
         try {
             const obj = JSON.parse(given);
@@ -218,7 +220,7 @@ runExercise({
     },
     describe(q) {
         const dt = digitalLabel(q.h, q.m, q.use24h);
-        const phrase = dutchTimePhrase(q.h, q.m);
+        const phrase = q.phraseVariant || dutchTimePhrase(q.h, q.m);
         const dayPart = q.use24h && q.h >= 12 ? " ('s middags)" : "";
         return q.dir === "digital-to-words" ? `${dt} → ${phrase}${dayPart}` : `${phrase}${dayPart} → ${dt}`;
     },

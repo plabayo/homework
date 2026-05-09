@@ -10,6 +10,7 @@ pub(crate) use thirtyfour::prelude::{By, WebDriver, WebElement};
 pub(crate) type TestResult<T> = Result<T, BoxError>;
 
 mod app_shell;
+mod clock_freeplay;
 mod exercise_flows;
 mod flashcards_decks;
 mod flashcards_play;
