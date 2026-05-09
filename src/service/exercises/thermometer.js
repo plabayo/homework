@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { load, pickRandom, read, runExercise } from "@homework";
+import { loadFields, pickRandom, readFields, runExercise } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -22,7 +22,9 @@ function yToValue(y, vmin, vmax) {
     return Math.round(vmax - ratio * (vmax - vmin));
 }
 
+let _thermoSeq = 0;
 function drawThermometer({ value, vmin, vmax, filled }) {
+    const clipId = `thermo-clip-${++_thermoSeq}`;
     const range = vmax - vmin;
     const minorStep = range <= 30 ? 1 : range <= 100 ? 5 : 10;
     const majorStep = range <= 30 ? 5 : range <= 100 ? 10 : 50;
@@ -54,7 +56,7 @@ function drawThermometer({ value, vmin, vmax, filled }) {
         <div class="thermo" data-vmin="${vmin}" data-vmax="${vmax}">
             <svg viewBox="0 0 ${VB.w} ${VB.h}" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                    <clipPath id="thermo-clip">
+                    <clipPath id="${clipId}">
                         <rect x="${TUBE.x}" y="${TUBE.top}" width="${TUBE.w}" height="${TUBE.bottom - TUBE.top + 6}" rx="${TUBE.w / 2}" ry="${TUBE.w / 2}"/>
                     </clipPath>
                 </defs>
@@ -127,7 +129,7 @@ function buildDeck(cfg) {
     const tries = cfg.numExercises * 5 + 20;
     for (let i = 0; i < tries && deck.length < cfg.numExercises; i++) {
         const v = cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
-        const kind = pickRandom(cfg.kinds.length ? cfg.kinds : KINDS);
+        const kind = pickRandom(cfg.kinds.length > 0 ? cfg.kinds : KINDS);
         const key = `${kind}:${v}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -150,28 +152,27 @@ function syncVminField() {
 }
 negCheckbox?.addEventListener("change", syncVminField);
 
+const FIELDS = [
+    { field: "vmax", type: "number", key: "vmax" },
+    { field: "num-exercises", type: "number", key: "numExercises" },
+    { field: "vmin-neg", type: "number", key: "vminNeg" },
+    { field: "allow-negative", type: "checkbox", key: "allowNegative" },
+    { field: "tk", type: "checkboxes", key: "kinds" },
+];
+
 runExercise({
     id: "thermometer",
     label: "thermometer",
     loadConfig(form, saved) {
-        load.number(form, "vmax", saved.vmax);
-        load.number(form, "num-exercises", saved.numExercises);
-        load.number(form, "vmin-neg", saved.vminNeg);
-        load.checkbox(form, "allow-negative", saved.allowNegative);
-        load.checkboxes(form, "tk", saved.kinds);
+        loadFields(form, FIELDS, saved);
         syncVminField();
     },
     readConfig(form) {
-        const allowNegative = read.checkbox(form, "allow-negative");
-        const vminNeg = read.number(form, "vmin-neg");
-        const kinds = read.checkboxes(form, "tk");
+        const base = readFields(form, FIELDS);
         return {
-            vmax: read.number(form, "vmax"),
-            numExercises: read.number(form, "num-exercises"),
-            allowNegative,
-            vminNeg,
-            vmin: allowNegative ? -Math.abs(vminNeg) : 0,
-            kinds: kinds.length ? kinds : ["teken", "schrijf"],
+            ...base,
+            vmin: base.allowNegative ? -Math.abs(base.vminNeg) : 0,
+            kinds: base.kinds.length > 0 ? base.kinds : ["teken", "schrijf"],
         };
     },
     validateConfig(cfg) {

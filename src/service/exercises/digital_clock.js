@@ -5,12 +5,13 @@
 import {
     dutchTimePhrase,
     dutchTimePhraseVariants,
-    load,
+    loadFields,
+    minutesForStep,
     normalizePhrase,
     optionListHtml,
     pad,
     pickRandom,
-    read,
+    readFields,
     runExercise,
     shuffle,
     wireOptions,
@@ -33,19 +34,11 @@ function digitalLabel(h, m, use24h) {
     return `${pad(display)}:${pad(m)}`;
 }
 
+// Maps granularity config keys to minute step sizes.
+const GRAN_STEP = { uur: 60, half: 30, kwart: 15, vijf: 5 };
+
 function minutesForGranularity(granularity) {
-    switch (granularity) {
-        case "uur":
-            return [0];
-        case "half":
-            return [0, 30];
-        case "kwart":
-            return [0, 15, 30, 45];
-        case "vijf":
-            return [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-        default:
-            return [0, 15, 30, 45];
-    }
+    return minutesForStep(GRAN_STEP[granularity] || 15);
 }
 
 function buildDeck(cfg) {
@@ -100,28 +93,26 @@ function buildDistractors(q, n) {
     return out;
 }
 
+const FIELDS = [
+    { field: "num-exercises", type: "number", key: "numExercises" },
+    { field: "granularity", type: "radio", key: "granularity", default: "kwart" },
+    { field: "dir", type: "checkboxes", key: "directions" },
+    { field: "answer", type: "radio", key: "answerMode", default: "multiple" },
+    { field: "use-24h", type: "checkbox", key: "use24h" },
+];
+
 runExercise({
     id: "digital-clock",
     label: "digitale klok",
     loadConfig(form, saved) {
-        load.number(form, "num-exercises", saved.numExercises);
-        load.radio(form, "granularity", saved.granularity);
-        load.checkboxes(form, "dir", saved.directions);
-        load.radio(form, "answer", saved.answerMode);
-        load.checkbox(form, "use-24h", saved.use24h);
+        loadFields(form, FIELDS, saved);
     },
     readConfig(form) {
-        return {
-            numExercises: read.number(form, "num-exercises"),
-            granularity: read.radio(form, "granularity", "kwart"),
-            directions: read.checkboxes(form, "dir"),
-            answerMode: read.radio(form, "answer", "multiple"),
-            use24h: read.checkbox(form, "use-24h"),
-        };
+        return readFields(form, FIELDS);
     },
     validateConfig(cfg) {
         if (!cfg.numExercises || cfg.numExercises < 1) return "Geef een geldig aantal oefeningen op.";
-        if (!cfg.directions.length) return "Kies minstens één oefen-richting.";
+        if (cfg.directions.length === 0) return "Kies minstens één oefen-richting.";
         return null;
     },
     buildDeck,
@@ -161,6 +152,7 @@ runExercise({
                 ? "typ de tijd op de klok 🔢"
                 : "kies de juiste tijd 🔢";
             if (fill) {
+                const maxHourHint = q.use24h ? "0–23" : "1–12";
                 root.innerHTML = `
                     <p class="dclock-label">${correctPhrase}</p>
                     <div class="dclock dclock-input">
@@ -168,6 +160,7 @@ runExercise({
                         <span class="dclock-colon">:</span>
                         <input class="dclock-field" id="answer-m" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required>
                     </div>
+                    <small class="muted">${maxHourHint} : 00–59</small>
                 `;
                 const hh = root.querySelector("#answer-h");
                 const mm = root.querySelector("#answer-m");
@@ -181,6 +174,7 @@ runExercise({
                     const maxHour = q.use24h ? 23 : 12;
                     if (!Number.isInteger(rawH) || !Number.isInteger(rawM)) return null;
                     if (rawH < 0 || rawH > maxHour || rawM < 0 || rawM > 59) return null;
+                    // In 12-hour mode there is no hour 0; show validation via empty return.
                     if (!q.use24h && rawH === 0) return null;
                     return JSON.stringify({
                         h: q.use24h ? rawH : rawH % 12,

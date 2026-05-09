@@ -6,13 +6,16 @@
       "recommended": true,
       "style": {
         "useConst": "error",
-        "noDescendingSpecificity": "off"
+        "noDescendingSpecificity": "off",
+        "useExplicitLengthCheck": "warn",
+        "noParameterAssign": "warn"
       },
       "complexity": {
         "noImportantStyles": "off"
       },
       "suspicious": {
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noConsole": "warn"
       },
       "correctness": {
         "noUnusedImports": "error"

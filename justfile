@@ -76,6 +76,8 @@ doc:
 test:
 	cargo test --all-features
 
+# Local run uses 4 threads for speed. CI uses 1 (see CI.yml) to avoid port
+# conflicts when multiple browser tests start servers concurrently.
 test-e2e *ARGS:
 	cargo test --test e2e -- --ignored --test-threads=4 {{ARGS}}
 

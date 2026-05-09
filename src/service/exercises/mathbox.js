@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { load, pickRandom, read, runExercise } from "@homework";
+import { loadFields, pickRandom, readFields, runExercise } from "@homework";
 
 function buildDeck(cfg) {
     const deck = [];
@@ -118,23 +118,23 @@ function renderReview(q) {
     return `<h3>${fb}</h3>${body}`;
 }
 
+const FIELDS = [
+    { field: "count-until", type: "number", key: "countUntil" },
+    { field: "num-exercises", type: "number", key: "numExercises" },
+    { field: "practice", type: "checkboxes", key: "kinds" },
+];
+
 runExercise({
     id: "mathbox",
     label: "rekendoos",
     loadConfig(form, saved) {
-        load.number(form, "count-until", saved.countUntil);
-        load.number(form, "num-exercises", saved.numExercises);
-        load.checkboxes(form, "practice", saved.kinds);
+        loadFields(form, FIELDS, saved);
     },
     readConfig(form) {
-        return {
-            countUntil: read.number(form, "count-until"),
-            numExercises: read.number(form, "num-exercises"),
-            kinds: read.checkboxes(form, "practice"),
-        };
+        return readFields(form, FIELDS);
     },
     validateConfig(cfg) {
-        if (!cfg.kinds.length) return "Gelieve minstens één soort oefening te selecteren.";
+        if (cfg.kinds.length === 0) return "Gelieve minstens één soort oefening te selecteren.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
         if (!cfg.countUntil || cfg.countUntil < 3) return "Tot hoeveel kan het kind tellen? Minimum 3.";
         return null;

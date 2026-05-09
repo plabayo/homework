@@ -243,6 +243,7 @@ fn find_translation(accept_lang: &str) -> &'static BannerLang {
             }
         }
     }
+    #[expect(clippy::expect_used, reason = "EN is always present; this is an invariant")]
     LANGS
         .iter()
         .find(|l| l.tag == "en")
@@ -261,6 +262,7 @@ fn render_banner(t: &BannerLang) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     fn make_headers(accept_lang: &str) -> HeaderMap {

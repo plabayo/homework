@@ -67,9 +67,7 @@ async function withStore(mode, fn) {
 async function saveSession(session) {
     try {
         await withStore("readwrite", (store) => store.put(session));
-    } catch (err) {
-        console.warn("could not save session", err);
-    }
+    } catch (_err) {}
 }
 
 async function listSessions(exerciseId, limit = 20) {
@@ -177,6 +175,44 @@ export const load = {
         if (val != null && form.elements[name]) form.elements[name].checked = !!val;
     },
 };
+
+/**
+ * Returns the explicit list of minute values for a given step size.
+ *   minutesForStep(5)  → [0, 5, 10, …, 55]
+ *   minutesForStep(15) → [0, 15, 30, 45]
+ *   minutesForStep(60) → [0]
+ */
+export function minutesForStep(step) {
+    const out = [];
+    for (let m = 0; m < 60; m += step) out.push(m);
+    return out;
+}
+
+/**
+ * Descriptor-driven form sync — keeps loadConfig and readConfig in sync.
+ * Each descriptor: { field: string, type: 'number'|'radio'|'checkboxes'|'checkbox', key: string, default?: any }
+ *
+ * Usage:
+ *   const FIELDS = [
+ *     { field: 'num-exercises', type: 'number',    key: 'numExercises' },
+ *     { field: 'granularity',   type: 'radio',     key: 'granularity', default: 'kwart' },
+ *     { field: 'dir',           type: 'checkboxes', key: 'directions' },
+ *     { field: 'use-24h',       type: 'checkbox',  key: 'use24h' },
+ *   ];
+ *   loadConfig(form, saved) { loadFields(form, FIELDS, saved); }
+ *   readConfig(form)        { return readFields(form, FIELDS); }
+ */
+export function loadFields(form, fields, saved) {
+    for (const f of fields) load[f.type](form, f.field, saved[f.key]);
+}
+
+export function readFields(form, fields) {
+    const result = {};
+    for (const f of fields) {
+        result[f.key] = f.type === "radio" ? read.radio(form, f.field, f.default ?? "") : read[f.type](form, f.field);
+    }
+    return result;
+}
 
 /** Dutch word for a clock hour (0/12 → "twaalf", 1 → "een", …). */
 export function hourName(h) {
@@ -561,9 +597,17 @@ function versionedAssetPath(path) {
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     if (location.protocol === "file:") return;
-    navigator.serviceWorker
-        .register(versionedAssetPath("/service-worker.js"))
-        .catch((err) => console.warn("sw register failed", err));
+    // When a new service worker activates it posts SW_ACTIVATED. Reload the
+    // page so fresh HTML (with matching asset hashes) is loaded — but only
+    // when the user is not in the middle of an active exercise session.
+    navigator.serviceWorker.addEventListener("message", (e) => {
+        if (e.data?.type !== "SW_ACTIVATED") return;
+        const exercisesSection = document.getElementById("page-exercises");
+        if (!exercisesSection || exercisesSection.hidden) {
+            location.reload();
+        }
+    });
+    navigator.serviceWorker.register(versionedAssetPath("/service-worker.js")).catch((_err) => {});
 }
 
 // ---------- mistake picker dialog ----------
@@ -690,7 +734,7 @@ function renderOutcomeItem(q, kind) {
         if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
         if (q.timedOut) metaParts.push("⏰ te traag");
         else if (q.skipped) metaParts.push("overgeslagen");
-        const metaLine = metaParts.length ? `<span class="item-meta">${metaParts.join(" · ")}</span>` : "";
+        const metaLine = metaParts.length > 0 ? `<span class="item-meta">${metaParts.join(" · ")}</span>` : "";
         return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
     }
     if (q.practiceAgain) {
@@ -800,13 +844,15 @@ export function runExercise(spec) {
     function updateClock() {
         if (!clockEl) return;
         const elapsed = formatDuration(Date.now() - state.startedAt);
-        let html = `⏱️ ${elapsed}`;
+        clockEl.textContent = `⏱️ ${elapsed}`;
         if (deadlineSec()) {
             const remain = Math.max(0, deadlineSec() * 1000 - (Date.now() - state.questionStartedAt));
             const danger = remain < deadlineSec() * 250 ? " danger" : "";
-            html += ` &nbsp; <span class="deadline${danger}">⏰ ${formatDuration(remain)}</span>`;
+            const span = document.createElement("span");
+            span.className = `deadline${danger}`;
+            span.textContent = `⏰ ${formatDuration(remain)}`;
+            clockEl.append("  ", span);
         }
-        clockEl.innerHTML = html;
     }
 
     function startSessionTimer() {
@@ -835,9 +881,7 @@ export function runExercise(spec) {
         if (typeof state.currentCleanup === "function") {
             try {
                 state.currentCleanup();
-            } catch (err) {
-                console.warn("question cleanup failed", err);
-            }
+            } catch (_err) {}
         }
         state.currentCleanup = null;
         state.getAnswer = null;
@@ -1194,8 +1238,6 @@ export function runExercise(spec) {
     }
 
     function renderResult(session) {
-        const _wrong = session.questions.filter((q) => !q.correct);
-        const _tricky = session.questions.filter((q) => q.correct && isPracticeMistake(q));
         const score = session.correct;
         const total = session.total;
         const cycleNum = state.cycles.length;
@@ -1641,7 +1683,7 @@ function setupLangBanner() {
     }
     const btn = document.getElementById("lang-banner-dismiss");
     btn?.addEventListener("click", () => {
-        document.cookie = "lang_ok=1; path=/; max-age=31536000; SameSite=Lax";
+        document.cookie = `lang_ok=1; path=/; max-age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
         banner.remove();
     });
 }

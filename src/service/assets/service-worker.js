@@ -58,6 +58,12 @@ self.addEventListener("activate", (event) => {
                     .map((n) => caches.delete(n)),
             );
             await self.clients.claim();
+            // Tell all controlled windows to reload so they pick up the new
+            // HTML and versioned assets rather than staying on stale markup.
+            const windowClients = await self.clients.matchAll({ type: "window", includeUncontrolled: false });
+            for (const client of windowClients) {
+                client.postMessage({ type: "SW_ACTIVATED", version: VERSION });
+            }
         })(),
     );
 });

@@ -43,51 +43,26 @@ fn page_body() -> impl IntoHtml {
 fn site_footer() -> impl IntoHtml {
     footer!(
         class = "site-footer",
-        section!(
-            class = "footer-block",
-            h2!("Helpen of bijdragen 🤝"),
-            p!(
-                "Technisch onderlegd? We aanvaarden graag bijdragen aan ",
-                a!(
-                    class = "nowrap",
-                    href = "https://github.com/plabayo/homework",
-                    "github.com/plabayo/homework ⛰️",
-                ),
-                ". Feedback mag je sturen naar ",
-                a!(
-                    class = "nowrap",
-                    href = "mailto:hello@plabayo.tech",
-                    "hello@plabayo.tech ✉️",
-                ),
-                ".",
-            ),
-            p!(
-                "Liever steunen? Trakteer ons op ",
-                a!(
-                    class = "nowrap",
-                    href = "https://www.buymeacoffee.com/plabayo",
-                    "een koffie ☕",
-                ),
-                " of word ",
-                a!(
-                    class = "nowrap",
-                    href = "https://github.com/sponsors/plabayo",
-                    "GitHub Sponsor 😻",
-                ),
-                ".",
-            ),
+        p!(
+            small!(
+                "© 2024–2026 ",
+                a!(href = "https://plabayo.tech", "Plabayo"),
+                " · door ouders, voor ouders · ",
+                a!(href = "/over-ons", "Over ons"),
+            )
         ),
     )
 }
 
 fn levels() -> impl IntoHtml {
-    let mut levels: Vec<u8> = all_exercises().iter().map(|e| e.level).collect();
-    levels.sort_unstable();
-    levels.dedup();
-    levels
+    let exercises = all_exercises();
+    let mut level_nums: Vec<u8> = exercises.iter().map(|e| e.level).collect();
+    level_nums.sort_unstable();
+    level_nums.dedup();
+    level_nums
         .into_iter()
         .map(|lvl| {
-            let items: Vec<_> = all_exercises().iter().filter(|e| e.level == lvl).collect();
+            let items: Vec<_> = exercises.iter().filter(|e| e.level == lvl).collect();
             (
                 h2!(niveau_label(lvl)),
                 ul!(

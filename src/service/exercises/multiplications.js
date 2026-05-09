@@ -63,7 +63,7 @@ runExercise({
         };
     },
     validateConfig(cfg) {
-        if (!cfg.tables.length) return "Gelieve minstens één maaltafel te selecteren.";
+        if (cfg.tables.length === 0) return "Gelieve minstens één maaltafel te selecteren.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
         return null;
     },

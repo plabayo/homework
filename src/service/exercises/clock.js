@@ -5,30 +5,25 @@
 import {
     dutchTimePhrase,
     dutchTimePhraseVariants,
-    load,
+    loadFields,
+    minutesForStep,
     optionListHtml,
     pad,
     pickRandom,
-    read,
+    readFields,
     runExercise,
     shuffle,
     wireOptions,
 } from "@homework";
 
-// Granularity helpers
-const GRAN = {
-    hour: 60,
-    half: 30,
-    quarter: 15,
-    five: 5,
-    one: 1,
-};
+// Maps granularity config keys to minute step sizes.
+const GRAN_STEP = { hour: 60, half: 30, quarter: 15, five: 5, one: 1 };
 
 function buildDeck(cfg) {
-    const minStep = GRAN[cfg.granularity] || 5;
+    const minutes = minutesForStep(GRAN_STEP[cfg.granularity] || 5);
     const allowed = [];
     for (let h = 0; h < 12; h++) {
-        for (let m = 0; m < 60; m += minStep) {
+        for (const m of minutes) {
             allowed.push({ h, m });
         }
     }
@@ -43,7 +38,7 @@ function buildDeck(cfg) {
 
     let safety = cfg.numExercises * 4 + 20;
     while (out.length < cfg.numExercises && safety-- > 0) {
-        const kind = pickRandom(cfg.kinds.length ? cfg.kinds : ["lees", "zet"]);
+        const kind = pickRandom(cfg.kinds.length > 0 ? cfg.kinds : ["lees", "zet"]);
         let entry;
         if (kind === "zet-woorden") {
             if (wordsBag.length === 0) wordsBag = shuffle(wordsAllowed.slice());
@@ -208,15 +203,14 @@ function attachInteractive(root, q, opts = {}) {
     const hourHand = svg.querySelector(".hand-hour");
     const hitMin = svg.querySelector('.hand-hit[data-hand="minute"]');
     const hitHour = svg.querySelector('.hand-hit[data-hand="hour"]');
-    const minStep = GRAN[q.granularity] || 5;
+    const minStep = GRAN_STEP[q.granularity] || 5;
     // Start at 06:00 — both hands sit on the 12/6 axis but on opposite ends,
     // so neither is hidden under the other and either can be grabbed.
     const state = { h: 6, m: 0 };
 
-    const set = (h, m) => {
-        // wrap
-        m = (Math.round(m / minStep) * minStep + 60) % 60;
-        h = ((h % 12) + 12) % 12;
+    const set = (rawH, rawM) => {
+        const m = (Math.round(rawM / minStep) * minStep + 60) % 60;
+        const h = ((rawH % 12) + 12) % 12;
         state.h = h;
         state.m = m;
         wrap.dataset.h = h;
@@ -400,31 +394,30 @@ function mountFreeplay() {
 
 mountFreeplay();
 
+const FIELDS = [
+    { field: "num-exercises", type: "number", key: "numExercises" },
+    { field: "granularity", type: "radio", key: "granularity", default: "five" },
+    { field: "ck", type: "checkboxes", key: "kinds" },
+    { field: "answer", type: "radio", key: "answerMode", default: "multiple" },
+];
+
 runExercise({
     id: "clock",
     label: "analoge klok",
     loadConfig(form, saved) {
-        load.number(form, "num-exercises", saved.numExercises);
-        load.radio(form, "granularity", saved.granularity);
-        load.checkboxes(form, "ck", saved.kinds);
-        load.radio(form, "answer", saved.answerMode);
+        loadFields(form, FIELDS, saved);
     },
     readConfig(form) {
-        return {
-            numExercises: read.number(form, "num-exercises"),
-            granularity: read.radio(form, "granularity", "five"),
-            kinds: read.checkboxes(form, "ck"),
-            answerMode: read.radio(form, "answer", "multiple"),
-        };
+        return readFields(form, FIELDS);
     },
     validateConfig(cfg) {
         if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
-        if (!cfg.kinds.length) return "Kies minstens één oefen-type.";
+        if (cfg.kinds.length === 0) return "Kies minstens één oefen-type.";
         return null;
     },
     buildDeck,
     renderQuestion(q, root, mode) {
-        const minStep = GRAN[q.granularity] || 5;
+        const minStep = GRAN_STEP[q.granularity] || 5;
         if (mode.kind === "review") {
             const fb = q.kind === "lees" ? "lees de klok 🕐" : "zet de klok ⏰";
             root.innerHTML = `

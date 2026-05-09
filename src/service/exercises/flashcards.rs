@@ -26,7 +26,10 @@ const SCRIPT: &str = include_str!("flashcards.js");
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
-    let is_import = req.uri().query().is_some_and(|q| q.contains("import="));
+    let is_import = req
+        .uri()
+        .query()
+        .is_some_and(|q| q.split('&').any(|p| p == "import=" || p.starts_with("import=")));
 
     let (title, description) = if is_import {
         (

@@ -136,7 +136,6 @@ pub fn exercise_scaffold(
             p!(class = "page-intro", intro),
             form!(
                 id = "form-setup",
-                action = "javascript:void(0)",
                 config_fields,
                 p!(id = "config-error", class = "notice", hidden? = true),
                 div!(
@@ -176,7 +175,6 @@ pub fn exercise_scaffold(
                 ),
                 form!(
                     id = "form-exercise",
-                    action = "javascript:void(0)",
                     div!(id = "exercise-content"),
                     div!(
                         class = "exercise-actions",

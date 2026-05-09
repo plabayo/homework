@@ -424,9 +424,7 @@ function loadDecks() {
 function saveDecks(decks) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
-    } catch (e) {
-        console.warn("Could not save decks", e);
-    }
+    } catch (_e) {}
 }
 
 function getDeck(id) {
@@ -518,9 +516,7 @@ async function wmDbPut(filename, blob) {
             tx.oncomplete = resolve;
             tx.onerror = (e) => reject(e.target.error);
         });
-    } catch (e) {
-        console.warn("wmDbPut failed", e);
-    }
+    } catch (_e) {}
 }
 
 // Resolve a Commons filename to a thumbnail URL via the action API.
@@ -570,8 +566,7 @@ async function wmPreloadDeck(deck) {
             try {
                 await wmLoad(fn);
                 loaded.push(fn);
-            } catch (e) {
-                console.warn(`Failed to load ${fn}:`, e);
+            } catch (_e) {
                 failed.push(fn);
             }
         }),
@@ -939,7 +934,7 @@ function syncReviewLaunchButton() {
     const btn = ensureReviewLaunchButton();
     if (!btn) return;
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    const hasCards = !!deck?.cards?.length;
+    const hasCards = deck?.cards?.length > 0;
     btn.disabled = !hasCards;
     btn.hidden = reviewState.active;
 }
@@ -1116,7 +1111,7 @@ function updateReviewActiveCard() {
 }
 
 function moveReviewBy(step) {
-    if (!reviewState.active || !reviewState.cards.length) return;
+    if (!reviewState.active || reviewState.cards.length === 0) return;
     const nextIndex = Math.max(0, Math.min(reviewState.cards.length - 1, reviewState.currentIndex + step));
     if (nextIndex === reviewState.currentIndex) return;
     reviewState.currentIndex = nextIndex;
@@ -1174,7 +1169,7 @@ function stopReviewSession({ keepPage = false } = {}) {
 
 async function startReviewSession() {
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    if (!deck?.cards?.length) return;
+    if (deck?.cards?.length === 0) return;
     stopReviewSession({ keepPage: true });
     reviewState.active = true;
     reviewState.deckId = deck.id;
@@ -1776,7 +1771,7 @@ function saveDeckFromEditor(existingId) {
                 card.back = parts[0]; // backward compat fallback
                 const minCheck = row.querySelector(".card-parts-min-check");
                 if (minCheck?.checked) {
-                    const minVal = Number(row.querySelector(".card-parts-min-count")?.value) || parts.length;
+                    const minVal = Number(row.querySelector(".card-parts-min-count")?.value) || parts.length > 0;
                     card.partsRequired = Math.min(Math.max(1, minVal), parts.length);
                 }
             } else if (parts.length === 1) {
@@ -1868,8 +1863,7 @@ async function shareDeck(id) {
         } else {
             prompt("Kopieer deze link om het deck te delen:", url);
         }
-    } catch (e) {
-        console.error("Share failed", e);
+    } catch (_e) {
         showToast("Delen mislukt. Probeer opnieuw.");
     }
 }
@@ -2071,8 +2065,7 @@ async function initManager() {
                 // overwrite vs. save-as-new options.
                 importPending = nameConflict ? { ...data, _conflictId: nameConflict.id } : data;
             }
-        } catch (e) {
-            console.warn("Import decode failed", e);
+        } catch (_e) {
             history.replaceState({}, "", location.pathname);
         }
     }
@@ -2330,7 +2323,7 @@ runExercise({
         if (!cfg.deckId) return "Kies een deck om te oefenen.";
         const deck = getDeck(cfg.deckId);
         if (!deck) return "Dit deck bestaat niet meer — kies een ander deck.";
-        if (!deck.cards.length) return "Dit deck heeft geen kaarten.";
+        if (deck.cards.length === 0) return "Dit deck heeft geen kaarten.";
         const isOneSided = deckMode(deck) === "one-sided";
         if (isOneSided && cfg.fcMode === "partial") {
             const textCount = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
@@ -2658,7 +2651,7 @@ runExercise({
 // ---------- Card wave animation (one-sided decks) ----------
 
 function showCardWave(cards) {
-    if (!cards.length) return;
+    if (cards.length === 0) return;
     const overlay = document.createElement("div");
     overlay.className = "fc-wave-overlay";
     const items = cards
