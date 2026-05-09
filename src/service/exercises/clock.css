@@ -11,6 +11,8 @@
     width: var(--clock-size);
     aspect-ratio: 1;
     margin-inline: auto;
+    user-select: none;
+    -webkit-user-select: none;
 }
 @media (min-width: 600px) {
     .clock {

@@ -922,7 +922,7 @@ export function runExercise(spec) {
                 getDialog() {
                     return {
                         title: "Oefening stoppen?",
-                        message: "Je verliest je voortgang als je weggaat.",
+                        message: "Klik 'terug naar menu' in de oefening om resultaten te bewaren.",
                         buttons: [
                             {
                                 value: "stay",
@@ -931,7 +931,7 @@ export function runExercise(spec) {
                                 id: "leave-stay",
                                 autofocus: true,
                             },
-                            { value: "leave", label: "Stop oefening", id: "leave-leave" },
+                            { value: "leave", label: "Toch weggaan", id: "leave-leave" },
                         ],
                     };
                 },
@@ -1213,6 +1213,26 @@ export function runExercise(spec) {
         nextQuestion();
     }
 
+    function finishPartial() {
+        // Record the current and all remaining unanswered questions as failed so
+        // the result screen shows the full arc even when the exercise is stopped early.
+        for (let i = state.currentIndex; i < state.deck.length; i++) {
+            state.questions.push({
+                question: state.deck[i],
+                attempts: 0,
+                skipped: true,
+                timedOut: false,
+                elapsedMs: 0,
+                given: null,
+                correct: false,
+                exact: false,
+                practiceAgain: false,
+                label: spec.describe ? spec.describe(state.deck[i]) : null,
+            });
+        }
+        finish();
+    }
+
     function finish() {
         stopSessionTimer();
         const total = state.questions.length;
@@ -1343,7 +1363,11 @@ export function runExercise(spec) {
     document.querySelectorAll(".button-reset").forEach((btn) => {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
-            show("setup");
+            if (!play.hidden && state.currentIndex >= 0) {
+                finishPartial();
+            } else {
+                show("setup");
+            }
         });
     });
 

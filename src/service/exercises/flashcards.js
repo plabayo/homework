@@ -1480,8 +1480,10 @@ function bindImageSearch(row) {
 
 function hintToggleHtml(hint) {
     if (!hint) return "";
-    return `<button type="button" class="fc-hint-toggle">? hint</button>
-        <p class="fc-hint-text" hidden>${escapeHtml(hint)}</p>`;
+    return `<div class="fc-hint-wrap">
+        <button type="button" class="fc-hint-toggle">? hint</button>
+        <p class="fc-hint-text" hidden>${escapeHtml(hint)}</p>
+    </div>`;
 }
 
 function wireHintToggle(root) {
@@ -1773,7 +1775,7 @@ function saveDeckFromEditor(existingId) {
                 .filter((l) => l.length > 0);
             if (parts.length > 1) {
                 card.parts = parts;
-                card.back = parts[0]; // backward compat fallback
+                card.back = parts.join("\n");
                 const minCheck = row.querySelector(".card-parts-min-check");
                 if (minCheck?.checked) {
                     const minVal = Number(row.querySelector(".card-parts-min-count")?.value) || parts.length > 0;

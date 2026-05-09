@@ -1133,3 +1133,152 @@ async fn flashcards_one_sided_order_checkbox_preserves_order() -> TestResult<()>
     driver.clone().quit().await?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_stop_mid_session_shows_partial_results() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-stop-partial","name":"Stop tussentijds","mode":"two-sided",
+            "cards":[
+                {"front":"appel","back":"pomme"},
+                {"front":"hond","back":"chien"}
+            ],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-stop-partial").await?;
+
+    // Answer first card correctly.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "pomme").await?;
+    click(driver, "#button-check").await?;
+
+    // Second card is now showing — click "terug naar menu" to trigger partial finish.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    click(driver, ".exercise-meta .button-reset").await?;
+
+    // Results should show 1 correct out of 2 total (remaining card counted as failed).
+    wait_for_text(driver, "#result h3", "1 / 2", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_legacy_multiline_back_rendered_as_multipart_in_review() -> TestResult<()> {
+    // Injects a deck in the old format where multi-part content was stored as
+    // newline-separated text in the `back` field (no `parts` array). The
+    // normalization layer must detect the newline, split it, and render chips
+    // in review mode — verifying the fix for the legacy multi-part card bug.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-legacy-mp","name":"Legacy onderdelen","mode":"two-sided",
+            "cards":[{"front":"sfinx","back":"wachter van de zon\nhalf leeuw"}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-legacy-mp']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-legacy-mp'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-start-review", Duration::from_secs(10)).await?;
+    click(driver, "#fc-start-review").await?;
+
+    wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(10)).await?;
+
+    // Flip the card to see the back face with parts chips.
+    click(driver, ".fc-review-card.is-active").await?;
+    poll_until(Duration::from_secs(10), || async {
+        let result = driver
+            .execute(
+                "return document.querySelector('.fc-review-card.is-active')?.classList.contains('is-flipped') ?? false;",
+                vec![],
+            )
+            .await?;
+        Ok(result.json().as_bool().unwrap_or(false))
+    })
+    .await?;
+
+    let chip_count = driver
+        .execute(
+            "return document.querySelectorAll('.fc-review-face-back .fc-review-part-chip').length;",
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        chip_count.json().as_i64().unwrap_or(0),
+        2,
+        "expected 2 part chips on the back face of the legacy deck card",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_skip_two_sided_reveals_answer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-skip-reveal","name":"Skip onthulling","mode":"two-sided",
+            "cards":[{"front":"chat","back":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-skip-reveal").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    // Give a wrong answer so the skip button appears, then skip.
+    set_input_value(driver, "#answer", "fout").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
+    click(driver, "#button-skip").await?;
+
+    // Skipping a two-sided card must reveal the answer and lock the exercise.
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    let locked = driver
+        .execute(
+            "return document.querySelector('#exercise-content')?.classList.contains('locked') ?? false;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        locked.json().as_bool().unwrap_or(false),
+        "exercise should be locked (answer revealed) after skipping a two-sided card",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
