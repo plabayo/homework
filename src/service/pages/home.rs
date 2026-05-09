@@ -43,14 +43,12 @@ fn page_body() -> impl IntoHtml {
 fn site_footer() -> impl IntoHtml {
     footer!(
         class = "site-footer",
-        p!(
-            small!(
-                "© 2024–2026 ",
-                a!(href = "https://plabayo.tech", "Plabayo"),
-                " · door ouders, voor ouders · ",
-                a!(href = "/over-ons", "Over ons"),
-            )
-        ),
+        p!(small!(
+            "© 2024–2026 ",
+            a!(href = "https://plabayo.tech", "Plabayo"),
+            " · door ouders, voor ouders · ",
+            a!(href = "/over-ons", "Over ons"),
+        )),
     )
 }
 

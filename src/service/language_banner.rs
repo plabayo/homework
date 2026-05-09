@@ -243,7 +243,10 @@ fn find_translation(accept_lang: &str) -> &'static BannerLang {
             }
         }
     }
-    #[expect(clippy::expect_used, reason = "EN is always present; this is an invariant")]
+    #[expect(
+        clippy::expect_used,
+        reason = "EN is always present; this is an invariant"
+    )]
     LANGS
         .iter()
         .find(|l| l.tag == "en")

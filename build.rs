@@ -1,4 +1,7 @@
-#![allow(clippy::unwrap_used, reason = "build scripts are expected to panic on configuration errors")]
+#![allow(
+    clippy::unwrap_used,
+    reason = "build scripts are expected to panic on configuration errors"
+)]
 
 use vergen_gitcl::{Emitter, GitclBuilder};
 
