@@ -255,8 +255,28 @@ Bug reports, ideas, and patches are welcome.
 
 ## Licence
 
-This project is dual-licensed under MIT or Apache-2.0, at your option —
-see [LICENSE](./LICENSE).
+This project is **source-available** under the
+[Plabayo Source-Available Non-Commercial License](./LICENSE).
+
+**In plain terms:**
+
+- The source code is open — you are free to read, study, and learn from it.
+- Personal, educational, and other non-commercial use is permitted.
+- Forking and redistribution are allowed for non-commercial purposes,
+  provided full credit is given to Plabayo and a link back to this
+  repository is included.
+- **Commercial use of any kind requires explicit written permission from
+  Plabayo.** Plabayo retains the exclusive right to use this project
+  commercially.
+- All contributions to this project are donated to Plabayo and become
+  Plabayo's intellectual property (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
+
+We believe in transparency and keep the code open so that teachers, parents,
+and the community can always inspect what runs in their browser. Commercial
+exclusivity is what lets Plabayo continue to build and maintain it.
+
+For commercial licensing enquiries, contact
+[hello@plabayo.tech](mailto:hello@plabayo.tech).
 
 ---
 

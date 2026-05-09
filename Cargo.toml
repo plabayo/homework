@@ -3,6 +3,7 @@ name = "homework"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license-file = "LICENSE"
 rust-version = "1.93"
 resolver = "3"
 

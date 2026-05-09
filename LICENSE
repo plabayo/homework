@@ -1,21 +1,135 @@
-MIT License
+Plabayo Source-Available Non-Commercial License
+Copyright (C) 2024-2025 Plabayo
+All rights reserved.
 
-Copyright (c) 2024-2025 Plabayo
+────────────────────────────────────────────────────────────────────────────────
+PREAMBLE
+────────────────────────────────────────────────────────────────────────────────
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is developed openly so that teachers, parents, students, and
+the wider community can inspect, learn from, and contribute to it. At the
+same time, Plabayo reserves all commercial rights. This license reflects
+both values: transparency and accountability.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+────────────────────────────────────────────────────────────────────────────────
+DEFINITIONS
+────────────────────────────────────────────────────────────────────────────────
+
+"Software" means the source code, documentation, assets, and all other
+content in this repository, in whole or in part, in original or modified
+form.
+
+"Plabayo" means the company Plabayo and its authorised representatives.
+
+"Non-commercial use" means use that is not primarily intended for, or
+directed toward, commercial advantage or monetary compensation. Examples
+include personal use, academic study, educational use in schools and
+libraries, and non-profit community projects.
+
+"Commercial use" means any use intended for commercial advantage or monetary
+compensation, including but not limited to: selling the Software or access
+to it; offering the Software as part of a paid product or service; running
+the Software as a hosted service for paying users; or using the Software to
+generate revenue, directly or indirectly.
+
+────────────────────────────────────────────────────────────────────────────────
+GRANT OF RIGHTS
+────────────────────────────────────────────────────────────────────────────────
+
+Subject to the terms and conditions of this license, Plabayo grants you a
+worldwide, royalty-free, non-exclusive, non-transferable, non-sublicensable
+license to:
+
+  1. View and study the source code of the Software.
+  2. Use the Software for non-commercial purposes.
+  3. Copy and distribute the Software, in original or modified form, for
+     non-commercial purposes, provided you comply with the Attribution
+     requirements below.
+  4. Modify the Software and distribute modified copies for non-commercial
+     purposes, provided you comply with the Attribution requirements below.
+
+────────────────────────────────────────────────────────────────────────────────
+ATTRIBUTION
+────────────────────────────────────────────────────────────────────────────────
+
+Any permitted distribution or public use of the Software — modified or
+unmodified — must:
+
+  1. Retain all existing copyright notices and this license in full and
+     without modification.
+  2. Clearly credit Plabayo as the original creator of the Software in any
+     user-facing documentation, about pages, or equivalent.
+  3. Include a prominent link to the original repository:
+     https://github.com/plabayo/homework
+  4. Clearly indicate any changes made to the Software relative to the
+     original.
+
+────────────────────────────────────────────────────────────────────────────────
+RESTRICTIONS
+────────────────────────────────────────────────────────────────────────────────
+
+The following are expressly prohibited without prior written permission from
+Plabayo:
+
+  1. Any commercial use of the Software, in whole or in part.
+  2. Sublicensing, selling, or transferring any of the rights granted under
+     this license to any third party.
+  3. Using the name, logo, or trademarks of Plabayo to endorse or promote
+     products or services derived from this Software without separate written
+     consent.
+
+Plabayo retains the exclusive right to use the Software for commercial
+purposes and to grant commercial licenses to third parties.
+
+────────────────────────────────────────────────────────────────────────────────
+CONTRIBUTIONS
+────────────────────────────────────────────────────────────────────────────────
+
+By submitting any contribution to this project — including but not limited
+to code, documentation, bug reports, tests, translations, or design work —
+you agree to all of the following:
+
+  1. Your contribution is made voluntarily and you hold the full right to
+     assign it.
+  2. You irrevocably assign all intellectual property rights in your
+     contribution, exclusively, to Plabayo upon submission.
+  3. Your contribution becomes the sole property of Plabayo, who may use,
+     modify, relicense, or otherwise exploit it under any terms Plabayo
+     chooses, including commercially.
+  4. You retain no rights over your contribution once it has been submitted.
+
+Plabayo recognises every contribution through the project's public git
+history and values the effort behind each one, large or small.
+
+────────────────────────────────────────────────────────────────────────────────
+DISCLAIMER OF WARRANTIES
+────────────────────────────────────────────────────────────────────────────────
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+PLABAYO BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+────────────────────────────────────────────────────────────────────────────────
+TERMINATION
+────────────────────────────────────────────────────────────────────────────────
+
+This license terminates automatically if you fail to comply with any of its
+terms. Upon termination, you must immediately cease all use and distribution
+of the Software. Plabayo may also terminate this license at any time for any
+reason by providing written notice.
+
+────────────────────────────────────────────────────────────────────────────────
+GOVERNING LAW
+────────────────────────────────────────────────────────────────────────────────
+
+This license is governed by and construed in accordance with the laws of
+Belgium, without regard to its conflict-of-law provisions. Any disputes
+arising under this license shall be subject to the exclusive jurisdiction
+of the courts of Ghent in Belgium.
+
+────────────────────────────────────────────────────────────────────────────────
+
+For commercial licensing enquiries, please contact: hello@plabayo.tech
