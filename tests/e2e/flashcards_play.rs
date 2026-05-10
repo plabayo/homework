@@ -1323,12 +1323,122 @@ async fn flashcards_fill_in_stop_skips_all_remaining_blanks() -> TestResult<()> 
     click(driver, "input[name='fc-mode'][value='all']").await?;
     click(driver, "#form-setup button[type='submit']").await?;
 
-    // Wait for first fill-in blank then click "stop oefening" once.
+    // Wait for first fill-in blank, click "stop oefening", confirm the dialog.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#fill-stop-confirm").await?;
 
-    // A single skip must reach the result screen immediately (all blanks skipped).
+    // A single confirmed skip must reach the result screen immediately (all blanks skipped).
     wait_for_nonempty_text(driver, "#result h3", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_fill_in_stop_dialog_can_be_cancelled() -> TestResult<()> {
+    // "Blijf hier" in the fill-in stop dialog must keep the user on the exercise
+    // without advancing to the result screen.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-fill-stop-cancel","name":"Fill stop annuleren","mode":"one-sided",
+            "cards":[{"front":"aap"},{"front":"beer"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-fill-stop-cancel']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-fill-stop-cancel'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+    click(driver, "input[name='fc-mode'][value='all']").await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    // Click stop then cancel.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#fill-stop-stay").await?;
+
+    // Exercise must still be visible.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    let result_hidden = driver
+        .execute(
+            "return document.getElementById('page-result')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        result_hidden.json().as_bool().unwrap_or(false),
+        "result section should remain hidden after cancelling the fill-in stop dialog",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_image_multipart_any_accepted_answer_correct() -> TestResult<()> {
+    // An image card with multiple accepted answers (parts) should accept any one of
+    // them as a correct answer.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-img-mp","name":"Afbeelding meerdere antwoorden","mode":"two-sided",
+            "cards":[{"wikimedia":"File:Flag_of_Egypt.svg","back":"vlag van egypte\negyptische vlag","parts":["vlag van egypte","egyptische vlag"]}],
+            "createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-img-mp").await?;
+
+    wait_for_css(
+        driver,
+        "#exercise-content .flash-image-container",
+        Duration::from_secs(5),
+    )
+    .await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    // Give the second accepted answer.
+    set_input_value(driver, "#answer", "egyptische vlag").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

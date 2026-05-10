@@ -1361,6 +1361,13 @@ export function runExercise(spec) {
     // skip is type=reset; intercept to log + advance
     skipBtn?.addEventListener("click", (e) => {
         e.preventDefault();
+        const confirmSpec = spec.skipConfirmDialog ? spec.skipConfirmDialog(state.currentQuestion) : null;
+        if (confirmSpec) {
+            void showLeaveGuardDialog(confirmSpec).then((choice) => {
+                if (choice === "stop") onSkip();
+            });
+            return;
+        }
         onSkip();
     });
 

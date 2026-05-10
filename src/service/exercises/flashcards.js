@@ -1313,7 +1313,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
     const isImageCard = !!card?.wikimedia;
     const hintVal = escapeHtml(card?.hint || "");
     const hintRevVal = escapeHtml(card?.hintReverse || "");
-    const rawParts = isImageCard ? (card?.back ? [card.back] : []) : cardParts(card);
+    const rawParts = cardParts(card);
     const backVal = escapeHtml(rawParts.join("\n"));
     const partsCount = rawParts.length;
     const hasMinRequired = partsCount > 1 && card?.partsRequired != null && card.partsRequired < partsCount;
@@ -1357,7 +1357,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
                         <textarea id="card-back-${i}" class="card-back" rows="2" wrap="off"
                             placeholder="Antwoord — meerdere regels = meerdere onderdelen"
                             autocomplete="off">${backVal}</textarea>
-                        <div class="card-parts-required"${partsCount > 1 ? "" : " hidden"}>
+                        <div class="card-parts-required"${partsCount > 1 && !isImageCard ? "" : " hidden"}>
                             <label class="fc-parts-min-label">
                                 <input type="checkbox" class="card-parts-min-check"${hasMinRequired ? " checked" : ""}>
                                 Minimaal:
@@ -1747,7 +1747,17 @@ function saveDeckFromEditor(existingId) {
             if (!wikimediaVal) return; // skip rows with no image selected
             const backRaw = row.querySelector(".card-back")?.value?.trim() || "";
             if (!backRaw) return; // answer is required for image cards
-            const card = { wikimedia: wikimediaVal, back: backRaw };
+            const imgParts = backRaw
+                .split(/\r?\n/)
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0);
+            const card = { wikimedia: wikimediaVal };
+            if (imgParts.length > 1) {
+                card.parts = imgParts;
+                card.back = imgParts.join("\n");
+            } else {
+                card.back = imgParts[0] ?? backRaw;
+            }
             // Store thumb URL locally (editor preview only — stripped on share).
             const thumb = row.querySelector(".card-wikimedia")?.dataset.thumb;
             if (thumb) card.thumbUrl = thumb;
@@ -2349,12 +2359,17 @@ runExercise({
         const textCards = deck.cards.filter((c) => !c.wikimedia && c.front?.trim());
         const isOneSided = deckMode(deck) === "one-sided";
 
-        const imageQuestions = imageCards.map((c) => ({
-            kind: "image",
-            wikimedia: c.wikimedia,
-            back: c.back || "",
-            hint: c.hint || null,
-        }));
+        const imageQuestions = imageCards.map((c) => {
+            const iParts = cardParts(c);
+            const q = {
+                kind: "image",
+                wikimedia: c.wikimedia,
+                back: c.back || "",
+                hint: c.hint || null,
+            };
+            if (iParts.length > 1) q.parts = iParts;
+            return q;
+        });
 
         if (!isOneSided) {
             // Two-sided text cards: per-card groups, shuffle groups so multi-part entries stay consecutive.
@@ -2449,6 +2464,10 @@ runExercise({
                 const checkBtn = document.getElementById("button-check");
                 const imgSrc = imageObjectURLs.get(q.wikimedia) || "";
                 if (mode.kind === "review") {
+                    const backBodyHtml =
+                        q.parts && q.parts.length > 1
+                            ? `<span class="fc-review-parts">${q.parts.map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`).join("")}</span>`
+                            : `<p class="flash-text">${escapeHtml(q.back)}</p>`;
                     root.innerHTML = `
                         <div class="flash-review">
                             <div class="flash-side flash-front-side flash-image-side">
@@ -2461,7 +2480,7 @@ runExercise({
                             </div>
                             <div class="flash-side flash-back-side">
                                 <span class="flash-side-label">antwoord</span>
-                                <p class="flash-text">${escapeHtml(q.back)}</p>
+                                ${backBodyHtml}
                             </div>
                         </div>`;
                     return;
@@ -2597,6 +2616,23 @@ runExercise({
                 return { correct: false };
             }
             case "image": {
+                if (q.parts && q.parts.length > 1) {
+                    for (const part of q.parts) {
+                        const match = matchAndTrackLenient(given, part, q.wikimedia);
+                        if (match) {
+                            return {
+                                correct: true,
+                                exact: match.exact,
+                                showReview: !match.exact,
+                                practiceAgain: match.practiceAgain,
+                                feedback: match.exact
+                                    ? undefined
+                                    : buildAcceptedFeedback(q.parts.join(" / "), match.practiceAgain),
+                            };
+                        }
+                    }
+                    return { correct: false };
+                }
                 const match = matchAndTrackLenient(given, q.back, q.wikimedia);
                 return match
                     ? {
@@ -2627,7 +2663,11 @@ runExercise({
 
     evaluateSkip(q) {
         if (q.kind === "two-sided" || q.kind === "image") {
-            return { showReview: true, feedback: buildRevealFeedback(q.back) };
+            const revealText = q.parts && q.parts.length > 1 ? q.parts.join(" / ") : q.back;
+            return {
+                showReview: true,
+                feedback: buildRevealFeedback(revealText, !!(q.parts && q.parts.length > 1)),
+            };
         }
         if (q.kind === "fill-in") {
             for (const idx of q.blankIndices) {
@@ -2641,6 +2681,18 @@ runExercise({
         return {
             showReview: true,
             feedback: buildRevealFeedback(q.allParts.join(" / "), q.allParts.length > 1),
+        };
+    },
+
+    skipConfirmDialog(q) {
+        if (q.kind !== "fill-in") return null;
+        return {
+            title: "Invuloefening stoppen?",
+            message: "Alle resterende vakjes worden overgeslagen.",
+            buttons: [
+                { value: "stay", label: "Blijf hier", className: "primary", id: "fill-stop-stay", autofocus: true },
+                { value: "stop", label: "Stop oefening", id: "fill-stop-confirm" },
+            ],
         };
     },
 
