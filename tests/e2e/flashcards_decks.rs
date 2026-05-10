@@ -507,10 +507,9 @@ async fn flashcards_mode_config_persists_across_sessions() -> TestResult<()> {
     super::helpers::set_checkbox(driver, "#fc-order-important", true).await?;
 
     click(driver, "#form-setup button[type='submit']").await?;
-    for _ in 0..2 {
-        wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
-        click(driver, "#button-skip").await?;
-    }
+    // One click on "stop oefening" now skips all remaining fill-in blanks at once.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
 
     wait_for_nonempty_text(driver, "#result h3", Duration::from_secs(10)).await?;
     click(driver, "#page-result .button-reset").await?;

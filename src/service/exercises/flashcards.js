@@ -841,7 +841,7 @@ function renderList() {
     const decks = loadDecks();
 
     let html = `<div class="deck-list-header">
-        <button type="button" class="fc-btn-new" id="fc-new-deck">＋ Nieuw deck</button>
+        <button type="button" class="fc-btn-new btn-lift" id="fc-new-deck">＋ Nieuw deck</button>
     </div>`;
 
     if (decks.length === 0) {
@@ -922,6 +922,7 @@ function ensureReviewLaunchButton() {
     btn = document.createElement("button");
     btn.type = "button";
     btn.id = "fc-start-review";
+    btn.className = "btn-lift";
     btn.textContent = "👀 bekijk kaarten";
     btn.addEventListener("click", () => {
         void startReviewSession();
@@ -1038,9 +1039,9 @@ function renderReviewViewer() {
                 </div>
             </div>
             <div class="fc-review-controls">
-                <button type="button" id="fc-review-prev" disabled>⬅ vorige</button>
+                <button type="button" class="btn-lift" id="fc-review-prev" disabled>⬅ vorige</button>
                 <p class="fc-review-counter">1 / ${total}</p>
-                <button type="button" id="fc-review-next"${total <= 1 ? " disabled" : ""}>volgende ➡</button>
+                <button type="button" class="btn-lift" id="fc-review-next"${total <= 1 ? " disabled" : ""}>volgende ➡</button>
             </div>
         </div>`;
 
@@ -1543,11 +1544,11 @@ function renderEditor() {
             </fieldset>
             <div id="card-list">${cardsHtml}</div>
             <div class="button-row">
-                <button type="button" id="fc-add-card" class="fc-btn-add">＋ Kaart toevoegen</button>
+                <button type="button" id="fc-add-card" class="fc-btn-add btn-lift">＋ Kaart toevoegen</button>
             </div>
             <div class="button-row editor-actions">
-                <button type="button" id="fc-save-deck" class="primary">💾 Opslaan</button>
-                <button type="button" id="fc-cancel-edit">✖ Annuleer</button>
+                <button type="button" id="fc-save-deck" class="primary btn-lift">💾 Opslaan</button>
+                <button type="button" id="fc-cancel-edit" class="btn-lift">✖ Annuleer</button>
             </div>
         </div>`;
 
@@ -1984,9 +1985,9 @@ function renderImport() {
                     <input type="text" id="fc-import-name" value="${escapeHtml(deck.name)}" autocomplete="off">
                 </div>
                 <div class="button-row">
-                    <button type="button" id="fc-overwrite-import" class="primary">♻️ Overschrijf bestaand</button>
-                    <button type="button" id="fc-saveas-import">💾 Opslaan als nieuw</button>
-                    <button type="button" id="fc-cancel-import">Annuleer</button>
+                    <button type="button" id="fc-overwrite-import" class="primary btn-lift">♻️ Overschrijf bestaand</button>
+                    <button type="button" id="fc-saveas-import" class="btn-lift">💾 Opslaan als nieuw</button>
+                    <button type="button" id="fc-cancel-import" class="btn-lift">Annuleer</button>
                 </div>
             </div>`;
 
@@ -2129,23 +2130,20 @@ function renderFillInQuestion(q, root) {
     q.allCards.forEach((cardFront, i) => {
         if (!blankSet.has(i)) {
             html += `<div class="fill-row fill-hint">
-                <span class="fill-pos">${i + 1}.</span>
                 <span class="fill-hint-text">${escapeHtml(cardFront)}</span>
             </div>`;
         } else if (i in fillInResults) {
             const ok = fillInResults[i];
             html += `<div class="fill-row ${ok ? "fill-answer-ok" : "fill-answer-bad"}">
-                <span class="fill-pos">${i + 1}.</span>
                 <span class="fill-answer-text">${escapeHtml(cardFront)}</span>
             </div>`;
         } else if (i === activeIdx) {
             html += `<div class="fill-row fill-current">
                 <input type="text" id="answer" class="fill-input" autocomplete="off"
-                    placeholder="${i + 1}. typ hier…" aria-label="jouw antwoord voor positie ${i + 1}">
+                    placeholder="typ hier…" aria-label="jouw antwoord">
             </div>`;
         } else {
             html += `<div class="fill-row fill-blank">
-                <span class="fill-pos">${i + 1}.</span>
                 <span class="fill-placeholder" aria-hidden="true">___</span>
             </div>`;
         }
@@ -2157,7 +2155,7 @@ function renderFillInQuestion(q, root) {
     const checkBtn = document.getElementById("button-check");
     if (skipBtn) {
         skipBtn.hidden = false;
-        skipBtn.textContent = "🤷 weet het niet";
+        skipBtn.textContent = "🛑 stop oefening";
     }
     if (checkBtn) checkBtn.textContent = "✅ controleer";
 
@@ -2173,14 +2171,12 @@ function renderFillInReview(q, root) {
     q.allCards.forEach((cardFront, i) => {
         if (!blankSet.has(i)) {
             html += `<div class="fill-row fill-hint">
-                <span class="fill-pos">${i + 1}.</span>
                 <span class="fill-hint-text">${escapeHtml(cardFront)}</span>
             </div>`;
         } else {
             const ok = fillInResults[i];
             const cls = ok === true ? "fill-answer-ok" : ok === false ? "fill-answer-bad" : "fill-blank";
             html += `<div class="fill-row ${cls}">
-                <span class="fill-pos">${i + 1}.</span>
                 <span class="fill-answer-text">${escapeHtml(cardFront)}</span>
             </div>`;
         }
@@ -2632,6 +2628,12 @@ runExercise({
     evaluateSkip(q) {
         if (q.kind === "two-sided" || q.kind === "image") {
             return { showReview: true, feedback: buildRevealFeedback(q.back) };
+        }
+        if (q.kind === "fill-in") {
+            for (const idx of q.blankIndices) {
+                if (!(idx in fillInResults)) fillInResults[idx] = false;
+            }
+            return { skipRemainingFillIn: true };
         }
         if (q.kind !== "multi-part") return null;
         if (q.partIndex !== q.sharedState.matched.size) return null;

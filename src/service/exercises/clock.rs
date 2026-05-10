@@ -149,7 +149,12 @@ fn freeplay_entry() -> impl rama::http::html::IntoHtml {
             class = "freeplay-entry-hint",
             "Wil je de klok verkennen zonder oefeningen? Gebruik de vrije modus — handig om de klok samen uit te leggen.",
         ),
-        button!(r#type = "button", id = "freeplay-open", "🕐 vrij verkennen",),
+        button!(
+            r#type = "button",
+            id = "freeplay-open",
+            class = "btn-lift",
+            "🕐 vrij verkennen",
+        ),
     )
 }
 
@@ -162,7 +167,7 @@ fn freeplay_section() -> impl rama::http::html::IntoHtml {
             button!(
                 r#type = "button",
                 id = "freeplay-back",
-                class = "button-reset",
+                class = "button-reset btn-lift",
                 "terug naar menu ↩️",
             ),
             p!(id = "exercise-title", "vrij verkennen 🕐"),

@@ -140,7 +140,11 @@ pub fn exercise_scaffold(
                 p!(id = "config-error", class = "notice", hidden? = true),
                 div!(
                     class = "button-row",
-                    button!(r#type = "submit", class = "primary", "🟢 start met oefenen"),
+                    button!(
+                        r#type = "submit",
+                        class = "primary btn-lift",
+                        "🟢 start met oefenen"
+                    ),
                 ),
             ),
             setup_extra,
@@ -153,7 +157,7 @@ pub fn exercise_scaffold(
                 class = "exercise-meta",
                 button!(
                     r#type = "button",
-                    class = "button-reset",
+                    class = "button-reset btn-lift",
                     "terug naar menu ↩️"
                 ),
                 p!(id = "exercise-title"),
@@ -181,12 +185,13 @@ pub fn exercise_scaffold(
                         button!(
                             r#type = "submit",
                             id = "button-check",
-                            class = "primary",
+                            class = "primary btn-lift",
                             "👉 antwoord",
                         ),
                         button!(
                             r#type = "reset",
                             id = "button-skip",
+                            class = "btn-lift",
                             hidden? = true,
                             "🤷 weet het niet",
                         ),
@@ -201,7 +206,7 @@ pub fn exercise_scaffold(
                 class = "exercise-meta",
                 button!(
                     r#type = "button",
-                    class = "button-reset",
+                    class = "button-reset btn-lift",
                     "terug naar menu ↩️"
                 ),
             ),
@@ -227,12 +232,14 @@ fn history_block(info: ExerciseInfo) -> impl IntoHtml {
                 class = "button-row",
                 button!(
                     r#type = "button",
+                    class = "btn-lift",
                     "data-action" = "practice-mistakes",
                     disabled? = true,
                     "🔁 oefen recente fouten",
                 ),
                 button!(
                     r#type = "button",
+                    class = "btn-lift",
                     "data-action" = "clear-history",
                     disabled? = true,
                     "🗑️ geschiedenis wissen",

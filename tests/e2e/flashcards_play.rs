@@ -5,7 +5,7 @@
 
 use super::helpers::{
     click, inject_deck, inject_deck_json, poll_until, select_deck_and_start, set_checkbox,
-    set_input_value, wait_for_css, wait_for_text,
+    set_input_value, wait_for_css, wait_for_nonempty_text, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
@@ -1157,12 +1157,19 @@ async fn flashcards_stop_mid_session_shows_partial_results() -> TestResult<()> {
     select_deck_and_start(driver, "test-stop-partial").await?;
 
     // Wait for the first question then immediately click "terug naar menu".
-    // Stopping early should record all remaining cards as failed and show results.
+    // A confirm dialog appears; accept it to stop and show partial results.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, ".exercise-meta .button-reset").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#stop-confirm").await?;
 
-    // Both cards counted as failed (0 answered before stop) → 0 / 2.
-    wait_for_text(driver, "#result h3", "0 / 2", Duration::from_secs(10)).await?;
+    // No cards answered before stop → only done cards recorded → 0 / 0.
+    wait_for_text(driver, "#result h3", "0 / 0", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -1273,6 +1280,108 @@ async fn flashcards_skip_two_sided_reveals_answer() -> TestResult<()> {
     assert!(
         locked.json().as_bool().unwrap_or(false),
         "exercise should be locked (answer revealed) after skipping a two-sided card",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_fill_in_stop_skips_all_remaining_blanks() -> TestResult<()> {
+    // One click of "stop oefening" on a fill-in question must skip all remaining
+    // blanks at once rather than requiring a click per blank.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-fill-stop","name":"Fill stop","mode":"one-sided",
+            "cards":[{"front":"aap"},{"front":"beer"},{"front":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-fill-stop']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='test-fill-stop'] .deck-select-btn",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-order-important", Duration::from_secs(5)).await?;
+
+    // Use fill-all mode so all 3 cards are blanks.
+    click(driver, "input[name='fc-mode'][value='all']").await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    // Wait for first fill-in blank then click "stop oefening" once.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+
+    // A single skip must reach the result screen immediately (all blanks skipped).
+    wait_for_nonempty_text(driver, "#result h3", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_stop_dialog_can_be_cancelled() -> TestResult<()> {
+    // Clicking "Blijf hier" in the stop confirmation dialog must keep the user
+    // on the exercise screen without recording any result.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-stop-cancel","name":"Stop annuleren","mode":"two-sided",
+            "cards":[
+                {"front":"chat","back":"kat"},
+                {"front":"chien","back":"hond"}
+            ],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-stop-cancel").await?;
+
+    // Click "terug naar menu" to trigger the stop dialog.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    click(driver, ".exercise-meta .button-reset").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+
+    // Click "Blijf hier" to cancel — exercise must still be visible.
+    click(driver, "#stop-stay").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+
+    // Result section must still be hidden.
+    let result_hidden = driver
+        .execute(
+            "return document.getElementById('page-result')?.hidden ?? true;",
+            vec![],
+        )
+        .await?;
+    assert!(
+        result_hidden.json().as_bool().unwrap_or(false),
+        "result section should remain hidden after cancelling the stop dialog",
     );
 
     driver.clone().quit().await?;

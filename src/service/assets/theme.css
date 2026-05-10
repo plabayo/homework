@@ -877,11 +877,11 @@ body.is-offline .offline-banner {
             border-color 130ms ease,
             opacity 130ms ease;
     }
-    button:not(:disabled):hover {
+    button.btn-lift:not(:disabled):hover {
         transform: translateY(-1px);
         box-shadow: 0 3px 8px color-mix(in srgb, var(--fg) 12%, transparent);
     }
-    button:not(:disabled):active {
+    button.btn-lift:not(:disabled):active {
         transform: translateY(1px) scale(0.98);
         box-shadow: none;
         transition-duration: 50ms;

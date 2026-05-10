@@ -1084,7 +1084,7 @@ export function runExercise(spec) {
         if (!actions || document.getElementById("button-next")) return;
         const next = document.createElement("button");
         next.type = "button";
-        next.className = "primary";
+        next.className = "primary btn-lift";
         next.id = "button-next";
         next.textContent = "volgende ➡️";
         next.addEventListener("click", (e) => {
@@ -1210,26 +1210,30 @@ export function runExercise(spec) {
             });
             return;
         }
+        if (skipEval?.skipRemainingFillIn) {
+            const anchor = state.currentQuestion.blankIndices;
+            while (state.currentIndex + 1 < state.deck.length) {
+                const next = state.deck[state.currentIndex + 1];
+                if (next.kind !== "fill-in" || next.blankIndices !== anchor) break;
+                state.currentIndex++;
+                state.questions.push({
+                    question: next,
+                    attempts: 0,
+                    skipped: true,
+                    timedOut: false,
+                    elapsedMs: 0,
+                    given: null,
+                    correct: false,
+                    exact: false,
+                    practiceAgain: false,
+                    label: spec.describe ? spec.describe(next) : null,
+                });
+            }
+        }
         nextQuestion();
     }
 
     function finishPartial() {
-        // Record the current and all remaining unanswered questions as failed so
-        // the result screen shows the full arc even when the exercise is stopped early.
-        for (let i = state.currentIndex; i < state.deck.length; i++) {
-            state.questions.push({
-                question: state.deck[i],
-                attempts: 0,
-                skipped: true,
-                timedOut: false,
-                elapsedMs: 0,
-                given: null,
-                correct: false,
-                exact: false,
-                practiceAgain: false,
-                label: spec.describe ? spec.describe(state.deck[i]) : null,
-            });
-        }
         finish();
     }
 
@@ -1285,8 +1289,8 @@ export function runExercise(spec) {
             <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
             ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
             <div class="result-actions">
-                ${reviewable ? `<button type="button" class="primary" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
-                <button type="button" class="button-reset">🆕 nieuwe oefening</button>
+                ${reviewable ? `<button type="button" class="primary btn-lift" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
+                <button type="button" class="button-reset btn-lift">🆕 nieuwe oefening</button>
             </div>
             ${trickyList}
         `;
@@ -1364,7 +1368,22 @@ export function runExercise(spec) {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
             if (!play.hidden && state.currentIndex >= 0) {
-                finishPartial();
+                void showLeaveGuardDialog({
+                    title: "Oefening stoppen?",
+                    message: "De voltooide oefeningen worden opgeslagen, de rest wordt weggelaten.",
+                    buttons: [
+                        {
+                            value: "stay",
+                            label: "Blijf hier",
+                            className: "primary",
+                            id: "stop-stay",
+                            autofocus: true,
+                        },
+                        { value: "stop", label: "Stop oefening", id: "stop-confirm" },
+                    ],
+                }).then((choice) => {
+                    if (choice === "stop") finishPartial();
+                });
             } else {
                 show("setup");
             }
