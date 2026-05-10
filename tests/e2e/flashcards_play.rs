@@ -631,6 +631,13 @@ async fn flashcards_one_sided_partial_score_no_wave() -> TestResult<()> {
     click(driver, "#button-check").await?;
     wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
     click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#fill-stop-confirm").await?;
 
     wait_for_text(driver, "#result h3", "1 / 2", Duration::from_secs(5)).await?;
     tokio::time::sleep(Duration::from_secs(1)).await;

@@ -60,6 +60,13 @@ async fn flashcards_create_one_sided_deck_and_practice() -> TestResult<()> {
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(5)).await?;
     click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#fill-stop-confirm").await?;
 
     wait_for_text(driver, "#result h3", "1 / 2", Duration::from_secs(10)).await?;
 
@@ -507,9 +514,16 @@ async fn flashcards_mode_config_persists_across_sessions() -> TestResult<()> {
     super::helpers::set_checkbox(driver, "#fc-order-important", true).await?;
 
     click(driver, "#form-setup button[type='submit']").await?;
-    // One click on "stop oefening" now skips all remaining fill-in blanks at once.
+    // One click on "stop oefening" (with dialog confirmation) skips all remaining fill-in blanks at once.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#fill-stop-confirm").await?;
 
     wait_for_nonempty_text(driver, "#result h3", Duration::from_secs(10)).await?;
     click(driver, "#page-result .button-reset").await?;
