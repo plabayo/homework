@@ -23,19 +23,79 @@ function normalize(s) {
 }
 
 function cardParts(card) {
-    const explicitParts = Array.isArray(card?.parts)
-        ? card.parts.map((part) => String(part || "").trim()).filter(Boolean)
-        : [];
-    if (explicitParts.length > 0) return explicitParts;
+    if (Array.isArray(card?.parts)) {
+        return card.parts.map((part) => String(part || "").trim()).filter(Boolean);
+    }
+    const back = String(card?.back || "").trim();
+    return back ? [back] : [];
+}
 
-    const rawBack = String(card?.back || "").trim();
-    if (!rawBack) return [];
+// Normalise answer representation to exclusive fields (multi-part XOR single-part).
+// Mutates `normalized` in place. Returns true when any field changed.
+function normalizeAnswerFields(normalized) {
+    let changed = false;
+    if (Array.isArray(normalized.parts)) {
+        const parts = normalized.parts.map((part) => String(part || "").trim()).filter(Boolean);
+        if (parts.length > 1) {
+            if (JSON.stringify(parts) !== JSON.stringify(normalized.parts)) changed = true;
+            normalized.parts = parts;
+            if (Object.hasOwn(normalized, "back")) {
+                delete normalized.back;
+                changed = true;
+            }
+        } else if (parts.length === 1) {
+            if (normalized.back !== parts[0] || Object.hasOwn(normalized, "parts")) changed = true;
+            normalized.back = parts[0];
+            delete normalized.parts;
+        } else {
+            if (Object.hasOwn(normalized, "parts")) {
+                delete normalized.parts;
+                changed = true;
+            }
+        }
+    } else {
+        const back = String(normalized.back || "").trim();
+        if (back) {
+            const lines = back
+                .split(/\r?\n/)
+                .map((l) => l.trim())
+                .filter(Boolean);
+            if (lines.length > 1) {
+                normalized.parts = lines;
+                delete normalized.back;
+                changed = true;
+            } else if (lines.length === 1 && normalized.back !== lines[0]) {
+                normalized.back = lines[0];
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
 
-    const backParts = rawBack
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-    return backParts.length > 1 ? backParts : [rawBack];
+// partsRequired is only meaningful when parts has ≥2 elements AND the required count
+// is strictly less than the total.  Delete it in all other cases — callers can then
+// use `partsRequired != null` as the partial-mode check.
+// Mutates `normalized` in place. Returns true when any field changed.
+function normalizePartsRequired(normalized) {
+    if (!Object.hasOwn(normalized, "partsRequired")) return false;
+    const isMultiPart = Array.isArray(normalized.parts) && normalized.parts.length > 1;
+    if (!isMultiPart) {
+        delete normalized.partsRequired;
+        return true;
+    }
+    const max = normalized.parts.length;
+    const n = Number(normalized.partsRequired);
+    const clamped = Math.min(Math.max(1, Number.isNaN(n) ? max : n), max);
+    if (clamped >= max) {
+        delete normalized.partsRequired;
+        return true;
+    }
+    if (clamped !== normalized.partsRequired) {
+        normalized.partsRequired = clamped;
+        return true;
+    }
+    return false;
 }
 
 function normalizeStoredCard(card) {
@@ -55,54 +115,8 @@ function normalizeStoredCard(card) {
         normalized.wikimedia = wikimedia;
     }
 
-    if (Array.isArray(normalized.parts)) {
-        const parts = normalized.parts.map((part) => String(part || "").trim()).filter(Boolean);
-        if (parts.length > 1) {
-            if (JSON.stringify(parts) !== JSON.stringify(normalized.parts)) changed = true;
-            normalized.parts = parts;
-            const joined = parts.join("\n");
-            if (normalized.back !== joined) {
-                normalized.back = joined;
-                changed = true;
-            }
-        } else if (parts.length === 1) {
-            if (normalized.back !== parts[0] || Object.hasOwn(normalized, "parts")) changed = true;
-            normalized.back = parts[0];
-            delete normalized.parts;
-        } else {
-            delete normalized.parts;
-            changed = true;
-        }
-    } else {
-        const back = String(normalized.back || "").trim();
-        if (back) {
-            const parts = back
-                .split(/\r?\n/)
-                .map((line) => line.trim())
-                .filter(Boolean);
-            if (parts.length > 1) {
-                normalized.parts = parts;
-                normalized.back = back;
-                changed = true;
-            } else if (parts.length === 1 && normalized.back !== parts[0]) {
-                normalized.back = parts[0];
-                changed = true;
-            }
-        }
-    }
-
-    if (normalized.partsRequired != null && Array.isArray(normalized.parts)) {
-        const max = normalized.parts.length;
-        const clamped = Math.min(Math.max(1, Number(normalized.partsRequired) || max), max);
-        if (clamped !== normalized.partsRequired) {
-            normalized.partsRequired = clamped;
-            changed = true;
-        }
-        if (normalized.parts.length <= 1) {
-            delete normalized.partsRequired;
-            changed = true;
-        }
-    }
+    if (normalizeAnswerFields(normalized)) changed = true;
+    if (normalizePartsRequired(normalized)) changed = true;
 
     return changed ? normalized : card;
 }
@@ -312,7 +326,7 @@ function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = tr
         for (const part of remaining) {
             if (newlyMatched.some((m) => m.part === part)) continue;
             const match = trackLenient ? matchAndTrackLenient(token, part, front) : classifyAnswerMatch(token, part);
-            if (match) {
+            if (match?.accepted) {
                 newlyMatched.push({ part, ...match });
                 break;
             }
@@ -948,13 +962,14 @@ function _reviewCardBackText(card) {
 
 function buildReviewCards(deck) {
     const mode = deckMode(deck);
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: card-type fan-out
     return deck.cards.map((card, index) => {
         const isImage = !!card.wikimedia;
-        const rawParts = isImage ? [] : cardParts(card);
+        const rawParts = cardParts(card);
         const hasParts = rawParts.length > 1;
         const backText = rawParts.length > 0 ? rawParts.join(" / ") : String(card?.back || card?.front || "").trim();
-        const partsRequired =
-            hasParts && card.partsRequired != null && card.partsRequired < rawParts.length ? card.partsRequired : null;
+        // partsRequired is only stored when strictly < parts.length (canonical form).
+        const partsRequired = hasParts ? (card.partsRequired ?? null) : null;
         const oneSided = mode === "one-sided" && !card.back && !hasParts;
         return {
             index,
@@ -1084,7 +1099,7 @@ function fitReviewFaceText() {
         if (!body) return;
         el.style.fontSize = "";
         const computed = window.getComputedStyle(el);
-        let size = parseFloat(computed.fontSize) || 22;
+        let size = Number.parseFloat(computed.fontSize) || 22;
         const minSize = 11;
         while (
             size > minSize &&
@@ -1309,6 +1324,7 @@ function handleDeckAction(e) {
 
 // ---------- Deck editor view ----------
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: rich HTML template with many card variants
 function cardRowHtml(card, i, isTwoSided, isBidirectional) {
     const isImageCard = !!card?.wikimedia;
     const hintVal = escapeHtml(card?.hint || "");
@@ -1316,8 +1332,9 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
     const rawParts = cardParts(card);
     const backVal = escapeHtml(rawParts.join("\n"));
     const partsCount = rawParts.length;
-    const hasMinRequired = partsCount > 1 && card?.partsRequired != null && card.partsRequired < partsCount;
-    const minRequiredVal = hasMinRequired ? card.partsRequired : partsCount;
+    // partsRequired is only stored when strictly < partsCount (canonical form).
+    const hasMinRequired = partsCount > 1 && card?.partsRequired != null;
+    const minRequiredVal = hasMinRequired ? card.partsRequired : partsCount - 1;
     // Image cards always expose their answer field regardless of deck mode.
     const showBack = isTwoSided || isImageCard;
     const wmFilename = escapeHtml(card?.wikimedia || "");
@@ -1362,7 +1379,7 @@ function cardRowHtml(card, i, isTwoSided, isBidirectional) {
                                 <input type="checkbox" class="card-parts-min-check"${hasMinRequired ? " checked" : ""}>
                                 Minimaal:
                                 <input type="number" class="card-parts-min-count" min="1"
-                                    max="${partsCount}" value="${minRequiredVal}"${hasMinRequired ? "" : " disabled"}>
+                                    max="${partsCount - 1}" value="${minRequiredVal}"${hasMinRequired ? "" : " disabled"}>
                                 van <span class="card-parts-total">${partsCount}</span> onderdelen
                             </label>
                         </div>
@@ -1665,8 +1682,8 @@ function bindCardPartHandlers(row) {
         reqDiv.hidden = n <= 1;
         if (totalSpan) totalSpan.textContent = n;
         if (minCount) {
-            minCount.max = n;
-            if (Number(minCount.value) > n) minCount.value = n;
+            minCount.max = n - 1;
+            if (Number(minCount.value) > n - 1) minCount.value = n - 1;
         }
     };
     textarea.addEventListener("input", syncPartsUI);
@@ -1739,6 +1756,7 @@ function saveDeckFromEditor(existingId) {
 
     const cards = [];
     let hintErrorInput = null;
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: card-editor validation with many field types
     managerRoot.querySelectorAll(".card-row").forEach((row) => {
         if (hintErrorInput) return;
 
@@ -1754,7 +1772,6 @@ function saveDeckFromEditor(existingId) {
             const card = { wikimedia: wikimediaVal };
             if (imgParts.length > 1) {
                 card.parts = imgParts;
-                card.back = imgParts.join("\n");
             } else {
                 card.back = imgParts[0] ?? backRaw;
             }
@@ -1786,11 +1803,12 @@ function saveDeckFromEditor(existingId) {
                 .filter((l) => l.length > 0);
             if (parts.length > 1) {
                 card.parts = parts;
-                card.back = parts.join("\n");
                 const minCheck = row.querySelector(".card-parts-min-check");
                 if (minCheck?.checked) {
-                    const minVal = Number(row.querySelector(".card-parts-min-count")?.value) || parts.length > 0;
-                    card.partsRequired = Math.min(Math.max(1, minVal), parts.length);
+                    const rawMin = Number(row.querySelector(".card-parts-min-count")?.value);
+                    const minVal = Number.isNaN(rawMin) ? parts.length : rawMin;
+                    const clamped = Math.min(Math.max(1, minVal), parts.length - 1);
+                    if (clamped < parts.length) card.partsRequired = clamped;
                 }
             } else if (parts.length === 1) {
                 card.back = parts[0];
@@ -2198,8 +2216,7 @@ function renderFillInReview(q, root) {
 // ---------- Multi-part question renderer ----------
 
 function renderMultiPartQuestion(q, root, mode) {
-    const { allParts, sharedState, requiredCount } = q;
-    const matched = sharedState.matched;
+    const { allParts, partsRequired, matched } = q;
     const skipBtn = document.getElementById("button-skip");
     const checkBtn = document.getElementById("button-check");
 
@@ -2221,41 +2238,15 @@ function renderMultiPartQuestion(q, root, mode) {
                 <div class="flash-side flash-back-side">
                     <span class="flash-side-label">onderdelen</span>
                     <div class="mp-parts-list">${partsHtml}</div>
-                    <p class="mp-required-label">${matched.size}/${requiredCount} gevonden</p>
+                    <p class="mp-required-label">${matched.size}/${partsRequired} gevonden</p>
                 </div>
             </div>`;
         return;
     }
 
-    // Already satisfied from a prior "all at once" answer — auto-advance.
-    if (matched.size >= requiredCount) {
-        root.innerHTML = `
-            <div class="flash-question">
-                <p class="flash-text">${escapeHtml(q.front)}</p>
-                <p class="fc-mp-done">✅ onderdelen gevonden</p>
-            </div>`;
-        if (skipBtn) skipBtn.hidden = true;
-        setTimeout(() => document.getElementById("form-exercise")?.requestSubmit(), 200);
-        return () => "__matched__";
-    }
-
-    // A previous entry for this card was skipped — propagate skip to this entry too.
-    if (q.partIndex > matched.size) {
-        root.innerHTML = `
-            <div class="flash-question">
-                <p class="flash-text">${escapeHtml(q.front)}</p>
-            </div>`;
-        setTimeout(() => {
-            const btn = document.getElementById("button-skip");
-            if (!btn) return;
-            btn.hidden = false; // ensure click fires even on non-rendering elements
-            btn.click(); // nextQuestion() will hide it again
-        }, 50);
-        return () => "";
-    }
-
-    // Normal play: show already-matched parts and an input for the next one.
-    if (skipBtn) skipBtn.hidden = true;
+    // Play mode: show already-matched parts and an input for the next one.
+    // Skip is hidden at the start; onWrongAttempt in the framework shows it.
+    if (skipBtn) skipBtn.hidden = matched.size === 0;
     if (checkBtn) {
         checkBtn.hidden = false;
         checkBtn.textContent = "👉 antwoord";
@@ -2267,7 +2258,7 @@ function renderMultiPartQuestion(q, root, mode) {
         <div class="flash-question">
             <p class="flash-text">${escapeHtml(q.front)}</p>
             ${hintToggleHtml(q.hint)}
-            <p class="fc-mp-progress">${matched.size}/${requiredCount} gevonden</p>
+            <p class="fc-mp-progress">${matched.size}/${partsRequired} gevonden</p>
             ${matchedHtml}
             <input type="text" id="answer" autocomplete="off"
                 placeholder="geef een onderdeel…" aria-label="jouw antwoord">
@@ -2390,24 +2381,24 @@ runExercise({
                 const parts = cardParts(c);
                 const isMultiPart = parts.length > 1;
                 if (isMultiPart) {
-                    const requiredCount =
-                        c.partsRequired != null ? Math.min(Math.max(1, c.partsRequired), parts.length) : parts.length;
-                    const sharedState = {
-                        matched: new Set(),
-                        revealAtEnd: false,
-                        revealPracticeAgain: false,
-                        revealShown: false,
-                    };
-                    return Array.from({ length: requiredCount }, (_, pi) => ({
-                        kind: "multi-part",
-                        front: c.front,
-                        allParts: parts,
-                        requiredCount,
-                        sharedState,
-                        partIndex: pi,
-                        hint: c.hint || null,
-                        direction: "fwd",
-                    }));
+                    // One queue entry per card; state lives directly on the question
+                    // object so there is no shared-reference coupling between entries.
+                    // partsRequired is only stored when strictly < parts.length.
+                    return [
+                        {
+                            kind: "multi-part",
+                            front: c.front,
+                            allParts: parts,
+                            partsRequired: c.partsRequired ?? parts.length,
+                            partialMode: c.partsRequired != null,
+                            matched: new Set(),
+                            revealAtEnd: false,
+                            revealPracticeAgain: false,
+                            revealShown: false,
+                            hint: c.hint || null,
+                            direction: "fwd",
+                        },
+                    ];
                 }
                 return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
             });
@@ -2449,6 +2440,7 @@ runExercise({
         return [...imageQuestions, ...fillInQuestions];
     },
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: question-kind fan-out with per-kind render logic
     renderQuestion(q, root, mode) {
         switch (q.kind) {
             case "multi-part":
@@ -2554,43 +2546,33 @@ runExercise({
         }
     },
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: answer-evaluation fan-out with per-kind match logic
     evaluateAnswer(q, given) {
         switch (q.kind) {
             case "multi-part": {
-                if (given === "__matched__") {
-                    return {
-                        correct: q.sharedState.matched.size >= q.requiredCount,
-                        exact: !q.sharedState.revealShown,
-                    };
-                }
-                const { sharedState, allParts } = q;
-                const partialRequired = q.requiredCount < allParts.length;
-                const newlyMatched = tryMatchParts(given, allParts, sharedState.matched, q.front, !partialRequired);
-                if (newlyMatched.length > 0) {
-                    for (const match of newlyMatched) sharedState.matched.add(match.part);
-                    const exactThisStep = partialRequired || newlyMatched.every((match) => match.exact);
-                    const practiceAgainThisStep = !partialRequired && newlyMatched.some((match) => match.practiceAgain);
-                    if (!partialRequired && !exactThisStep) sharedState.revealAtEnd = true;
-                    if (practiceAgainThisStep) sharedState.revealPracticeAgain = true;
-                    const finished = sharedState.matched.size >= q.requiredCount;
-                    const showReview =
-                        !partialRequired && finished && sharedState.revealAtEnd && !sharedState.revealShown;
-                    if (showReview) sharedState.revealShown = true;
-                    return {
-                        correct: true,
-                        exact: partialRequired || (exactThisStep && !sharedState.revealAtEnd),
-                        showReview,
-                        practiceAgain: practiceAgainThisStep,
-                        feedback: showReview
-                            ? buildAcceptedFeedback(
-                                  allParts.join(" / "),
-                                  sharedState.revealPracticeAgain,
-                                  allParts.length > 1,
-                              )
-                            : undefined,
-                    };
-                }
-                return { correct: false };
+                const { allParts, partialMode } = q;
+                const newlyMatched = tryMatchParts(given, allParts, q.matched, q.front, !partialMode);
+                if (newlyMatched.length === 0) return { correct: false };
+
+                for (const match of newlyMatched) q.matched.add(match.part);
+                const exactThisStep = partialMode || newlyMatched.every((match) => match.exact);
+                const practiceAgainThisStep = !partialMode && newlyMatched.some((match) => match.practiceAgain);
+                if (!partialMode && !exactThisStep) q.revealAtEnd = true;
+                if (practiceAgainThisStep) q.revealPracticeAgain = true;
+
+                if (q.matched.size < q.partsRequired) return { partialCorrect: true };
+
+                const showReview = !partialMode && q.revealAtEnd && !q.revealShown;
+                if (showReview) q.revealShown = true;
+                return {
+                    correct: true,
+                    exact: partialMode || !q.revealAtEnd,
+                    showReview,
+                    practiceAgain: practiceAgainThisStep,
+                    feedback: showReview
+                        ? buildAcceptedFeedback(allParts.join(" / "), q.revealPracticeAgain, allParts.length > 1)
+                        : undefined,
+                };
             }
             case "fill-in": {
                 // Order-independent: accept if the answer matches any remaining unmatched blank.
@@ -2676,8 +2658,7 @@ runExercise({
             return { skipRemainingFillIn: true };
         }
         if (q.kind !== "multi-part") return null;
-        if (q.partIndex !== q.sharedState.matched.size) return null;
-        q.sharedState.revealShown = true;
+        q.revealShown = true;
         return {
             showReview: true,
             feedback: buildRevealFeedback(q.allParts.join(" / "), q.allParts.length > 1),
@@ -2749,8 +2730,8 @@ function showCardWave(cards) {
                     if (pageResult.querySelector("#review-button-repeat")) return;
                     const scoreText = pageResult.querySelector("h3")?.textContent ?? "";
                     const [rawCorrect, rawTotal] = scoreText.split("/");
-                    const correct = parseInt(rawCorrect, 10);
-                    const total = parseInt(rawTotal, 10);
+                    const correct = Number.parseInt(rawCorrect, 10);
+                    const total = Number.parseInt(rawTotal, 10);
                     if (correct > 0 && correct === total) {
                         showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
                     }

@@ -270,10 +270,9 @@ async fn flashcards_newline_back_without_parts_is_treated_as_multi_component() -
         parts_len, 2,
         "expected load-time normalization to rewrite the raw newline answer into 2 parts"
     );
-    assert_eq!(
-        normalized["back"].as_str().unwrap_or_default(),
-        "de nijl\nde woestijn",
-        "expected load-time normalization to keep the full multiline back"
+    assert!(
+        normalized["back"].is_null(),
+        "multi-part cards must not keep a redundant 'back' field after normalization"
     );
 
     click(

@@ -8,17 +8,25 @@
         "useConst": "error",
         "noDescendingSpecificity": "off",
         "useExplicitLengthCheck": "warn",
-        "noParameterAssign": "warn"
+        "noParameterAssign": "error",
+        "useNumberNamespace": "warn"
       },
       "complexity": {
-        "noImportantStyles": "off"
+        "noImportantStyles": "off",
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": { "maxAllowedComplexity": 30 }
+        }
       },
       "suspicious": {
         "noDocumentCookie": "off",
-        "noConsole": "warn"
+        "noConsole": "error",
+        "noGlobalIsNan": "error",
+        "noGlobalIsFinite": "error"
       },
       "correctness": {
-        "noUnusedImports": "error"
+        "noUnusedImports": "error",
+        "noUnusedFunctionParameters": "warn"
       }
     }
   },

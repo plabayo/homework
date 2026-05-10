@@ -5,7 +5,7 @@
 
 use super::helpers::{
     click, inject_deck, inject_deck_json, poll_until, select_deck_and_start, set_checkbox,
-    set_input_value, wait_for_css, wait_for_nonempty_text, wait_for_text,
+    set_input_value, setup_multipart_exercise, wait_for_css, wait_for_nonempty_text, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
@@ -243,7 +243,8 @@ async fn flashcards_multipart_one_at_a_time_with_fuzzy() -> TestResult<()> {
     .await?;
     click(driver, "#button-next").await?;
 
-    wait_for_text(driver, "#result h3", "3 / 3", Duration::from_secs(10)).await?;
+    // One card = 1 point (regardless of how many parts it has).
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -326,7 +327,7 @@ async fn flashcards_multipart_all_at_once() -> TestResult<()> {
     .await?;
     click(driver, "#button-check").await?;
 
-    wait_for_text(driver, "#result h3", "3 / 3", Duration::from_secs(5)).await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -362,7 +363,7 @@ async fn flashcards_multipart_partial_required() -> TestResult<()> {
     set_input_value(driver, "#answer", "half man").await?;
     click(driver, "#button-check").await?;
 
-    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -398,7 +399,7 @@ async fn flashcards_multipart_partial_required_does_not_flag_bijna_goed() -> Tes
     set_input_value(driver, "#answer", "half man").await?;
     click(driver, "#button-check").await?;
 
-    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
     let repeat_buttons = driver.find_all(By::Css("#review-button-repeat")).await?;
     assert!(
         repeat_buttons.is_empty(),
@@ -434,7 +435,7 @@ async fn flashcards_multipart_en_separator_all_at_once() -> TestResult<()> {
     set_input_value(driver, "#answer", "sinaasappelen en dadels").await?;
     click(driver, "#button-check").await?;
 
-    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -479,7 +480,8 @@ async fn flashcards_multipart_skip_advances_whole_card() -> TestResult<()> {
     .await?;
     click(driver, "#button-next").await?;
 
-    wait_for_text(driver, "#result h3", "0 / 2", Duration::from_secs(5)).await?;
+    // Skipping the whole multi-part card counts as 0/1 (one card, not one per part).
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -1500,6 +1502,187 @@ async fn flashcards_stop_dialog_can_be_cancelled() -> TestResult<()> {
         result_hidden.json().as_bool().unwrap_or(false),
         "result section should remain hidden after cancelling the stop dialog",
     );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_skip_after_partial_progress_scores_zero() -> TestResult<()> {
+    // User answers the first part correctly, then skips the card.
+    // The whole card should be counted as wrong (0 / 1).
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-skip-partial",
+        "sfinx",
+        &["wachter van de zon", "half man", "half leeuw"],
+        None,
+    )
+    .await?;
+
+    // Answer first part correctly.
+    set_input_value(driver, "#answer", "wachter van de zon").await?;
+    click(driver, "#button-check").await?;
+
+    // Skip button should now be visible (matched.size > 0).
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_wrong_answer_does_not_count_as_progress() -> TestResult<()> {
+    // Wrong answer followed by correct answers — all parts must still be submitted.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-wrong-then-right",
+        "sfinx",
+        &["wachter van de zon", "half man"],
+        None,
+    )
+    .await?;
+
+    // Wrong answer — no progress.
+    set_input_value(driver, "#answer", "olifant").await?;
+    click(driver, "#button-check").await?;
+
+    // Counter must still show 0/2 (wrong answer is not partial progress).
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(3)).await?;
+    let progress_text = driver
+        .execute(
+            "return document.querySelector('.fc-mp-progress')?.textContent ?? '';",
+            vec![],
+        )
+        .await?;
+    assert!(
+        progress_text.json().as_str().unwrap_or("").contains("0/2"),
+        "wrong answer must not advance the parts counter, got: {:?}",
+        progress_text.json(),
+    );
+
+    // Now answer both parts correctly.
+    set_input_value(driver, "#answer", "wachter van de zon").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+
+    // Both answers are exact — no review state is shown, result is immediate.
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_lenient_answer_appears_in_bijna_goed() -> TestResult<()> {
+    // A phrase-coverage (lenient) match on all parts should produce a "bijna goed"
+    // entry in the result section.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-lenient-result",
+        "sfinx",
+        &["wachter van de zon", "half leeuw"],
+        None,
+    )
+    .await?;
+
+    // Both answers are phrase-coverage matches (content words present but not exact).
+    set_input_value(driver, "#answer", "wachter zon").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "half leeuw").await?;
+    click(driver, "#button-check").await?;
+
+    // Card done — review shown because of non-exact answers.
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
+
+    let bijna_goed = driver
+        .execute(
+            "return document.querySelector('.result-detail')?.textContent ?? '';",
+            vec![],
+        )
+        .await?;
+    assert!(
+        bijna_goed
+            .json()
+            .as_str()
+            .unwrap_or("")
+            .to_lowercase()
+            .contains("bijna goed"),
+        "lenient multi-part answers should produce a 'bijna goed' section in results",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_parts_required_equal_to_total_behaves_as_all_required()
+-> TestResult<()> {
+    // A card stored with partsRequired == parts.length should be normalised to
+    // "all required" (partsRequired absent) — the exercise must demand all parts.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Inject with partsRequired == parts.length (redundant but valid input).
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-req-eq-total",
+        "sfinx",
+        &["wachter van de zon", "half man"],
+        Some(2), // == parts.length → normalised to absent
+    )
+    .await?;
+
+    // Answer only the first part — card must NOT be done yet.
+    set_input_value(driver, "#answer", "wachter van de zon").await?;
+    click(driver, "#button-check").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    let next_visible = driver.find_all(By::Css("#button-next")).await?;
+    assert!(
+        next_visible.is_empty(),
+        "card with partsRequired == parts.length must require all parts before finishing",
+    );
+
+    // Answer the second part — now it should finish.
+    set_input_value(driver, "#answer", "half man").await?;
+    click(driver, "#button-check").await?;
+
+    // Both answers are exact — no review state, result is immediate.
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())

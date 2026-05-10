@@ -12,40 +12,30 @@ sort:
 	@cargo install cargo-sort
 	cargo sort --grouped
 
-[unix]
-_ensure-biome:
-	@which biome >/dev/null 2>&1 || npm install -g @biomejs/biome
-
-[windows]
-_ensure-biome:
-	@if (-not (Get-Command biome -ErrorAction SilentlyContinue)) { npm install -g @biomejs/biome }
-
 # Auto-format JS and CSS (writes in place)
 fmt-web:
-	just _ensure-biome
-	biome format --write src/service
+	npx --yes @biomejs/biome format --write src/service
 
 # Lint JS and CSS (report only, no writes)
 lint-web:
-	just _ensure-biome
-	biome lint src/service
+	npx --yes @biomejs/biome lint src/service
 
 # CI-style check: lint + format, no writes, warnings → errors
 check-web:
-	just _ensure-biome
-	biome ci src/service
+	npx --yes @biomejs/biome ci src/service
 
 # Verify every .rs/.css/.js source file starts with the copyright header
 [unix]
 check-copyright:
-	@missing=$$(grep -rL "Copyright (C) 2024-2026 Plabayo" src/ tests/ \
+	#!/usr/bin/env sh
+	missing=$(grep -rL "Copyright (C) 2024-2026 Plabayo" src/ tests/ \
 	    --include="*.rs" --include="*.css" --include="*.js" \
-	    --exclude-dir=fixtures 2>/dev/null); \
-	if [ -n "$$missing" ]; then \
-	    echo "Missing copyright header in:"; \
-	    echo "$$missing"; \
-	    exit 1; \
-	fi; \
+	    --exclude-dir=fixtures 2>/dev/null)
+	if [ -n "$missing" ]; then
+	    echo "Missing copyright header in:"
+	    echo "$missing"
+	    exit 1
+	fi
 	echo "All source files have copyright headers."
 
 [windows]
@@ -76,6 +66,10 @@ doc:
 test:
 	cargo test --all-features
 
+# Run pure-logic JavaScript unit tests (no browser required)
+test-js:
+	node --test tests/js/*.test.mjs
+
 # Local run uses 4 threads for speed. CI uses 1 (see CI.yml) to avoid port
 # conflicts when multiple browser tests start servers concurrently.
 test-e2e *ARGS:
@@ -104,7 +98,7 @@ lighthouse URL="http://localhost:8080":
 
 qq: lint check clippy doc check-web check-copyright
 
-qa: qq test
+qa: qq test test-js
 
 qa-full: qa test-e2e
 

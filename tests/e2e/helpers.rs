@@ -74,6 +74,40 @@ pub(crate) async fn select_deck_and_start(driver: &WebDriver, deck_id: &str) -> 
     Ok(())
 }
 
+/// Injects a two-sided multi-part deck, navigates to the flashcards page,
+/// and starts the exercise.  `parts` are the answer parts; `parts_required`
+/// is `None` for "all required" or `Some(n)` for a partial minimum.
+pub(crate) async fn setup_multipart_exercise(
+    driver: &WebDriver,
+    app_url: &str,
+    deck_id: &str,
+    front: &str,
+    parts: &[&str],
+    parts_required: Option<usize>,
+) -> TestResult<()> {
+    let parts_json = parts
+        .iter()
+        .map(|p| format!(r#""{p}""#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let parts_required_json = match parts_required {
+        Some(n) => format!(r#","partsRequired":{n}"#),
+        None => String::new(),
+    };
+    let deck_json = format!(
+        r#"{{"id":"{deck_id}","name":"Multi-deel test","mode":"two-sided",
+            "cards":[{{"front":"{front}","parts":[{parts_json}]{parts_required_json}}}],
+            "createdAt":1}}"#
+    );
+    driver.goto(app_url).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    inject_deck_json(driver, &deck_json).await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, deck_id).await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    Ok(())
+}
+
 pub(crate) async fn collect_hrefs(links: Vec<WebElement>) -> TestResult<Vec<String>> {
     let mut hrefs = Vec::with_capacity(links.len());
     for link in links {

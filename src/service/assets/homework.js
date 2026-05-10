@@ -1351,6 +1351,19 @@ export function runExercise(spec) {
         const given = state.getAnswer();
         if (given === null || given === undefined || given === "") return;
         const evaluation = normalizeAnswerEvaluation(state.currentQuestion, given);
+        if (evaluation.partialCorrect) {
+            // A part matched but the card is not done yet.  Re-render the same
+            // question in place (its state was mutated by evaluateAnswer) so the
+            // user sees the newly matched parts without advancing the queue.
+            contentEl.classList.remove("is-wrong", "question-enter");
+            feedbackEl.textContent = " ";
+            feedbackEl.classList.remove("is-bad");
+            contentEl.innerHTML = "";
+            setQuestionController(spec.renderQuestion(state.currentQuestion, contentEl, { kind: "play" }));
+            void contentEl.offsetWidth;
+            contentEl.classList.add("question-enter");
+            return;
+        }
         if (evaluation.correct) {
             onCorrect(given, evaluation);
         } else {
