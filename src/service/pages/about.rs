@@ -16,7 +16,7 @@ pub async fn about(req: Request) -> impl IntoResponse {
         PageMeta {
             title: "Over ons — Oefeningen Basisschool",
             description: "Over het project: onze missie, didactische aanpak en hoe je de app gebruikt.",
-            og_path: "/over-ons".into(),
+            og_path: "/about".into(),
             favicon_emoji: "🏫",
         },
         "",

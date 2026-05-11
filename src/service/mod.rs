@@ -56,7 +56,7 @@ pub async fn load_https_service()
 -> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
     let app = Router::new()
         .with_get("/", pages::home::home)
-        .with_get("/over-ons", pages::about::about)
+        .with_get("/about", pages::about::about)
         .with_get("/offline", pages::offline::offline)
         .with_get("/theme.css", assets::theme_css)
         .with_get("/homework.js", assets::homework_js)
