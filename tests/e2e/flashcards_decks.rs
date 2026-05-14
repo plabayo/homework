@@ -454,10 +454,25 @@ async fn flashcards_import_name_conflict_save_as_new() -> TestResult<()> {
     wait_for_css(driver, "#fc-saveas-import", Duration::from_secs(10)).await?;
     wait_for_css(driver, "#fc-import-name", Duration::from_secs(5)).await?;
 
-    set_input_value(driver, "#fc-import-name", "Gedeeld deck (kopie)").await?;
-    click(driver, "#fc-saveas-import").await?;
+    // Set the input value via JS to avoid WebDriver send_keys timing races, then
+    // click the button.  Both happen synchronously inside a single execute call so
+    // doImport() is guaranteed to see the updated value.
+    driver
+        .execute(
+            "var inp = document.querySelector('#fc-import-name'); \
+             inp.value = 'Gedeeld deck (kopie)'; \
+             document.querySelector('#fc-saveas-import').click();",
+            vec![],
+        )
+        .await?;
 
-    wait_for_css(driver, ".deck-item.selected", Duration::from_secs(10)).await?;
+    wait_for_text(
+        driver,
+        ".deck-item.selected .deck-name",
+        "Gedeeld deck (kopie)",
+        Duration::from_secs(10),
+    )
+    .await?;
     let selected_name = text_of(driver, ".deck-item.selected .deck-name").await?;
     assert_eq!(
         selected_name, "Gedeeld deck (kopie)",
