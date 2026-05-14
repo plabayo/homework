@@ -34,7 +34,16 @@ const INT_INPUT = `<input inputmode="numeric" pattern="[0-9]+" id="answer" min="
 function buildDeck(cfg) {
     const deck = [];
     const N = cfg.numExercises;
-    const maxDen = cfg.maxDenominator;
+    const dens = (cfg.denominators || []).map(Number).filter((n) => n >= 2);
+    if (dens.length === 0) return deck;
+
+    // Pairs [small, big] where big is a strict multiple of small — used for mixed denominators.
+    const mixedPairs = [];
+    for (const a of dens) {
+        for (const b of dens) {
+            if (b > a && b % a === 0) mixedPairs.push([a, b]);
+        }
+    }
 
     let tries = 0;
     while (deck.length < N && tries < N * 20) {
@@ -44,7 +53,7 @@ function buildDeck(cfg) {
 
         switch (kind) {
             case "breuk-van-getal": {
-                const den = 2 + Math.floor(Math.random() * (maxDen - 1));
+                const den = pickRandom(dens);
                 const num = 1 + Math.floor(Math.random() * (den - 1));
                 const maxK = Math.max(2, Math.floor(20 / den));
                 const k = 1 + Math.floor(Math.random() * maxK);
@@ -54,15 +63,11 @@ function buildDeck(cfg) {
             case "optellen":
             case "aftrekken": {
                 let aDen, bDen;
-                if (cfg.mixedDenominators) {
-                    // One denominator is a multiple of the other (e.g. halves + quarters).
-                    const smallDen = 2 + Math.floor(Math.random() * Math.max(1, Math.floor(maxDen / 2) - 1));
-                    const factor = 2 + Math.floor(Math.random() * 2);
-                    const bigDen = smallDen * factor;
-                    if (bigDen > maxDen * 2) continue;
-                    [aDen, bDen] = Math.random() < 0.5 ? [smallDen, bigDen] : [bigDen, smallDen];
+                if (cfg.mixedDenominators && mixedPairs.length > 0) {
+                    const [small, big] = pickRandom(mixedPairs);
+                    [aDen, bDen] = Math.random() < 0.5 ? [small, big] : [big, small];
                 } else {
-                    aDen = 2 + Math.floor(Math.random() * (maxDen - 1));
+                    aDen = pickRandom(dens);
                     bDen = aDen;
                 }
                 const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
@@ -81,15 +86,15 @@ function buildDeck(cfg) {
                 break;
             }
             case "vermenigvuldigen": {
-                const aDen = 2 + Math.floor(Math.random() * (maxDen - 1));
-                const bDen = 2 + Math.floor(Math.random() * (maxDen - 1));
+                const aDen = pickRandom(dens);
+                const bDen = pickRandom(dens);
                 const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
                 const bNum = 1 + Math.floor(Math.random() * (bDen - 1));
                 q = { kind, aNum, aDen, bNum, bDen, answer: simplify(aNum * bNum, aDen * bDen) };
                 break;
             }
             case "delen": {
-                const den = 2 + Math.floor(Math.random() * (maxDen - 1));
+                const den = pickRandom(dens);
                 const num = 1 + Math.floor(Math.random() * (den - 1));
                 const divisor = 2 + Math.floor(Math.random() * 2);
                 q = { kind, num, den, divisor, answer: simplify(num, den * divisor) };
@@ -157,7 +162,7 @@ function renderReview(q) {
 }
 
 const FIELDS = [
-    { field: "max-denominator", type: "number", key: "maxDenominator" },
+    { field: "denominators", type: "checkboxes", key: "denominators" },
     { field: "num-exercises", type: "number", key: "numExercises" },
     { field: "practice", type: "checkboxes", key: "kinds" },
     { field: "mixed-denominators", type: "checkbox", key: "mixedDenominators" },
@@ -190,9 +195,9 @@ runExercise({
         return readFields(form, FIELDS);
     },
     validateConfig(cfg) {
+        if (!cfg.denominators || cfg.denominators.length === 0) return "Gelieve minstens één noemer te selecteren.";
         if (cfg.kinds.length === 0) return "Gelieve minstens één soort oefening te selecteren.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
-        if (!cfg.maxDenominator || cfg.maxDenominator < 2) return "Noemer moet minstens 2 zijn.";
         return null;
     },
     buildDeck,

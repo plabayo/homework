@@ -15,7 +15,7 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     path: "/2/fractions",
     label: "breukendoos",
     icon: "🔣",
-    code_label: "½➕➖✖️➗",
+    code_label: "➕➖✖️➗",
     level: 2,
 };
 
@@ -62,20 +62,34 @@ fn kind_checkbox(value: &'static str, text: &'static str, default_on: bool) -> i
     )
 }
 
+fn denominator_checkbox(value: &'static str, default_on: bool) -> impl IntoHtml {
+    let checked: Option<&'static str> = if default_on { Some("") } else { None };
+    label!(
+        input!(
+            r#type = "checkbox",
+            name = "denominators",
+            value = value,
+            checked? = checked,
+        ),
+        " ",
+        value,
+    )
+}
+
 fn config_fields() -> impl IntoHtml {
     (
-        div!(
-            class = "field",
-            label!(r#for = "max-denominator", "Noemer tot:"),
-            input!(
-                inputmode = "numeric",
-                pattern = "[0-9]+",
-                id = "max-denominator",
-                name = "max-denominator",
-                min = "2",
-                max = "20",
-                value = "8",
-                required? = true,
+        fieldset!(
+            legend!("Noemers"),
+            div!(
+                class = "kinds",
+                denominator_checkbox("2", true),
+                denominator_checkbox("3", true),
+                denominator_checkbox("4", true),
+                denominator_checkbox("5", false),
+                denominator_checkbox("6", true),
+                denominator_checkbox("8", false),
+                denominator_checkbox("10", false),
+                denominator_checkbox("12", false),
             ),
         ),
         div!(
@@ -96,7 +110,7 @@ fn config_fields() -> impl IntoHtml {
             legend!("Wat wil je oefenen?"),
             div!(
                 class = "kinds",
-                kind_checkbox("breuk-van-getal", "breuk van getal ½", true),
+                kind_checkbox("breuk-van-getal", "breuk van getal", true),
                 kind_checkbox("optellen", "optellen ➕", true),
                 kind_checkbox("aftrekken", "aftrekken ➖", true),
                 kind_checkbox("vermenigvuldigen", "vermenigvuldigen ✖️", false),
