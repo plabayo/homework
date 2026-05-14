@@ -103,7 +103,7 @@ function buildDeck(cfg) {
 }
 
 const FEEDBACK = {
-    "breuk-van-getal": "breuk van een getal 🔢",
+    "breuk-van-getal": "breuk van een getal ½",
     optellen: "maak de som ➕",
     aftrekken: "maak het verschil ➖",
     vermenigvuldigen: "maak de vermenigvuldiging ✖️",

@@ -96,7 +96,7 @@ fn config_fields() -> impl IntoHtml {
             legend!("Wat wil je oefenen?"),
             div!(
                 class = "kinds",
-                kind_checkbox("breuk-van-getal", "breuk van getal 🔢", true),
+                kind_checkbox("breuk-van-getal", "breuk van getal ½", true),
                 kind_checkbox("optellen", "optellen ➕", true),
                 kind_checkbox("aftrekken", "aftrekken ➖", true),
                 kind_checkbox("vermenigvuldigen", "vermenigvuldigen ✖️", false),
