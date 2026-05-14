@@ -81,7 +81,10 @@
     font-size: 0.88em;
     font-variant-numeric: tabular-nums;
     user-select: none;
-    transition: background 120ms, border-color 120ms, color 120ms;
+    transition:
+        background 120ms,
+        border-color 120ms,
+        color 120ms;
 }
 .den-chip input[type="checkbox"] {
     position: absolute;
