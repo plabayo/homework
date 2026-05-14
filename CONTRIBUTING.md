@@ -88,6 +88,20 @@ will be wrong (broken routing, missing offline support, or invisible exercise):
    that level value to `EXERCISE_LEVELS` and add a matching arm to
    `niveau_label()`.
 
+### Testing
+
+When you add or modify an exercise, include tests alongside the code:
+
+- **End-to-end tests** (`tests/e2e/`) — always add at least one happy-path
+  e2e test that drives a real browser through the configure → answer → result
+  flow. Look at an existing exercise test (e.g. `fractions.rs`) for the
+  pattern.
+
+- **JS unit tests** (`tests/js/`) — add these when the exercise JavaScript
+  contains non-trivial logic (score calculation, deck building, answer
+  normalisation, etc.). The harness in `tests/js/harness.mjs` shows how to
+  import and test individual functions without a browser.
+
 ### Local development
 
 ```bash
