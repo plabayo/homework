@@ -7,6 +7,7 @@ use rama::http::html::{IntoHtml, button, div, fieldset, form, input, label, lege
 pub mod clock;
 pub mod digital_clock;
 pub mod flashcards;
+pub mod fractions;
 pub mod mathbox;
 pub mod multiplications;
 pub mod thermometer;
@@ -69,6 +70,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
         code_label: "⏰",
         level: 2,
     },
+    fractions::INFO,
     flashcards::INFO,
 ];
 

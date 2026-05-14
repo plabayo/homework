@@ -81,6 +81,7 @@ pub async fn load_https_app_service()
         .with_get("/1/thermometer", exercises::thermometer::handler)
         .with_get("/2/clock", exercises::clock::handler)
         .with_get("/2/digital-clock", exercises::digital_clock::handler)
+        .with_get("/2/fractions", exercises::fractions::handler)
         .with_get("/extra/flashcards", exercises::flashcards::handler)
         .with_not_found(pages::offline::not_found);
 

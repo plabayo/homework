@@ -41,6 +41,7 @@ const PRECACHE = [
     "/1/thermometer",
     "/2/clock",
     "/2/digital-clock",
+    "/2/fractions",
 ];
 
 self.addEventListener("install", (event) => {

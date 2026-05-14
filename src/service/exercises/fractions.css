@@ -1,0 +1,74 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+.kinds {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+}
+@media (min-width: 600px) {
+    .kinds {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+.kinds label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Fraction display: vertically stacked numerator / bar / denominator */
+.fraction {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    text-align: center;
+    line-height: 1.3;
+    gap: 1px;
+}
+.fraction .frac-num,
+.fraction .frac-den {
+    padding: 0 6px;
+    min-width: 1.5em;
+}
+.fraction .frac-bar {
+    width: 100%;
+    min-width: 1.5em;
+    height: 2px;
+    background: currentColor;
+    display: block;
+}
+
+/* Fraction input: same layout but with text fields */
+.fraction-input {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    gap: 2px;
+}
+.fraction-input input {
+    width: 3em;
+    text-align: center;
+    padding: 2px 4px;
+}
+.fraction-input .frac-bar {
+    width: 100%;
+    min-width: 3em;
+    height: 2px;
+    background: currentColor;
+    display: block;
+}
+
+/* Expression row: operands + operator + answer */
+.fraction-expr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    font-size: 1.3em;
+    padding-block: 0.5em;
+}
