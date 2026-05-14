@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::html::{IntoHtml, div, fieldset, input, label, legend};
+use rama::http::html::{IntoHtml, div, fieldset, input, label, legend, span};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
@@ -62,16 +62,16 @@ fn kind_checkbox(value: &'static str, text: &'static str, default_on: bool) -> i
     )
 }
 
-fn denominator_checkbox(value: &'static str, default_on: bool) -> impl IntoHtml {
+fn den_chip(value: &'static str, default_on: bool) -> impl IntoHtml {
     let checked: Option<&'static str> = if default_on { Some("") } else { None };
     label!(
+        class = "den-chip",
         input!(
             r#type = "checkbox",
             name = "denominators",
             value = value,
             checked? = checked,
         ),
-        " ",
         value,
     )
 }
@@ -81,15 +81,24 @@ fn config_fields() -> impl IntoHtml {
         fieldset!(
             legend!("Noemers"),
             div!(
-                class = "kinds",
-                denominator_checkbox("2", true),
-                denominator_checkbox("3", true),
-                denominator_checkbox("4", true),
-                denominator_checkbox("5", false),
-                denominator_checkbox("6", true),
-                denominator_checkbox("8", false),
-                denominator_checkbox("10", false),
-                denominator_checkbox("12", false),
+                class = "denominator-chips",
+                den_chip("2", true),
+                den_chip("3", true),
+                den_chip("4", true),
+                den_chip("5", false),
+                den_chip("6", true),
+                den_chip("7", false),
+                den_chip("8", false),
+                den_chip("9", false),
+                den_chip("10", false),
+                den_chip("11", false),
+                den_chip("12", false),
+                span!(class = "den-chip-sep"),
+                den_chip("15", false),
+                den_chip("20", false),
+                den_chip("25", false),
+                den_chip("50", false),
+                den_chip("100", false),
             ),
         ),
         div!(

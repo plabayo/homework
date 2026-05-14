@@ -62,6 +62,52 @@
     display: block;
 }
 
+/* Denominator chip picker */
+.denominator-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.den-chip {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1.5px solid color-mix(in srgb, var(--fg) 30%, transparent);
+    font-size: 0.88em;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    transition: background 120ms, border-color 120ms, color 120ms;
+}
+.den-chip input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.den-chip:has(input:checked) {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+}
+.den-chip:not(:has(input:checked)):hover {
+    border-color: var(--fg);
+}
+/* thin vertical rule separating the ≤12 group from the larger values */
+.den-chip-sep {
+    width: 1.5px;
+    height: 1.4em;
+    background: color-mix(in srgb, var(--fg) 25%, transparent);
+    border-radius: 1px;
+    margin-inline: 2px;
+    flex-shrink: 0;
+}
+
 /* Expression row: operands + operator + answer */
 .fraction-expr {
     display: flex;
