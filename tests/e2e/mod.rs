@@ -18,5 +18,6 @@ mod clock_freeplay;
 mod exercise_flows;
 mod flashcards_decks;
 mod flashcards_play;
+mod fractions;
 mod helpers;
 mod language_banner;
