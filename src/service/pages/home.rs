@@ -6,7 +6,7 @@ use rama::http::Request;
 use rama::http::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{ExerciseInfo, all_exercises, niveau_label};
+use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, niveau_label};
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
@@ -54,23 +54,22 @@ fn site_footer() -> impl IntoHtml {
 
 fn levels() -> impl IntoHtml {
     let exercises = all_exercises();
-    let mut level_nums: Vec<u8> = exercises.iter().map(|e| e.level).collect();
-    level_nums.sort_unstable();
-    level_nums.dedup();
-    level_nums
-        .into_iter()
-        .map(|lvl| {
+    EXERCISE_LEVELS
+        .iter()
+        .filter_map(|&lvl| {
             let items: Vec<_> = exercises.iter().filter(|e| e.level == lvl).collect();
-            (
-                h2!(niveau_label(lvl)),
-                ul!(
-                    class = "exercise-list",
-                    items
-                        .iter()
-                        .map(|e| li!(exercise_link(e)))
-                        .collect::<Vec<_>>(),
-                ),
-            )
+            (!items.is_empty()).then(|| {
+                (
+                    h2!(niveau_label(lvl)),
+                    ul!(
+                        class = "exercise-list",
+                        items
+                            .iter()
+                            .map(|e| li!(exercise_link(e)))
+                            .collect::<Vec<_>>(),
+                    ),
+                )
+            })
         })
         .collect::<Vec<_>>()
 }

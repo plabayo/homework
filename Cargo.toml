@@ -9,6 +9,7 @@ resolver = "3"
 
 [dependencies]
 clap = { version = "4.6", features = ["derive"] }
+const_format = "0.2"
 rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features = [
     "tcp",
     "http-full",

@@ -191,20 +191,20 @@ static LANGS: &[BannerLang] = &[
 
 /// Returns rendered banner HTML when the request headers indicate that the user
 /// does not prefer Dutch *and* has not previously dismissed the banner (cookie absent).
-/// Returns `None` when no banner is needed.
-pub(crate) fn lang_banner(headers: &HeaderMap) -> Option<PreEscaped<String>> {
+/// Returns `PreEscaped(String::new())` when no banner is needed.
+pub(crate) fn lang_banner(headers: &HeaderMap) -> PreEscaped<String> {
     if lang_ok_cookie_set(headers) {
-        return None;
+        return PreEscaped(String::new());
     }
     let accept_lang = headers
         .get("accept-language")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if accepts_nl(accept_lang) {
-        return None;
+        return PreEscaped(String::new());
     }
     let t = find_translation(accept_lang);
-    Some(PreEscaped(render_banner(t)))
+    PreEscaped(render_banner(t))
 }
 
 fn lang_ok_cookie_set(headers: &HeaderMap) -> bool {
@@ -253,13 +253,30 @@ fn find_translation(accept_lang: &str) -> &'static BannerLang {
         .expect("English must be in LANGS")
 }
 
+/// Escape the five HTML special characters. `prefix`/`suffix`/`dismiss` are
+/// `&'static str` compile-time constants with no metacharacters today, but
+/// explicit escaping keeps the function correct if translations are ever
+/// sourced dynamically.
+fn html_escape(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains(['&', '<', '>', '"', '\'']) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    std::borrow::Cow::Owned(
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&#39;"),
+    )
+}
+
 fn render_banner(t: &BannerLang) -> String {
     let dir = if t.rtl { r#" dir="rtl""# } else { "" };
     format!(
         r#"<div id="lang-banner" class="lang-banner" role="alert"{dir}><p>{prefix}<a href="mailto:hello@plabayo.tech">hello@plabayo.tech</a>{suffix}</p><button type="button" id="lang-banner-dismiss">{dismiss}</button></div>"#,
-        prefix = t.prefix,
-        suffix = t.suffix,
-        dismiss = t.dismiss,
+        prefix = html_escape(t.prefix),
+        suffix = html_escape(t.suffix),
+        dismiss = html_escape(t.dismiss),
     )
 }
 
@@ -300,32 +317,32 @@ mod tests {
     }
 
     #[test]
-    fn lang_banner_none_for_nl_be() {
+    fn lang_banner_empty_for_nl_be() {
         let headers = make_headers("nl-BE,nl;q=0.9");
-        assert!(lang_banner(&headers).is_none());
+        assert!(lang_banner(&headers).0.is_empty());
     }
 
     #[test]
-    fn lang_banner_some_for_en() {
+    fn lang_banner_present_for_en() {
         let headers = make_headers("en-US,en;q=0.9");
-        assert!(lang_banner(&headers).is_some());
+        assert!(!lang_banner(&headers).0.is_empty());
     }
 
     #[test]
-    fn lang_banner_none_when_cookie_set() {
+    fn lang_banner_empty_when_cookie_set() {
         let mut headers = make_headers("en-US");
         headers.insert("cookie", "lang_ok=1".parse().unwrap());
-        assert!(lang_banner(&headers).is_none());
+        assert!(lang_banner(&headers).0.is_empty());
     }
 
     #[test]
-    fn lang_banner_none_when_cookie_among_others() {
+    fn lang_banner_empty_when_cookie_among_others() {
         let mut headers = make_headers("en-US");
         headers.insert(
             "cookie",
             "session=abc; lang_ok=1; theme=dark".parse().unwrap(),
         );
-        assert!(lang_banner(&headers).is_none());
+        assert!(lang_banner(&headers).0.is_empty());
     }
 
     #[test]
@@ -343,7 +360,7 @@ mod tests {
     #[test]
     fn rendered_banner_contains_email_link() {
         let headers = make_headers("en-US");
-        let banner = lang_banner(&headers).unwrap();
+        let banner = lang_banner(&headers);
         assert!(banner.0.contains("hello@plabayo.tech"));
         assert!(banner.0.contains("lang-banner-dismiss"));
     }
@@ -351,14 +368,14 @@ mod tests {
     #[test]
     fn rtl_banner_has_dir_attribute() {
         let headers = make_headers("ar");
-        let banner = lang_banner(&headers).unwrap();
+        let banner = lang_banner(&headers);
         assert!(banner.0.contains(r#"dir="rtl""#));
     }
 
     #[test]
     fn ltr_banner_has_no_dir_attribute() {
         let headers = make_headers("en");
-        let banner = lang_banner(&headers).unwrap();
+        let banner = lang_banner(&headers);
         assert!(!banner.0.contains("dir="));
     }
 }

@@ -23,6 +23,11 @@ function versionedAsset(path) {
 }
 
 // Pre-cache the assets that are guaranteed to be needed.
+//
+// IMPORTANT: this list must stay in sync with the routes registered in
+// src/service/mod.rs::load_https_app_service().  Every HTML page that must
+// work offline needs an entry here.  When adding a new exercise, add its
+// path to both places.
 const PRECACHE = [
     versionedAsset("/theme.css"),
     versionedAsset("/homework.js"),

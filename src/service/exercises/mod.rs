@@ -17,55 +17,70 @@ pub struct ExerciseInfo {
     pub path: &'static str,
     pub label: &'static str,
     pub icon: &'static str,
+    /// Short emoji sequence used as a compact visual code for the exercise,
+    /// e.g. displayed in share links or notifications. May equal `icon`.
     pub code_label: &'static str,
     pub level: u8,
 }
 
+/// All exercises in catalogue order.
+///
+/// NOTE: every entry here must also have a matching route in
+/// `src/service/mod.rs::load_https_app_service()` and an entry in the
+/// PRECACHE list in `src/service/assets/service-worker.js`.
+static ALL_EXERCISES: &[ExerciseInfo] = &[
+    ExerciseInfo {
+        id: "mathbox",
+        path: "/1/mathbox",
+        label: "rekendoos",
+        icon: "🔢",
+        code_label: "➕➖✖️➗🟰",
+        level: 1,
+    },
+    ExerciseInfo {
+        id: "multiplications",
+        path: "/1/multiplications",
+        label: "maaltafels",
+        icon: "✖️",
+        code_label: "✖️",
+        level: 1,
+    },
+    ExerciseInfo {
+        id: "thermometer",
+        path: "/1/thermometer",
+        label: "thermometer",
+        icon: "🌡️",
+        code_label: "🌡️",
+        level: 1,
+    },
+    ExerciseInfo {
+        id: "clock",
+        path: "/2/clock",
+        label: "analoge klok",
+        icon: "🕐",
+        code_label: "🕐",
+        level: 2,
+    },
+    ExerciseInfo {
+        id: "digital-clock",
+        path: "/2/digital-clock",
+        label: "digitale klok",
+        icon: "⏰",
+        code_label: "⏰",
+        level: 2,
+    },
+    flashcards::INFO,
+];
+
 pub fn all_exercises() -> &'static [ExerciseInfo] {
-    &[
-        ExerciseInfo {
-            id: "mathbox",
-            path: "/1/mathbox",
-            label: "rekendoos",
-            icon: "🔢",
-            code_label: "➕➖✖️➗🟰",
-            level: 1,
-        },
-        ExerciseInfo {
-            id: "multiplications",
-            path: "/1/multiplications",
-            label: "maaltafels",
-            icon: "✖️",
-            code_label: "✖️",
-            level: 1,
-        },
-        ExerciseInfo {
-            id: "thermometer",
-            path: "/1/thermometer",
-            label: "thermometer",
-            icon: "🌡️",
-            code_label: "🌡️",
-            level: 1,
-        },
-        ExerciseInfo {
-            id: "clock",
-            path: "/2/clock",
-            label: "analoge klok",
-            icon: "🕐",
-            code_label: "🕐",
-            level: 2,
-        },
-        ExerciseInfo {
-            id: "digital-clock",
-            path: "/2/digital-clock",
-            label: "digitale klok",
-            icon: "⏰",
-            code_label: "⏰",
-            level: 2,
-        },
-        flashcards::INFO,
-    ]
+    ALL_EXERCISES
 }
+
+/// Level values in the order they are displayed on the home page.
+///
+/// NOTE: when a new level is added, add it here AND add a matching arm to
+/// `niveau_label()` below.
+pub const EXERCISE_LEVELS: &[u8] = &[1, 2, 10];
 
 pub fn niveau_label(level: u8) -> &'static str {
     match level {

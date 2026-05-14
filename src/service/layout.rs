@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
-    p, script, style, title,
+    p, script, title,
 };
 use rama::http::service::web::response::IntoResponse;
 
@@ -47,13 +47,14 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
 /// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
 /// they go into `<style>` / `<script type="module">` verbatim (not HTML-escaped).
 /// Inline exercise modules can import the shared runtime via `@homework`.
-/// `banner` is optional pre-rendered HTML inserted at the top of the page.
+/// `banner` is pre-rendered HTML inserted at the top of the page; pass
+/// `PreEscaped(String::new())` when no banner is needed.
 pub fn page(
     meta_data: PageMeta,
     extra_style: &str,
     body_content: impl IntoHtml,
     extra_module_script: &str,
-    banner: Option<PreEscaped<String>>,
+    banner: PreEscaped<String>,
 ) -> impl IntoResponse {
     let favicon_data = format!(
         "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>{}</text></svg>",
@@ -99,17 +100,17 @@ pub fn page(
                 "property" = "og:image",
                 content = "https://elementary.training/img/social_preview.jpeg",
             ),
-            if extra_style.is_empty() {
-                style!(PreEscaped(""))
+            PreEscaped(if extra_style.is_empty() {
+                String::new()
             } else {
-                style!(PreEscaped(extra_style))
-            },
+                format!("<style>{extra_style}</style>")
+            }),
         ),
         body!(
             canvas!(id = "confetti", "aria-hidden" = "true"),
             div!(
                 class = "page",
-                PreEscaped(banner.map(|b| b.0).unwrap_or_default()),
+                banner,
                 div!(
                     class = "offline-banner",
                     "📴 Offline modus — je gebruikt een opgeslagen versie.",
@@ -122,11 +123,11 @@ pub fn page(
             )),
             script!(r#type = "importmap", PreEscaped(shared_js_import_map)),
             script!(r#type = "module", src = shared_js_url),
-            if extra_module_script.is_empty() {
-                script!(r#type = "module", PreEscaped(""))
+            PreEscaped(if extra_module_script.is_empty() {
+                String::new()
             } else {
-                script!(r#type = "module", PreEscaped(extra_module_script))
-            },
+                format!(r#"<script type="module">{extra_module_script}</script>"#)
+            }),
         ),
     )
 }

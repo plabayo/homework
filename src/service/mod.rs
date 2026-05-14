@@ -39,20 +39,33 @@ fn apply_common_middleware(
                 HeaderName::from_static("x-sponsored-by"),
                 HeaderValue::from_static("fly.io"),
             ),
+            SetResponseHeaderLayer::if_not_present(
+                HeaderName::from_static("x-content-type-options"),
+                HeaderValue::from_static("nosniff"),
+            ),
             cors::CorsLayer::permissive(),
         )
             .into_layer(service),
     )
 }
 
-pub async fn load_http_service()
+/// HTTP-only service: redirects every request to the HTTPS equivalent and
+/// strips a leading `www.` from the host.
+pub async fn load_http_redirect_service()
 -> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
     let app =
         RedirectHttpToHttps::new().with_rewrite_uri_rule(UriMatchReplaceDomain::drop_prefix_www());
     Ok(apply_common_middleware(app))
 }
 
-pub async fn load_https_service()
+/// Full application service used on the HTTPS port (and on the plain-HTTP port
+/// when TLS is disabled, e.g. in local development).
+///
+/// NOTE: every route registered here must also appear in the PRECACHE list in
+/// `src/service/assets/service-worker.js` so the page works offline.
+/// Similarly, every exercise route must be registered in
+/// `src/service/exercises/mod.rs::all_exercises()` to appear in the catalogue.
+pub async fn load_https_app_service()
 -> Result<impl Service<Request, Output = Response, Error = Infallible> + Clone, OpaqueError> {
     let app = Router::new()
         .with_get("/", pages::home::home)
@@ -74,6 +87,23 @@ pub async fn load_https_service()
     let middlewares = (
         SetResponseHeaderLayer::if_not_present_typed(
             StrictTransportSecurity::excluding_subdomains_for_max_seconds(31536000),
+        ),
+        // img-src and connect-src are broad (https:) to accommodate external image CDNs
+        // (Wikimedia Commons) and future map/API integrations without further changes.
+        SetResponseHeaderLayer::overriding(
+            HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(
+                "default-src 'self'; \
+                 script-src 'self' 'unsafe-inline'; \
+                 style-src 'self' 'unsafe-inline'; \
+                 img-src 'self' https: data: blob:; \
+                 connect-src 'self' https:; \
+                 font-src 'self'; \
+                 object-src 'none'; \
+                 base-uri 'self'; \
+                 form-action 'self'; \
+                 frame-ancestors 'none'",
+            ),
         ),
         UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www()),
     );

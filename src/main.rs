@@ -70,9 +70,9 @@ async fn spawn_service_http(
     https_enabled: bool,
 ) -> Result<(), BoxError> {
     let svc = if https_enabled {
-        Either::A(self::service::load_http_service().await?)
+        Either::A(self::service::load_http_redirect_service().await?)
     } else {
-        Either::B(self::service::load_https_service().await?)
+        Either::B(self::service::load_https_app_service().await?)
     };
 
     let exec = Executor::graceful(guard.clone());
@@ -114,7 +114,7 @@ async fn spawn_service_https(
         TlsAcceptorData::try_from(tls_server_config).context("create acceptor data")?;
 
     let svc = AddInputExtensionLayer::new(Protocol::HTTPS)
-        .into_layer(self::service::load_https_service().await?);
+        .into_layer(self::service::load_https_app_service().await?);
 
     let http_server = HttpServer::auto(executor.clone()).service(svc);
     let tcp_server = (
@@ -126,7 +126,7 @@ async fn spawn_service_https(
     let tcp_listener = TcpListener::bind_address(interface, executor).await?;
 
     guard.into_spawn_task_fn(async move |_guard| {
-        tracing::info!("http server ({interface}) up and running");
+        tracing::info!("https server ({interface}) up and running");
         tcp_listener.serve(tcp_server).await;
     });
 

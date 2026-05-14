@@ -23,24 +23,29 @@ const STORE = "sessions";
 
 // ---------- IndexedDB helpers ----------
 
+// Single shared connection — opened once and reused for all operations.
+let _dbPromise = null;
 function openDb() {
-    return new Promise((resolve, reject) => {
-        if (!("indexedDB" in window)) {
-            reject(new Error("indexedDB not supported"));
-            return;
-        }
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE)) {
-                const store = db.createObjectStore(STORE, { keyPath: "id" });
-                store.createIndex("by_exercise", "exerciseId");
-                store.createIndex("by_finishedAt", "finishedAt");
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
+    if (!("indexedDB" in window)) return Promise.reject(new Error("indexedDB not supported"));
+    if (!_dbPromise) {
+        _dbPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(STORE)) {
+                    const store = db.createObjectStore(STORE, { keyPath: "id" });
+                    store.createIndex("by_exercise", "exerciseId");
+                    store.createIndex("by_finishedAt", "finishedAt");
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => {
+                _dbPromise = null; // allow retry on transient failure
+                reject(req.error);
+            };
+        });
+    }
+    return _dbPromise;
 }
 
 async function withStore(mode, fn) {
@@ -784,7 +789,11 @@ function renderTrickyList(session) {
  *      return { getAnswer, cleanup } to tear down global listeners.
  *   evaluateAnswer?: (q, given) => boolean | {
  *      correct: boolean, exact?: boolean, showReview?: boolean,
- *      practiceAgain?: boolean, feedback?: string
+ *      practiceAgain?: boolean, feedback?: string,
+ *      partialCorrect?: boolean   — when true the answer matched part of a
+ *                                   multi-blank question; the question is
+ *                                   re-rendered in place (state mutated by
+ *                                   evaluateAnswer) without advancing the deck
  *   }
  *   evaluateSkip?: (q) => null | { showReview?: boolean, feedback?: string, bad?: boolean }
  *   isCorrect: (q, given) => boolean
@@ -1695,23 +1704,25 @@ async function listRecentWithPrefix(prefix, limit = 5) {
 async function hydrateHomeStats() {
     const slots = document.querySelectorAll("[data-stats-for]");
     if (slots.length === 0) return;
-    for (const slot of slots) {
-        const id = slot.dataset.statsFor;
-        let sessions = await listSessions(id, 5);
-        // Fallback: exercise may use per-variant IDs (e.g. "flashcards-<deckId>").
-        if (sessions.length === 0) sessions = await listRecentWithPrefix(`${id}-`, 5);
-        if (sessions.length === 0) {
-            slot.textContent = "nog niet geoefend";
-            continue;
-        }
-        const last = sessions[0];
-        const score = `${last.correct}/${last.total}`;
-        const when = relativeDate(last.finishedAt || last.startedAt);
-        slot.textContent = `🎯 ${score} · ${when}`;
-        if (last.correct === last.total && last.total > 0) {
-            slot.dataset.best = "true";
-        }
-    }
+    await Promise.all(
+        [...slots].map(async (slot) => {
+            const id = slot.dataset.statsFor;
+            let sessions = await listSessions(id, 5);
+            // Fallback: exercise may use per-variant IDs (e.g. "flashcards-<deckId>").
+            if (sessions.length === 0) sessions = await listRecentWithPrefix(`${id}-`, 5);
+            if (sessions.length === 0) {
+                slot.textContent = "nog niet geoefend";
+                return;
+            }
+            const last = sessions[0];
+            const score = `${last.correct}/${last.total}`;
+            const when = relativeDate(last.finishedAt || last.startedAt);
+            slot.textContent = `🎯 ${score} · ${when}`;
+            if (last.correct === last.total && last.total > 0) {
+                slot.dataset.best = "true";
+            }
+        }),
+    );
 }
 
 // ---------- numeric input filter ----------
