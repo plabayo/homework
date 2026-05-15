@@ -61,6 +61,24 @@ reach out at [hello@plabayo.tech](mailto:hello@plabayo.tech).
 
 ## Developer notes
 
+### Web platform guidelines (CSS & vanilla JS)
+
+This project is built with **vanilla CSS and vanilla JavaScript** — no React,
+no styled-components, no JS framework. Before adding or improving an exercise,
+page, or any frontend code, read and follow
+**[guidelines/css_and_some_js.md](./guidelines/css_and_some_js.md)**.
+
+It collects the mental models, rules, and gotchas that make the web platform
+pleasant to work with: selectors and the cascade, the box model, positioning,
+Flexbox and Grid, responsive design, typography, colour and visual styling,
+motion, scroll, and accessibility. Lean on it when deciding how a feature
+should be built.
+
+The document is **living**. When you encounter a useful pattern, a non-obvious
+gotcha, or a technique worth remembering while working on the repo,
+contributions back to the guidelines are very welcome — the goal is to keep
+making the best of the web platform in its beautiful vanilla form.
+
 ### Adding a new exercise
 
 Each exercise is a trio of files: a Rust handler, a CSS file, and a JS file.
