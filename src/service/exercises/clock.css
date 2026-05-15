@@ -228,7 +228,7 @@
         width 0.38s ease;
 }
 .phrase-flip.flipped .phrase-flip-inner {
-    rotate: y 180deg;
+    transform: rotateY(180deg);
 }
 .phrase-flip-face {
     backface-visibility: hidden;
@@ -258,7 +258,7 @@
     position: absolute;
     left: 0;
     white-space: nowrap;
-    rotate: y 180deg;
+    transform: rotateY(180deg);
     color: var(--accent);
 }
 
@@ -295,7 +295,7 @@
     -webkit-backface-visibility: hidden;
 }
 .word-option-back {
-    rotate: y 180deg;
+    transform: rotateY(180deg);
     color: var(--accent);
 }
 .option-list .default-button.selected .word-option-back {

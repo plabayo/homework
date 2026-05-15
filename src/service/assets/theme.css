@@ -78,7 +78,7 @@
         scrollbar-gutter: stable;
     }
     :root {
-        --bg: light-dark(#ffffff, #14171c);
+        --bg: light-dark(#f6f5f1, #14171c);
         --fg: light-dark(#14181f, #f5f7fb);
         --muted: light-dark(#4b5563, #c7cdd9);
         --accent: light-dark(#1d4ed8, #93c5fd);
