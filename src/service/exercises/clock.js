@@ -110,14 +110,18 @@ function buildWordOptions(q, minStep) {
     const seenLabels = new Set();
     const out = [];
     const push = (h, m) => {
-        const label = dutchTimePhrase(h, m);
-        if (!label) return;
+        const canonical = dutchTimePhrase(h, m);
+        if (!canonical) return;
         const key = `${h}:${m}`;
-        if (seenTimes.has(key) || seenLabels.has(label)) return;
+        if (seenTimes.has(key) || seenLabels.has(canonical)) return;
         seenTimes.add(key);
-        seenLabels.add(label);
+        seenLabels.add(canonical);
         const variants = dutchTimePhraseVariants(h, m);
-        out.push({ h, m, label, altLabel: variants.length > 1 ? variants[1] : null });
+        // Randomly pick which variant is front so the classic form isn't always first.
+        const showAlt = variants.length > 1 && Math.random() < 0.5;
+        const label = showAlt ? variants[1] : variants[0];
+        const altLabel = variants.length > 1 ? (showAlt ? variants[0] : variants[1]) : null;
+        out.push({ h, m, label, altLabel });
     };
 
     push(q.h, q.m);
@@ -501,7 +505,8 @@ function mountFreeplay() {
                 digitalEl.textContent = timeLabel(h, m);
                 const variants = dutchTimePhraseVariants(h, m);
                 if (variants.length > 1) {
-                    phraseEl.innerHTML = phraseFlipHtml(variants[0], variants[1]);
+                    const idx = Math.random() < 0.5 ? 0 : 1;
+                    phraseEl.innerHTML = phraseFlipHtml(variants[idx], variants[1 - idx]);
                     const flip = phraseEl.querySelector(".phrase-flip");
                     if (flip) sizeFlip(flip);
                 } else {
