@@ -66,12 +66,22 @@
    visible strokes. */
 .clock .hand-hit {
     stroke: transparent;
-    stroke-width: 6;
+    stroke-width: 10;
     stroke-linecap: round;
     pointer-events: stroke;
     cursor: grab;
 }
 .clock.interactive:active .hand-hit {
+    cursor: grabbing;
+}
+/* Larger invisible grab circle at the tip of each hand — the natural
+   place to grab and drag, keeps hour/minute tips well separated. */
+.clock .hand-hit-tip {
+    fill: transparent;
+    pointer-events: fill;
+    cursor: grab;
+}
+.clock.interactive:active .hand-hit-tip {
     cursor: grabbing;
 }
 .clock .pivot {

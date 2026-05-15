@@ -232,6 +232,174 @@ async fn clock_set_mode_renders_interactive_widget() -> TestResult<()> {
     Ok(())
 }
 
+// Open the clock page in "zet" mode and return once the interactive clock is ready.
+async fn open_clock_zet(driver: &thirtyfour::WebDriver, app: &TestApp) -> TestResult<()> {
+    driver.goto(app.url("/2/clock")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "input[name='ck'][value='lees']", false).await?;
+    set_checkbox(driver, "input[name='ck'][value='zet']", true).await?;
+    set_checkbox(driver, "input[name='ck'][value='zet-woorden']", false).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, ".clock.interactive", Duration::from_secs(10)).await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn clock_hand_drag_minute_hand_moves_correctly() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    open_clock_zet(driver, &app).await?;
+
+    // Verify that tip circles exist for both hands, and that dragging the minute
+    // tip to 3-o'clock (SVG 86, 50) moves only the minute — hour stays at 6.
+    // We dispatch pointerdown directly on the tip element so the test is not
+    // sensitive to which SVG element happens to be on top at pixel-level coords.
+    let result = driver
+        .execute(
+            r#"
+            const svg  = document.querySelector('.clock.interactive svg');
+            const rect = svg.getBoundingClientRect();
+            const scale = rect.width / 100;
+
+            const minuteTip = svg.querySelector('.hand-hit-tip[data-hand="minute"]');
+            const hourTip   = svg.querySelector('.hand-hit-tip[data-hand="hour"]');
+            if (!minuteTip || !hourTip) return { error: 'tip elements missing' };
+
+            // Drag minute hand to 3 o'clock: SVG (86, 50) → angle=90° → minute=15.
+            const mRect = minuteTip.getBoundingClientRect();
+            const startX = (mRect.left + mRect.right)  / 2;
+            const startY = (mRect.top  + mRect.bottom) / 2;
+            const newX = rect.left + 86 * scale;
+            const newY = rect.top  + 50 * scale;
+
+            minuteTip.dispatchEvent(new PointerEvent('pointerdown', {
+                clientX: startX, clientY: startY,
+                bubbles: true, cancelable: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointermove', {
+                clientX: newX, clientY: newY,
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+
+            const clock = document.querySelector('.clock.interactive');
+            return {
+                minuteTipHand: minuteTip.dataset.hand,
+                hourTipHand:   hourTip.dataset.hand,
+                m: parseInt(clock.dataset.m ?? '-1', 10),
+                h: parseInt(clock.dataset.h ?? '-1', 10),
+            };
+            "#,
+            vec![],
+        )
+        .await?;
+
+    let result = result.json();
+    assert!(
+        result.get("error").is_none(),
+        "expected tip elements to be present, got: {:?}",
+        result["error"]
+    );
+    assert_eq!(
+        result["minuteTipHand"].as_str().unwrap_or(""),
+        "minute",
+        "minute tip circle must carry data-hand='minute'"
+    );
+    assert_eq!(
+        result["hourTipHand"].as_str().unwrap_or(""),
+        "hour",
+        "hour tip circle must carry data-hand='hour'"
+    );
+    let m = result["m"].as_i64().unwrap_or(-1);
+    let h = result["h"].as_i64().unwrap_or(-1);
+    assert_eq!(
+        m, 15,
+        "dragging minute tip to 3-o'clock must set m=15, got {m}"
+    );
+    assert_eq!(
+        h, 6,
+        "dragging minute hand must not change the hour (expected 6), got {h}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn clock_hand_drag_hour_hand_moves_independently() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    open_clock_zet(driver, &app).await?;
+
+    // Drag the hour-hand tip to 3 o'clock (SVG 86, 50 → angle=90° → h=3).
+    // The minute must remain unchanged at 0.
+    let result = driver
+        .execute(
+            r#"
+            const svg  = document.querySelector('.clock.interactive svg');
+            const rect = svg.getBoundingClientRect();
+            const scale = rect.width / 100;
+
+            const hourTip = svg.querySelector('.hand-hit-tip[data-hand="hour"]');
+            if (!hourTip) return { error: 'hour tip element missing' };
+
+            const hRect  = hourTip.getBoundingClientRect();
+            const startX = (hRect.left + hRect.right)  / 2;
+            const startY = (hRect.top  + hRect.bottom) / 2;
+
+            // 3 o'clock = SVG (86, 50) → angle=90° → h = round(90/30) = 3
+            const newX = rect.left + 86 * scale;
+            const newY = rect.top  + 50 * scale;
+
+            hourTip.dispatchEvent(new PointerEvent('pointerdown', {
+                clientX: startX, clientY: startY,
+                bubbles: true, cancelable: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointermove', {
+                clientX: newX, clientY: newY,
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+
+            const clock = document.querySelector('.clock.interactive');
+            return {
+                h: parseInt(clock.dataset.h ?? '-1', 10),
+                m: parseInt(clock.dataset.m ?? '-1', 10),
+            };
+            "#,
+            vec![],
+        )
+        .await?;
+
+    let result = result.json();
+    assert!(
+        result.get("error").is_none(),
+        "expected hour tip element, got: {:?}",
+        result["error"]
+    );
+    let h = result["h"].as_i64().unwrap_or(-1);
+    let m = result["m"].as_i64().unwrap_or(-1);
+    assert_eq!(h, 3, "dragging hour tip to 3-o'clock must set h=3, got {h}");
+    assert_eq!(
+        m, 0,
+        "dragging hour hand must not change the minute (expected 0), got {m}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn thermometer_draw_mode_renders_interactive_widget() -> TestResult<()> {

@@ -184,9 +184,11 @@ function clockSvg(h, m, opts) {
                 ${
                     interactive
                         ? `
-                    <!-- Wider invisible hit-zones for grabbing each hand. -->
+                    <!-- Wider invisible hit-zones along each hand, plus a tip circle for easy grabbing. -->
                     <line class="hand-hit" data-hand="hour"   x1="50" y1="50" x2="${hh.x2}" y2="${hh.y2}" />
+                    <circle class="hand-hit-tip" data-hand="hour"   cx="${hh.x2}" cy="${hh.y2}" r="8" />
                     <line class="hand-hit" data-hand="minute" x1="50" y1="50" x2="${mm.x2}" y2="${mm.y2}" />
+                    <circle class="hand-hit-tip" data-hand="minute" cx="${mm.x2}" cy="${mm.y2}" r="8" />
                 `
                         : ""
                 }
@@ -203,6 +205,8 @@ function attachInteractive(root, q, opts = {}) {
     const hourHand = svg.querySelector(".hand-hour");
     const hitMin = svg.querySelector('.hand-hit[data-hand="minute"]');
     const hitHour = svg.querySelector('.hand-hit[data-hand="hour"]');
+    const tipMin = svg.querySelector('.hand-hit-tip[data-hand="minute"]');
+    const tipHour = svg.querySelector('.hand-hit-tip[data-hand="hour"]');
     const minStep = GRAN_STEP[q.granularity] || 5;
     // Start at 06:00 — both hands sit on the 12/6 axis but on opposite ends,
     // so neither is hidden under the other and either can be grabbed.
@@ -231,10 +235,18 @@ function attachInteractive(root, q, opts = {}) {
                 el.setAttribute("y2", y2);
             }
         };
+        const setTip = (el, deg, len) => {
+            if (!el) return;
+            const a = ((deg - 90) * Math.PI) / 180;
+            el.setAttribute("cx", 50 + len * Math.cos(a));
+            el.setAttribute("cy", 50 + len * Math.sin(a));
+        };
         setHand([minHand], minuteAngle, 36);
         setHand([hitMin], minuteAngle, 36, 8);
+        setTip(tipMin, minuteAngle, 36);
         setHand([hourHand], hourAngle, 24);
         setHand([hitHour], hourAngle, 24, 8);
+        setTip(tipHour, hourAngle, 24);
         opts.onSet?.(state.h, state.m);
     };
     set(state.h, state.m);
