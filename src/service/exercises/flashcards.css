@@ -506,50 +506,67 @@
 
 /* ---- Hint chip (play phase) ---- */
 
+/*
+ * Collapsed: the chip is a circle (fc-hint-q has equal width/height, no padding
+ * on the parent, overflow:hidden clips the body to nothing).
+ * Open: the body slides in rightward, turning the circle into a pill/capsule.
+ */
 .fc-hint-chip {
     align-self: flex-end;
     display: inline-flex;
     align-items: center;
-    gap: 0;
     border-radius: 999px;
-    border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
-    padding: 0.2em 0.55em;
-    font-size: 0.82rem;
+    border: 1.5px solid color-mix(in srgb, currentColor 28%, transparent);
+    padding: 0;
+    font-size: 0.85rem;
     cursor: pointer;
     background: none;
     color: inherit;
     font-family: inherit;
     overflow: hidden;
-    transition: border-color 0.2s, background 0.2s;
+    transition:
+        border-color 0.25s,
+        background 0.25s;
 }
 .fc-hint-chip:hover {
-    border-color: color-mix(in srgb, currentColor 55%, transparent);
-    background: color-mix(in srgb, currentColor 5%, transparent);
+    border-color: color-mix(in srgb, currentColor 60%, transparent);
+    background: color-mix(in srgb, currentColor 6%, transparent);
 }
+/* The ? marker — fixed square so the chip is a perfect circle when collapsed */
 .fc-hint-q {
-    opacity: 0.5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9em;
+    height: 1.9em;
     flex-shrink: 0;
+    opacity: 0.5;
+    font-weight: 600;
     transition: opacity 0.2s;
 }
+/* Hint text — hidden behind the circle until .open */
 .fc-hint-body {
     max-width: 0;
     opacity: 0;
     overflow: hidden;
     white-space: nowrap;
     font-style: italic;
-    margin-left: 0;
-    transition: max-width 0.3s ease, opacity 0.25s ease, margin-left 0.3s ease;
+    padding-right: 0;
+    transition:
+        max-width 0.35s ease,
+        opacity 0.3s ease,
+        padding-right 0.35s ease;
 }
 .fc-hint-chip.open .fc-hint-body {
-    max-width: 30ch;
-    opacity: 0.8;
-    margin-left: 0.45em;
+    max-width: 28ch;
+    opacity: 0.82;
+    padding-right: 0.8em;
 }
 .fc-hint-chip.open .fc-hint-q {
-    opacity: 0.65;
+    opacity: 0.75;
 }
 .fc-hint-chip.open {
-    border-color: color-mix(in srgb, currentColor 50%, transparent);
+    border-color: color-mix(in srgb, currentColor 48%, transparent);
 }
 
 /* ---- Exercise question (play phase) ---- */
@@ -569,7 +586,6 @@
     align-items: center;
     gap: 0.75rem;
 }
-
 
 .fc-mp-progress {
     font-size: 0.88rem;
