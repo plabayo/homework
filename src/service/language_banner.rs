@@ -273,7 +273,7 @@ fn html_escape(s: &str) -> std::borrow::Cow<'_, str> {
 fn render_banner(t: &BannerLang) -> String {
     let dir = if t.rtl { r#" dir="rtl""# } else { "" };
     format!(
-        r#"<div id="lang-banner" class="lang-banner" role="alert"{dir}><p>{prefix}<a href="mailto:hello@plabayo.tech">hello@plabayo.tech</a>{suffix}</p><button type="button" class="btn" id="lang-banner-dismiss">{dismiss}</button></div>"#,
+        r#"<div id="lang-banner" class="lang-banner" role="alert"{dir}><p>{prefix}<a href="mailto:hello@plabayo.tech">hello@plabayo.tech</a>{suffix}</p><button type="button" class="default-button" id="lang-banner-dismiss">{dismiss}</button></div>"#,
         prefix = html_escape(t.prefix),
         suffix = html_escape(t.suffix),
         dismiss = html_escape(t.dismiss),

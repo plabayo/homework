@@ -839,7 +839,7 @@
     width: 100%;
 }
 
-.fc-review-controls .btn {
+.fc-review-controls .default-button {
     min-width: 7.25rem;
     min-height: 38px;
     padding: 0.55rem 0.8rem;
@@ -1204,7 +1204,7 @@
         gap: 0.55rem;
     }
 
-    .fc-review-controls .btn {
+    .fc-review-controls .default-button {
         min-width: 0;
         flex: 1 1 10rem;
     }
@@ -1224,7 +1224,7 @@
         gap: 0.35rem;
     }
 
-    .fc-review-controls .btn {
+    .fc-review-controls .default-button {
         font-size: 0.82rem;
         padding-block: 0.45rem;
         padding-inline: 0.6rem;

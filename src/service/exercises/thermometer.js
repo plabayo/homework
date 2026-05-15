@@ -202,8 +202,8 @@ runExercise({
                     <div class="thermo-svg-host"></div>
                     <p class="muted">Klik op de thermometer of gebruik de knoppen.</p>
                     <div class="button-pair">
-                        <button type="button" class="btn" id="thermo-dec" aria-label="omlaag">➖</button>
-                        <button type="button" class="btn" id="thermo-inc" aria-label="omhoog">➕</button>
+                        <button type="button" class="default-button" id="thermo-dec" aria-label="omlaag">➖</button>
+                        <button type="button" class="default-button" id="thermo-inc" aria-label="omhoog">➕</button>
                     </div>
                     <p>
                         Doel: <span class="box split-part">${q.value}</span> <span>℃</span>

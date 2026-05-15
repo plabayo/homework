@@ -111,10 +111,10 @@
     max-width: 360px;
     margin-block-start: 10px;
 }
-.option-list .btn {
+.option-list .default-button {
     font-size: 1.05rem;
 }
-.option-list .btn.selected {
+.option-list .default-button.selected {
     background: var(--accent);
     color: var(--accent-fg);
     border-color: var(--accent);
