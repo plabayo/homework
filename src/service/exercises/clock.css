@@ -280,12 +280,16 @@
 }
 .word-option-wrap .default-button.option {
     width: 100%;
+    height: 100%; /* fill grid-stretched wrap so all row buttons match height */
 }
 /* Button-level 3D flip: the whole option card rotates when peeking. */
 .word-option-btn {
     transform-style: preserve-3d;
     transition: transform 0.35s ease;
     overflow: visible;
+    /* Reserve bottom space so text never overlaps the absolute-positioned
+       ↔ peek button (bottom: 5px; ~14px tall) sitting in the wrap corner. */
+    padding-bottom: 1.4em;
 }
 .word-option-wrap.flipped .word-option-btn {
     transform: perspective(600px) rotateY(180deg);
