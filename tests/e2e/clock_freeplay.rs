@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use super::helpers::{click, text_of, wait_for_css, wait_for_text};
-use super::{BrowserHarness, Duration, TestApp, TestResult};
+use super::{BrowserHarness, Duration, TestApp, TestResult, check_a11y, sleep};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -158,6 +158,15 @@ async fn freeplay_shows_both_phrase_variants_for_ambiguous_time() -> TestResult<
         phrase_html.contains("phrase-flip"),
         "expected phrase-flip widget to contain both variants, got: {phrase_html:?}"
     );
+
+    // Layer 3 a11y: front-face state of the phrase-flip widget.
+    sleep(Duration::from_millis(200));
+    check_a11y(driver).await?;
+
+    // Layer 3 a11y: back-face (flipped) state — accent-coloured text on default background.
+    click(driver, ".phrase-flip").await?;
+    sleep(Duration::from_millis(450)); // wait for 3-D flip animation
+    check_a11y(driver).await?;
 
     driver.clone().quit().await?;
     Ok(())
