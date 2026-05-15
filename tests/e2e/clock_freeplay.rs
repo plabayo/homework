@@ -153,9 +153,10 @@ async fn freeplay_shows_both_phrase_variants_for_ambiguous_time() -> TestResult<
         phrase_html.contains("twintig over elf"),
         "expected modern variant 'twintig over elf' in phrase, got: {phrase_html:?}"
     );
+    // Both variants are now wrapped in a flip widget rather than separated by "of".
     assert!(
-        phrase_html.contains("of"),
-        "expected 'of' separator between variants, got: {phrase_html:?}"
+        phrase_html.contains("phrase-flip"),
+        "expected phrase-flip widget to contain both variants, got: {phrase_html:?}"
     );
 
     driver.clone().quit().await?;
