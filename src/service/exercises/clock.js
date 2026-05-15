@@ -360,6 +360,52 @@ function timeLabel(h, m) {
     return `${pad(hh)}:${pad(m)}`;
 }
 
+/**
+ * Inline 3D-flip widget for a Dutch time phrase that has two valid wordings.
+ * Clicking toggles between front and back.  Only call this when variants.length > 1.
+ */
+function phraseFlipHtml(front, back) {
+    return (
+        `<span class="phrase-flip" tabindex="0" role="button" aria-pressed="false">` +
+        `<span class="phrase-flip-inner">` +
+        `<span class="phrase-flip-face phrase-flip-front">${front}</span>` +
+        `<span class="phrase-flip-face phrase-flip-back">${back}</span>` +
+        `</span></span>`
+    );
+}
+
+/** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
+function renderZetFeedback(feedbackEl, q) {
+    if (q.promptStyle !== "words") {
+        feedbackEl.textContent = `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
+        return;
+    }
+    const variants = dutchTimePhraseVariants(q.h, q.m);
+    if (variants.length > 1) {
+        const idx = Math.random() < 0.5 ? 0 : 1;
+        feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(variants[idx], variants[1 - idx])}" ⏰`;
+    } else {
+        feedbackEl.textContent = `zet de klok op "${variants[0] ?? ""}" ⏰`;
+    }
+}
+
+// Single delegated listener handles all .phrase-flip elements on the page,
+// including those injected dynamically into the exercise or freeplay area.
+document.addEventListener("click", (e) => {
+    const flip = e.target.closest(".phrase-flip");
+    if (!flip) return;
+    const flipped = flip.classList.toggle("flipped");
+    flip.setAttribute("aria-pressed", String(flipped));
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const flip = e.target.closest(".phrase-flip");
+    if (!flip) return;
+    e.preventDefault();
+    const flipped = flip.classList.toggle("flipped");
+    flip.setAttribute("aria-pressed", String(flipped));
+});
+
 function mountFreeplay() {
     const clockDiv = document.getElementById("freeplay-clock");
     if (!clockDiv) return;
@@ -391,7 +437,7 @@ function mountFreeplay() {
                 digitalEl.textContent = timeLabel(h, m);
                 const variants = dutchTimePhraseVariants(h, m);
                 if (variants.length > 1) {
-                    phraseEl.innerHTML = `${variants[0]} <em class="phrase-or">of</em> ${variants[1]}`;
+                    phraseEl.innerHTML = phraseFlipHtml(variants[0], variants[1]);
                 } else {
                     phraseEl.textContent = variants[0] ?? "";
                 }
@@ -484,11 +530,7 @@ runExercise({
             };
         } else {
             // q.kind === 'zet' or 'zet-woorden'
-            const promptText =
-                q.promptStyle === "words"
-                    ? `zet de klok op "${pickRandom(dutchTimePhraseVariants(q.h, q.m))}" ⏰`
-                    : `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
-            document.getElementById("exercise-feedback").textContent = promptText;
+            renderZetFeedback(document.getElementById("exercise-feedback"), q);
             root.innerHTML = `
                 ${clockSvg(0, 0, { interactive: true })}
                 <div class="clock-controls">

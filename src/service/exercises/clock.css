@@ -210,3 +210,51 @@
     color: var(--muted);
     padding-inline: 0.3em;
 }
+
+/* ---------- inline phrase-flip widget ---------- */
+/* Wraps a Dutch time phrase that has two valid wordings.  Clicking/tapping
+   spins the text 180° to reveal the alternative phrasing.  Only rendered
+   when two variants exist; single-variant times are plain text. */
+.phrase-flip {
+    display: inline-block;
+    perspective: 600px;
+    cursor: pointer;
+    vertical-align: bottom;
+}
+.phrase-flip-inner {
+    /* inline-grid stacks both faces in the same grid cell so the container
+       always reserves space for the widest face — no layout jump on flip. */
+    display: inline-grid;
+    transform-style: preserve-3d;
+    transition: transform 0.38s ease;
+}
+.phrase-flip.flipped .phrase-flip-inner {
+    transform: rotateY(180deg);
+}
+.phrase-flip-face {
+    grid-area: 1 / 1;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+/* Dotted underline on the front face signals "this is interactive" */
+.phrase-flip-front {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.15s;
+}
+.phrase-flip:hover .phrase-flip-front,
+.phrase-flip:focus-visible .phrase-flip-front {
+    text-decoration-color: color-mix(in srgb, currentColor 75%, transparent);
+}
+.phrase-flip:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+/* Back face is tinted accent so it reads as "the other/revealed variant" */
+.phrase-flip-back {
+    transform: rotateY(180deg);
+    color: var(--accent);
+}
