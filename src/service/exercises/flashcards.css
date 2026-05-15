@@ -507,9 +507,10 @@
 /* ---- Hint chip (play phase) ---- */
 
 /*
- * Collapsed: the chip is a circle (fc-hint-q has equal width/height, no padding
- * on the parent, overflow:hidden clips the body to nothing).
- * Open: the body slides in rightward, turning the circle into a pill/capsule.
+ * height + min-width on the chip itself guarantee a square (= circle) when
+ * collapsed — sizing a child span and hoping the button wraps it squarely is
+ * unreliable across browsers. fc-hint-q uses flex-basis + align-self:stretch
+ * so it always fills the circle exactly.
  */
 .fc-hint-chip {
     align-self: flex-end;
@@ -524,6 +525,9 @@
     color: inherit;
     font-family: inherit;
     overflow: hidden;
+    /* Circle: height and min-width are the same value. */
+    height: 2.4em;
+    min-width: 2.4em;
     transition:
         border-color 0.25s,
         background 0.25s;
@@ -532,16 +536,12 @@
     border-color: color-mix(in srgb, currentColor 60%, transparent);
     background: color-mix(in srgb, currentColor 6%, transparent);
 }
-/* The ? marker — fixed square so the chip is a perfect circle when collapsed.
- * min-width matches width so browser button UA styles can't widen it. */
 .fc-hint-q {
+    flex: 0 0 2.4em;
+    align-self: stretch;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.2em;
-    height: 2.2em;
-    min-width: 2.2em;
-    flex-shrink: 0;
     opacity: 0.5;
     font-weight: 600;
     transition: opacity 0.2s;
@@ -564,8 +564,8 @@
 .fc-hint-chip.open .fc-hint-body {
     max-width: 28ch;
     opacity: 0.82;
-    padding-left: 0.3em;
-    padding-right: 0.9em;
+    padding-left: 0.25em;
+    padding-right: 1em;
 }
 .fc-hint-chip.open .fc-hint-q {
     opacity: 0.75;
