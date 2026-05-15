@@ -96,8 +96,8 @@
     overflow: hidden;
 }
 .wm-result-btn:hover {
-    border-color: #2d6cdf;
-    background: color-mix(in srgb, #2d6cdf 10%, transparent);
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 .wm-result-btn img {
     width: 100%;
@@ -133,13 +133,13 @@
 }
 
 .flash-card-image {
-    max-width: min(360px, 100%);
-    max-height: 260px;
-    width: auto;
-    height: auto;
+    max-inline-size: min(360px, 100%);
+    max-block-size: 260px;
+    inline-size: auto;
+    block-size: auto;
     border-radius: 10px;
     object-fit: contain;
-    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 14px color-mix(in srgb, var(--fg) 15%, transparent);
     display: block;
 }
 
@@ -239,8 +239,8 @@
 }
 
 .deck-item.selected {
-    border-color: #2d6cdf;
-    background: color-mix(in srgb, #2d6cdf 10%, transparent);
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .deck-select-btn {
@@ -303,7 +303,7 @@
     background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .fc-btn-delete:hover {
-    background: color-mix(in srgb, #ef4444 15%, transparent);
+    background: color-mix(in srgb, var(--bad) 15%, transparent);
 }
 
 /* Deck editor */
@@ -476,10 +476,10 @@
 /* Import confirmation */
 
 .fc-import-box {
-    border: 2px solid #2d6cdf;
+    border: 2px solid var(--accent);
     border-radius: 12px;
     padding: 1.25rem;
-    background: color-mix(in srgb, #2d6cdf 8%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -657,7 +657,7 @@
 }
 
 .fc-review-card:focus-visible {
-    outline: 2px solid #2d6cdf;
+    outline: 2px solid var(--accent);
     outline-offset: 6px;
     border-radius: 22px;
 }
@@ -718,32 +718,25 @@
     -webkit-backface-visibility: hidden;
     border-radius: 18px;
     border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-    box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.07),
-        0 8px 20px rgba(0, 0, 0, 0.1),
-        0 22px 46px rgba(0, 0, 0, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
     transition: box-shadow 180ms ease;
 }
 
 .fc-review-card:hover .fc-review-face {
-    box-shadow:
-        0 4px 8px rgba(0, 0, 0, 0.07),
-        0 14px 32px rgba(0, 0, 0, 0.12),
-        0 32px 64px rgba(0, 0, 0, 0.16),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    box-shadow: var(--shadow-card-hover);
 }
 
 .fc-review-face-front {
-    background: linear-gradient(155deg, color-mix(in srgb, #2d6cdf 16%, transparent), transparent 52%), var(--paper);
+    background:
+        linear-gradient(155deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 52%), var(--paper);
 }
 
 .fc-review-face-back {
     background:
-        linear-gradient(155deg, color-mix(in srgb, #15803d 14%, transparent), transparent 52%),
-        color-mix(in srgb, var(--paper) 88%, white 12%);
-    transform: rotateY(180deg);
+        linear-gradient(155deg, color-mix(in srgb, var(--good) 14%, transparent), transparent 52%),
+        color-mix(in srgb, var(--paper) 92%, var(--fg) 8%);
+    rotate: y 180deg;
 }
 
 .fc-review-face-body {
@@ -901,13 +894,13 @@
 }
 
 .flash-front-side {
-    border-color: #2d6cdf;
-    background: color-mix(in srgb, #2d6cdf 8%, transparent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .flash-back-side {
-    border-color: #15803d;
-    background: color-mix(in srgb, #15803d 8%, transparent);
+    border-color: var(--good);
+    background: color-mix(in srgb, var(--good) 8%, transparent);
 }
 
 .flash-side-label {
@@ -925,40 +918,23 @@
 
 /* Toast notification */
 
+/* Toast: inverts vs the page so it pops. The fg/bg swap is exactly what
+   the page already does between light and dark — so swap the two tokens. */
 .fc-toast {
     position: fixed;
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%);
-    background: #1e293b;
-    color: #f8fafc;
+    background: var(--fg);
+    color: var(--bg);
     border-radius: 999px;
     padding: 0.6rem 1.4rem;
     font-size: 0.9rem;
     font-weight: 500;
     z-index: 9999;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--fg) 25%, transparent);
     white-space: nowrap;
     animation: toast-in 0.2s ease-out;
-}
-
-@media (prefers-color-scheme: dark) {
-    .fc-toast {
-        background: #f1f5f9;
-        color: #0f172a;
-    }
-
-    .fc-review-face-front {
-        background:
-            linear-gradient(155deg, color-mix(in srgb, #93c5fd 20%, transparent), transparent 52%),
-            color-mix(in srgb, var(--paper) 94%, white 6%);
-    }
-
-    .fc-review-face-back {
-        background:
-            linear-gradient(155deg, color-mix(in srgb, #4ade80 18%, transparent), transparent 52%),
-            color-mix(in srgb, var(--paper) 94%, white 6%);
-    }
 }
 
 @keyframes toast-in {
@@ -992,8 +968,8 @@
 
 .fill-current {
     padding: 0;
-    background: color-mix(in srgb, #2d6cdf 10%, transparent);
-    border: 2px solid #2d6cdf;
+    background: var(--accent-tint);
+    border: 2px solid var(--accent);
 }
 
 /* Override theme.css #exercise-content input (width:4em, max-width:6em, flex:0 0 auto) */
@@ -1029,13 +1005,13 @@
 }
 
 .fill-answer-ok {
-    background: color-mix(in srgb, #15803d 12%, transparent);
-    border: 2px solid #15803d;
+    background: var(--good-tint);
+    border: 2px solid var(--good);
 }
 
 .fill-answer-bad {
-    background: color-mix(in srgb, #ef4444 12%, transparent);
-    border: 2px solid #ef4444;
+    background: var(--bad-tint);
+    border: 2px solid var(--bad);
 }
 
 .fill-answer-text {
@@ -1078,13 +1054,15 @@
 /* ---- Multi-part card editor ---- */
 
 .card-field textarea.card-back {
+    /* field-sizing grows the textarea to fit content — no resize handle, no
+       JS height syncing, no min-height fudge. */
+    field-sizing: content;
+    min-block-size: 2.5rem;
     resize: none;
-    overflow: hidden;
-    min-height: 2.5rem;
     font-family: inherit;
     font-size: 0.9rem;
     padding: 0.35rem 0.5rem;
-    width: 100%;
+    inline-size: 100%;
     box-sizing: border-box;
 }
 
@@ -1141,26 +1119,13 @@
 
 .mp-matched,
 .mp-part-matched {
-    background: color-mix(in srgb, #15803d 12%, transparent);
-    color: #15803d;
-}
-
-@media (prefers-color-scheme: dark) {
-    .mp-matched,
-    .mp-part-matched {
-        color: #4ade80;
-    }
+    background: var(--good-tint);
+    color: var(--good);
 }
 
 .mp-missed {
-    background: color-mix(in srgb, #ef4444 12%, transparent);
-    color: #ef4444;
-}
-
-@media (prefers-color-scheme: dark) {
-    .mp-missed {
-        color: #f87171;
-    }
+    background: var(--bad-tint);
+    color: var(--bad);
 }
 
 .mp-required-label {
@@ -1173,23 +1138,15 @@
 /* ---------- Lenient match result items ---------- */
 
 .result-detail-list li.item-lenient {
-    border-left-color: #7c3aed;
-}
-
-@media (prefers-color-scheme: dark) {
-    .result-detail-list li.item-lenient {
-        border-left-color: #a78bfa;
-    }
+    border-left-color: var(--info);
 }
 
 /* ---------- Deck-item highlight (after save / import) ---------- */
 
 @keyframes fc-deck-new {
-    0% {
-        box-shadow: 0 0 0 3px #2d6cdf;
-    }
+    0%,
     65% {
-        box-shadow: 0 0 0 3px #2d6cdf;
+        box-shadow: 0 0 0 3px var(--accent);
     }
     100% {
         box-shadow: none;
@@ -1272,7 +1229,7 @@
     padding: 8px 16px;
     font-size: 0.9rem;
     font-weight: 600;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--fg) 12%, transparent);
     opacity: 0;
     animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
 }

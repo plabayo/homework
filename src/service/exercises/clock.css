@@ -113,21 +113,9 @@
     color: var(--muted);
     text-align: center;
 }
+/* Base .option-list lives in theme.css. Clock uses two columns. */
 .option-list {
-    display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    width: 100%;
-    max-width: 360px;
-    margin-block-start: 10px;
-}
-.option-list .default-button {
-    font-size: 1.05rem;
-}
-.option-list .default-button.selected {
-    background: var(--accent);
-    color: var(--accent-fg);
-    border-color: var(--accent);
 }
 .clock-controls {
     display: flex;
@@ -240,7 +228,7 @@
         width 0.38s ease;
 }
 .phrase-flip.flipped .phrase-flip-inner {
-    transform: rotateY(180deg);
+    rotate: y 180deg;
 }
 .phrase-flip-face {
     backface-visibility: hidden;
@@ -270,7 +258,7 @@
     position: absolute;
     left: 0;
     white-space: nowrap;
-    transform: rotateY(180deg);
+    rotate: y 180deg;
     color: var(--accent);
 }
 
@@ -307,7 +295,7 @@
     -webkit-backface-visibility: hidden;
 }
 .word-option-back {
-    transform: rotateY(180deg);
+    rotate: y 180deg;
     color: var(--accent);
 }
 .option-list .default-button.selected .word-option-back {

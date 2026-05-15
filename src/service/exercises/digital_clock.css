@@ -3,26 +3,23 @@
    Source-available; non-commercial use only. */
 
 .dclock {
+    /* The LED face deliberately keeps its dark backdrop in both themes —
+       a digital clock isn't a digital clock if it's white-on-black-bg one
+       moment and black-on-white the next. The slight tweaks for dark mode
+       are bundled into the same declarations via light-dark(). */
     font-family: "JetBrains Mono", "Menlo", "Consolas", monospace;
     font-weight: 700;
     /* Scale the LED face with the viewport so HH:MM never overflows on
        a 320-px-wide phone, while still looking large on tablets. */
     font-size: clamp(2.2rem, 11vw, 3rem);
-    background: #0a0a0a;
-    color: #ff5151;
+    background: light-dark(#0a0a0a, #050505);
+    color: light-dark(#ff5151, #ff6363);
     padding: 12px 18px;
     border-radius: var(--radius);
     border: 2px solid var(--border);
     letter-spacing: 0.1em;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.55));
     text-align: center;
-}
-@media (prefers-color-scheme: dark) {
-    .dclock {
-        background: #050505;
-        color: #ff6363;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
-    }
 }
 .dclock-label {
     font-family: var(--font-base, sans-serif);
@@ -31,22 +28,12 @@
     text-align: center;
     line-height: 1.3;
 }
-.option-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    width: 100%;
-    max-width: 360px;
-    margin-block-start: 10px;
-}
+/* Base .option-list (1-column on mobile, with .selected styling) lives in
+   theme.css. Digital clock only needs slightly smaller text and 2 columns
+   on wider screens. */
 .option-list .default-button {
     text-align: center;
     font-size: 1rem;
-}
-.option-list .default-button.selected {
-    background: var(--accent);
-    color: var(--accent-fg);
-    border-color: var(--accent);
 }
 .dclock-input {
     display: flex;
@@ -55,15 +42,17 @@
     gap: 0;
 }
 .dclock-field {
+    /* Sits on top of the .dclock LED face, so the field's "color" is the
+       same red as the readout — derived from currentColor inside .dclock. */
     background: transparent;
-    border: 1px dashed rgba(255, 100, 100, 0.45);
+    border: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
     color: inherit;
     font-family: inherit;
     font-weight: inherit;
     font-size: inherit;
     letter-spacing: inherit;
     text-align: center;
-    width: 1.8em;
+    inline-size: 1.8em;
     padding: 4px 6px;
     border-radius: 8px;
     -moz-appearance: textfield;
@@ -75,12 +64,12 @@
     margin: 0;
 }
 .dclock-field:focus {
-    outline: 2px solid #ff6b6b;
+    outline: 2px solid currentColor;
     outline-offset: 2px;
     border-style: solid;
 }
 .dclock-field::placeholder {
-    color: rgba(255, 80, 80, 0.35);
+    color: color-mix(in srgb, currentColor 35%, transparent);
 }
 .dclock-colon {
     padding: 0 4px;

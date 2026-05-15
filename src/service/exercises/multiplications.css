@@ -2,18 +2,21 @@
    License: https://github.com/plabayo/homework/blob/main/LICENSE
    Source-available; non-commercial use only. */
 
+/* Multiplication tables setup: 2 columns on phones, 5 on tablet+ to fit the
+   10 tables in two compact rows. Same label layout as theme's .kinds, but
+   the column counts are unique to this exercise. */
 #tables {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+#tables label {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
 }
 @media (min-width: 600px) {
     #tables {
         grid-template-columns: repeat(5, 1fr);
     }
-}
-#tables label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }

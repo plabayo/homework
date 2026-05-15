@@ -2,21 +2,7 @@
    License: https://github.com/plabayo/homework/blob/main/LICENSE
    Source-available; non-commercial use only. */
 
-.kinds {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 4px;
-}
-@media (min-width: 600px) {
-    .kinds {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-.kinds label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
+/* `.kinds` setup grid lives in theme.css. */
 
 .split-stack {
     display: flex;
