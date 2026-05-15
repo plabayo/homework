@@ -617,7 +617,13 @@ function registerServiceWorker() {
             location.reload();
         }
     });
-    navigator.serviceWorker.register(versionedAssetPath("/service-worker.js")).catch((_err) => {});
+    // `updateViaCache: 'none'` tells the browser to bypass its HTTP cache when
+    // fetching the SW script (and its imports). Combined with the server's
+    // `Cache-Control: no-cache` on /service-worker.js this gives Firefox no
+    // chance to keep an old SW alive across deployments.
+    navigator.serviceWorker
+        .register(versionedAssetPath("/service-worker.js"), { updateViaCache: "none" })
+        .catch((_err) => {});
 }
 
 // ---------- mistake picker dialog ----------

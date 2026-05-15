@@ -4,6 +4,8 @@
 
 use std::borrow::Cow;
 
+use rama::http::HeaderValue;
+use rama::http::header::CACHE_CONTROL;
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
     p, script, title,
@@ -49,6 +51,13 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
 /// Inline exercise modules can import the shared runtime via `@homework`.
 /// `banner` is pre-rendered HTML inserted at the top of the page; pass
 /// `PreEscaped(String::new())` when no banner is needed.
+// HTML responses must always revalidate. The HTML embeds versioned asset
+// URLs (`?v=<git-sha>`); if a browser holds on to an old HTML response via
+// heuristic freshness it will keep loading the old assets too. Firefox is
+// noticeably more aggressive about this than Safari, which made stale CSS
+// look like a "Firefox-only" bug.
+const HTML_CACHE_CONTROL: HeaderValue = HeaderValue::from_static("no-cache");
+
 pub fn page(
     meta_data: PageMeta,
     extra_style: &str,
@@ -65,7 +74,7 @@ pub fn page(
     let manifest_url = versioned_asset_url("/manifest.webmanifest");
     let shared_js_url = versioned_asset_url("/homework.js");
     let shared_js_import_map = shared_js_import_map(&shared_js_url);
-    html!(
+    let markup = html!(
         lang = "nl",
         "data-asset-version" = ASSET_VERSION,
         head!(
@@ -129,7 +138,10 @@ pub fn page(
                 format!(r#"<script type="module">{extra_module_script}</script>"#)
             }),
         ),
-    )
+    );
+    let mut res = markup.into_response();
+    res.headers_mut().insert(CACHE_CONTROL, HTML_CACHE_CONTROL);
+    res
 }
 
 /// Standard page header with a 🏠 home link and centered title.
