@@ -2,1063 +2,1121 @@
    License: https://github.com/plabayo/homework/blob/main/LICENSE
    Source-available; non-commercial use only. */
 
-/* ---------- reset ---------- */
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
-}
-* {
-    margin: 0;
-}
-body {
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-}
-img,
-picture,
-video,
-canvas,
-svg {
-    display: block;
-    max-width: 100%;
-}
-input,
-button,
-textarea,
-select {
-    font: inherit;
-    color: inherit;
-}
-p,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    overflow-wrap: break-word;
-}
-button {
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-.button-row,
-.button-pair,
-.exercise-actions,
-.exercise-meta {
-    user-select: none;
-}
-a {
-    color: var(--accent);
-}
-a.nowrap,
-.nowrap {
-    white-space: nowrap;
-}
+/* Cascade layers: declared up front so the order is explicit. Per-exercise
+   styles are inlined unlayered (after this file) and therefore always win
+   over `base` — no specificity battles, no !important needed. */
+@layer base;
 
-/* ---------- design tokens ---------- */
-:root {
-    --bg: #ffffff;
-    --fg: #14181f;
-    --muted: #4b5563;
-    --accent: #1d4ed8;
-    --accent-fg: #ffffff;
-    --good: #15803d;
-    --bad: #b91c1c;
-    --bad-bg: #fee2e2;
-    --warn-bg: #fde68a;
-    --warn-fg: #4a3500;
-    --paper: #fffde6;
-    --border: #14181f;
-    --radius: 10px;
-    --gap: 12px;
-    --space: 16px;
-    --content-width: 720px;
-    font-size: 16px;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    color: var(--fg);
-    background: var(--bg);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #14171c;
-        --fg: #f5f7fb;
-        --muted: #c7cdd9;
-        --accent: #93c5fd;
-        --accent-fg: #0b1220;
-        --bad: #fca5a5;
-        --bad-bg: #4b1d1d;
-        --warn-bg: #facc15;
-        --warn-fg: #14181f;
-        --paper: #1f2530;
-        --border: #f5f7fb;
+@layer base {
+    /* ---------- reset ---------- */
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
     }
-}
-
-/* ---------- base layout (mobile first) ---------- */
-body {
-    padding: 12px;
-}
-.page {
-    max-width: var(--content-width);
-    margin-inline: auto;
-}
-main > * + * {
-    margin-block-start: var(--space);
-}
-section {
-    display: block;
-}
-section + section {
-    margin-block-start: calc(var(--space) * 1.5);
-}
-.page-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-block-end: calc(var(--space) * 1.25);
-    padding-block-end: 8px;
-    border-block-end: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
-}
-.page-header h1 {
-    font-size: 1.4rem;
-    text-align: center;
-    flex: 1;
-    /* compensate for the home-link on the left so the title stays centred */
-    margin-inline-end: calc(1.4rem + 8px);
-}
-.page-header .home-link {
-    font-size: 1.4rem;
-    text-decoration: none;
-    line-height: 1;
-}
-.page-intro {
-    margin-block-end: var(--space);
-    color: var(--muted);
-    font-size: 0.98rem;
-}
-.page-intro + form {
-    margin-block-start: var(--space);
-}
-
-/* ---------- forms ---------- */
-form {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--gap) * 1.25);
-}
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.field-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-fieldset {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 14px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-legend {
-    padding-inline: 8px;
-    font-weight: 600;
-}
-.field-hint {
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-.button-row + form,
-form + .button-row {
-    margin-block-start: 8px;
-}
-
-label {
-    font-weight: 500;
-}
-
-input[type="number"],
-input[type="text"],
-input[inputmode="numeric"] {
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--paper);
-    width: 100%;
-    min-width: 0;
-}
-input[type="checkbox"] {
-    inline-size: 1.1rem;
-    block-size: 1.1rem;
-    accent-color: var(--accent);
-}
-
-.default-button {
-    padding: 12px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--fg);
-    font-weight: 600;
-    min-height: 44px;
-    line-height: 1.1;
-}
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-.default-button.primary {
-    background: var(--accent);
-    color: var(--accent-fg);
-    border-color: var(--accent);
-}
-button:focus-visible,
-input:focus-visible,
-a:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 2px;
-}
-.button-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-}
-/* paired controls (e.g. +/-) — must always sit side-by-side, never wrap */
-.button-pair {
-    display: inline-flex;
-    gap: 10px;
-    flex-wrap: nowrap;
-    justify-content: center;
-    align-items: stretch;
-}
-.button-pair .default-button {
-    flex: 0 0 auto;
-    min-width: 64px;
-}
-
-/* ---------- shared boxes ---------- */
-.box {
-    border: 1px solid var(--border);
-    padding: calc(var(--space) * 1.1) var(--space);
-    border-radius: var(--radius);
-    background: var(--paper);
-}
-.box > * + * {
-    margin-block-start: 10px;
-}
-.bad,
-.box.bad,
-input.bad {
-    background: var(--bad-bg);
-}
-.notice {
-    border: 1px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-    color: var(--fg);
-    border-radius: var(--radius);
-    padding: 10px 12px;
-    text-align: center;
-}
-
-/* ---------- exercise frame ---------- */
-[hidden] {
-    display: none !important;
-}
-#page-exercises:not([hidden]),
-#page-result:not([hidden]) {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space);
-}
-#exercise {
-    margin-block: 12px 0;
-    padding: var(--space);
-}
-#exercise-title {
-    text-align: center;
-    color: var(--muted);
-    margin: 0;
-}
-/* Single tight row at the top of the play / result page that holds the
-   "begin opnieuw" button and the "oefening N van M" label, so they don't
-   stack and eat ~80px of vertical space on a phone. */
-.exercise-meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    flex-wrap: wrap;
-}
-.exercise-meta .default-button {
-    flex: 0 0 auto;
-}
-.exercise-meta #exercise-title {
-    flex: 1 1 auto;
-    text-align: end;
-}
-.exercise-clock {
-    margin: 0;
-    flex: 0 0 auto;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: var(--muted);
-    font-size: 1.15rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-.exercise-clock .deadline {
-    color: var(--fg);
-}
-.exercise-clock .deadline.danger {
-    color: var(--bad);
-    font-weight: 700;
-}
-.badge.time {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
-}
-.cycle-time {
-    font-variant-numeric: tabular-nums;
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-#exercise-feedback {
-    text-align: center;
-    min-height: 1.6em;
-    font-size: 1.1rem;
-    margin-block-end: 10px;
-}
-#exercise-feedback.is-bad {
-    color: var(--bad);
-}
-#exercise-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    font-size: 1.25rem;
-    margin-block: 6px;
-    max-width: 100%;
-}
-#exercise-content > p {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin: 0;
-}
-#exercise-content.locked {
-    opacity: 0.5;
-    filter: saturate(0.6);
-    pointer-events: none;
-    user-select: none;
-}
-#exercise-content input {
-    font-size: 1.25rem;
-    text-align: center;
-    width: 4em;
-    max-width: 6em;
-    background: var(--paper);
-    flex: 0 0 auto;
-}
-#exercise-content .split-part {
-    flex: 0 0 auto;
-}
-.exercise-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    margin-block-start: 14px;
-}
-.split-part {
-    width: 3em;
-    display: inline-block;
-    text-align: center;
-}
-input.split-part {
-    line-height: 2em;
-    width: 3em;
-}
-
-/* ---------- result ---------- */
-#result {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    align-items: center;
-    width: 100%;
-}
-#result h2 {
-    margin-block: 4px;
-}
-#result h3 {
-    font-size: 1.6rem;
-    margin-block: 4px;
-}
-#result .section-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: var(--muted);
-    margin-block-start: 6px;
-}
-#result small.muted {
-    color: var(--muted);
-    font-size: 0.95rem;
-    font-weight: 500;
-}
-.result-cycles {
-    width: 100%;
-    max-width: 480px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-}
-.cycle-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    text-align: left;
-}
-.cycle-num {
-    font-weight: 600;
-    color: var(--muted);
-    min-width: 5em;
-}
-.cycle-score {
-    font-weight: 700;
-}
-.cycle-mode {
-    font-size: 0.85rem;
-    color: var(--muted);
-    font-style: italic;
-}
-.cycle-perfect {
-    color: var(--good);
-    font-weight: 600;
-}
-.cycle-detail {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-inline-start: auto;
-}
-.result-detail {
-    width: 100%;
-    max-width: 520px;
-    text-align: left;
-}
-.result-detail-list {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-}
-.result-detail-list li {
-    padding: 12px 16px;
-    border-left: 3px solid var(--border);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    background: color-mix(in srgb, var(--bg) 96%, var(--fg) 4%);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.result-detail-list li.item-wrong {
-    border-left-color: var(--bad);
-}
-.result-detail-list li.item-tricky {
-    border-left-color: var(--warn-fg);
-}
-.item-desc {
-    font-weight: 600;
-    line-height: 1.3;
-}
-.item-meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.85rem;
-    color: var(--muted);
-}
-.result-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-}
-#review-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-#review {
-    width: 100%;
-    margin-block-start: 6px;
-}
-#review .exercise-feedback {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    text-align: center;
-}
-#review .exercise-feedback p {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin: 0;
-}
-
-/* ---------- catalogue (home) ---------- */
-.exercise-list {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-block: var(--space) 0;
-}
-.exercise-list a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    text-decoration: none;
-    color: inherit;
-    background: var(--paper);
-}
-.exercise-list .icon {
-    font-size: 1.8rem;
-    line-height: 1;
-    flex: 0 0 auto;
-}
-.exercise-list .exercise-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    min-width: 0;
-}
-.exercise-list .exercise-label {
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-.exercise-list .exercise-stats {
-    color: var(--muted);
-    font-size: 0.85rem;
-    min-height: 1.2em;
-}
-.exercise-list .exercise-stats[data-best="true"] {
-    color: var(--good);
-}
-
-/* ---------- footer ---------- */
-.site-footer {
-    margin-block-start: calc(var(--space) * 3.5);
-    padding-block-start: calc(var(--space) * 1.25);
-    border-block-start: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
-    color: var(--muted);
-    font-size: 0.88rem;
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap);
-}
-.site-footer h2 {
-    font-size: 1rem;
-    color: var(--fg);
-}
-.footer-block {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-/* ---------- mistake picker dialog ---------- */
-dialog.mistake-picker,
-dialog.leave-guard-dialog {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--fg);
-    padding: 0;
-    max-width: min(92vw, 480px);
-    width: 100%;
-    max-height: 85vh;
-    overflow: hidden;
-}
-dialog.mistake-picker::backdrop,
-dialog.leave-guard-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.45);
-}
-.mistake-picker-form,
-.leave-guard-form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 18px;
-    max-height: 85vh;
-    overflow: hidden;
-}
-.mistake-picker h2,
-.leave-guard-dialog h2 {
-    font-size: 1.2rem;
-}
-.mistake-picker .muted,
-.leave-guard-dialog .muted {
-    color: var(--muted);
-    font-size: 0.95rem;
-}
-.leave-guard-form .button-row {
-    justify-content: flex-end;
-}
-.mistake-picker .all-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    align-self: flex-start;
-}
-.mistake-picker .picker-list {
-    list-style: none;
-    padding: 4px 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    overflow-y: auto;
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: 50vh;
-    border-block: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
-}
-.mistake-picker .picker-list label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-weight: 500;
-}
-.mistake-picker .picker-list label:hover {
-    background: color-mix(in srgb, var(--fg) 6%, transparent);
-}
-
-/* ---------- language banner ---------- */
-.lang-banner {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-    color: var(--fg);
-    padding: 10px 14px;
-    border-radius: var(--radius);
-    margin-block-end: var(--space);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 14px;
-    font-size: 0.9rem;
-}
-.lang-banner p {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-.lang-banner .default-button {
-    flex: 0 0 auto;
-    padding: 6px 12px;
-    min-height: 36px;
-    font-size: 0.875rem;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-/* ---------- offline indicator ---------- */
-.offline-banner {
-    display: none;
-    background: var(--warn-bg);
-    color: var(--warn-fg);
-    padding: 8px 12px;
-    text-align: center;
-    font-size: 0.95rem;
-    font-weight: 600;
-    border-radius: var(--radius);
-    margin-block-end: var(--space);
-}
-body.is-offline .offline-banner {
-    display: block;
-}
-
-/* ---------- history (parent view) ---------- */
-.history {
-    margin-block-start: calc(var(--space) * 2);
-    padding-block-start: var(--space);
-    border-block-start: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
-}
-.history h2 {
-    font-size: 1.2rem;
-}
-.history-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.history details {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 14px;
-    background: color-mix(in srgb, var(--bg) 85%, var(--fg) 15%);
-}
-.history summary {
-    cursor: pointer;
-    font-weight: 600;
-}
-.history-list {
-    margin-block-start: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.history-session {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 12px;
-}
-.history-session-header {
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 4px;
-    font-weight: 600;
-}
-.history-perfect {
-    margin-block-start: 6px;
-    font-size: 0.9rem;
-    color: var(--good);
-}
-.history-empty {
-    color: var(--muted);
-    font-style: italic;
-}
-.history-detail-list {
-    margin-block-start: 10px;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 8px;
-}
-.history-detail-list li {
-    padding: 8px 12px;
-    gap: 4px;
-    font-size: 0.9rem;
-}
-.badge {
-    display: inline-block;
-    padding: 1px 7px;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    margin-inline-end: 4px;
-    line-height: 1.4;
-}
-.badge.bad {
-    background: var(--bad-bg);
-    color: var(--bad);
-}
-.badge.tricky {
-    background: color-mix(in srgb, var(--warn-bg) 60%, transparent);
-    color: var(--warn-fg);
-}
-
-/* ---------- confetti ---------- */
-#confetti {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-    width: 100vw;
-    height: 0;
-    margin: 0;
-    overflow: hidden;
-}
-#confetti[data-active="true"] {
-    height: 100dvh;
-}
-
-/* ---------- tablet upgrade ---------- */
-@media (min-width: 600px) {
+    * {
+        margin: 0;
+    }
     body {
-        padding: 28px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
     }
-    .page-header h1 {
-        font-size: 1.8rem;
+    img,
+    picture,
+    video,
+    canvas,
+    svg {
+        display: block;
+        max-width: 100%;
     }
-    #exercise {
-        padding: calc(var(--space) * 1.25);
+    input,
+    button,
+    textarea,
+    select {
+        font: inherit;
+        color: inherit;
     }
-    #exercise-feedback {
-        font-size: 1.2rem;
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        overflow-wrap: break-word;
     }
-    #exercise-content {
-        font-size: 1.8rem;
-        gap: 14px;
+    button {
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
-    #exercise-content input {
-        font-size: 1.8rem;
+    .button-row,
+    .button-pair,
+    .exercise-actions,
+    .exercise-meta {
+        user-select: none;
     }
-    .exercise-list {
-        grid-template-columns: repeat(2, 1fr);
+    a {
+        color: var(--accent);
+    }
+    a.nowrap,
+    .nowrap {
+        white-space: nowrap;
+    }
+
+    /* ---------- design tokens ----------
+   Single declaration per token via light-dark() — no parallel dark-mode block
+   to keep in sync. Tokens are mostly semantic: per-exercise CSS should reach
+   for these names rather than re-introducing literal colors. */
+    html {
+        color-scheme: light dark;
+        /* Reserve room for the scrollbar so layout doesn't shift when content
+       grows past the viewport. */
+        scrollbar-gutter: stable;
+    }
+    :root {
+        --bg: light-dark(#ffffff, #14171c);
+        --fg: light-dark(#14181f, #f5f7fb);
+        --muted: light-dark(#4b5563, #c7cdd9);
+        --accent: light-dark(#1d4ed8, #93c5fd);
+        --accent-fg: light-dark(#ffffff, #0b1220);
+        --good: light-dark(#15803d, #4ade80);
+        --bad: light-dark(#b91c1c, #fca5a5);
+        --bad-bg: light-dark(#fee2e2, #4b1d1d);
+        --warn-bg: light-dark(#fde68a, #facc15);
+        --warn-fg: light-dark(#4a3500, #14181f);
+        --paper: light-dark(#fffde6, #1f2530);
+        --border: light-dark(#14181f, #f5f7fb);
+        /* Tertiary palette — for non-error highlights (purple/violet ribbons,
+       lenient-match cards, etc.) */
+        --info: light-dark(#7c3aed, #a78bfa);
+
+        /* Translucent surface tints, derived from semantic colors so they shift
+       automatically with the theme. */
+        --accent-tint: color-mix(in srgb, var(--accent) 10%, transparent);
+        --good-tint: color-mix(in srgb, var(--good) 12%, transparent);
+        --bad-tint: color-mix(in srgb, var(--bad) 12%, transparent);
+        --border-soft: color-mix(in srgb, var(--fg) 18%, transparent);
+
+        /* Layered elevation. Soft on top, broad below — the layered-shadow
+       pattern that gives "lift" without a harsh edge. */
+        --shadow-card:
+            0 2px 4px color-mix(in srgb, var(--fg) 8%, transparent),
+            0 8px 20px color-mix(in srgb, var(--fg) 12%, transparent),
+            0 22px 46px color-mix(in srgb, var(--fg) 14%, transparent);
+        --shadow-card-hover:
+            0 4px 8px color-mix(in srgb, var(--fg) 9%, transparent),
+            0 14px 32px color-mix(in srgb, var(--fg) 14%, transparent),
+            0 32px 64px color-mix(in srgb, var(--fg) 18%, transparent);
+
+        --radius: 10px;
+        --gap: 12px;
+        --space: 16px;
+        --content-width: 720px;
+        font-size: 16px;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+    }
+
+    /* ---------- base layout (mobile first) ---------- */
+    body {
+        padding: 12px;
+    }
+    .page {
+        max-width: var(--content-width);
+        margin-inline: auto;
     }
     main > * + * {
-        margin-block-start: calc(var(--space) * 1.25);
+        margin-block-start: var(--space);
     }
-}
-
-/* ---------- desktop upgrade ---------- */
-@media (min-width: 960px) {
-    :root {
-        --content-width: 820px;
+    section {
+        display: block;
     }
-    .exercise-list {
-        grid-template-columns: repeat(3, 1fr);
+    section + section {
+        margin-block-start: calc(var(--space) * 1.5);
     }
-}
-
-/* ---------- reduced motion ---------- */
-@media (prefers-reduced-motion: reduce) {
-    #confetti {
-        display: none;
+    .page-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-block-end: calc(var(--space) * 1.25);
+        padding-block-end: 8px;
+        border-block-end: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
     }
-}
-
-/* ---------- micro-animations ---------- */
-@media (prefers-reduced-motion: no-preference) {
-    /* Smooth lock/unlock transition when a deadline expires */
-    #exercise-content {
-        transition:
-            opacity 220ms ease,
-            filter 220ms ease;
+    .page-header h1 {
+        font-size: 1.4rem;
+        text-align: center;
+        flex: 1;
+        /* compensate for the home-link on the left so the title stays centred */
+        margin-inline-end: calc(1.4rem + 8px);
     }
-
-    /* Button: hover lift, press sink */
-    .default-button {
-        transition:
-            transform 90ms ease,
-            box-shadow 100ms ease,
-            background-color 130ms ease,
-            border-color 130ms ease,
-            opacity 130ms ease;
+    .page-header .home-link {
+        font-size: 1.4rem;
+        text-decoration: none;
+        line-height: 1;
     }
-    .default-button.btn-lift:not(:disabled):hover {
-        transform: translateY(-1px);
-        box-shadow: 0 3px 8px color-mix(in srgb, var(--fg) 12%, transparent);
+    .page-intro {
+        margin-block-end: var(--space);
+        color: var(--muted);
+        font-size: 0.98rem;
     }
-    .default-button.btn-lift:not(:disabled):active {
-        transform: translateY(1px) scale(0.98);
-        box-shadow: none;
-        transition-duration: 50ms;
+    .page-intro + form {
+        margin-block-start: var(--space);
     }
 
-    /* Input: accent border on focus */
+    /* ---------- forms ---------- */
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--gap) * 1.25);
+    }
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .field-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    fieldset {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 14px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    legend {
+        padding-inline: 8px;
+        font-weight: 600;
+    }
+    .field-hint {
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+    .button-row + form,
+    form + .button-row {
+        margin-block-start: 8px;
+    }
+
+    label {
+        font-weight: 500;
+    }
+
     input[type="number"],
     input[type="text"],
     input[inputmode="numeric"] {
-        transition:
-            border-color 130ms ease,
-            outline-offset 80ms ease;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--paper);
+        width: 100%;
+        min-width: 0;
     }
-    input[type="number"]:focus,
-    input[type="text"]:focus,
-    input[inputmode="numeric"]:focus {
+    input[type="checkbox"] {
+        inline-size: 1.1rem;
+        block-size: 1.1rem;
+        accent-color: var(--accent);
+    }
+
+    .default-button {
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg);
+        color: var(--fg);
+        font-weight: 600;
+        min-height: 44px;
+        line-height: 1.1;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .default-button.primary {
+        background: var(--accent);
+        color: var(--accent-fg);
         border-color: var(--accent);
     }
-
-    /* Exercise catalog cards */
-    .exercise-list a {
-        transition:
-            transform 130ms ease,
-            box-shadow 130ms ease,
-            border-color 130ms ease;
+    button:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
     }
-    .exercise-list a:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px color-mix(in srgb, var(--fg) 11%, transparent);
-        border-color: var(--accent);
+    .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+    /* paired controls (e.g. +/-) — must always sit side-by-side, never wrap */
+    .button-pair {
+        display: inline-flex;
+        gap: 10px;
+        flex-wrap: nowrap;
+        justify-content: center;
+        align-items: stretch;
+    }
+    .button-pair .default-button {
+        flex: 0 0 auto;
+        min-width: 64px;
     }
 
-    /* Option buttons: smooth selection */
-    .option {
-        transition:
-            background-color 110ms ease,
-            color 110ms ease,
-            border-color 110ms ease;
+    /* ---------- shared boxes ---------- */
+    .box {
+        border: 1px solid var(--border);
+        padding: calc(var(--space) * 1.1) var(--space);
+        border-radius: var(--radius);
+        background: var(--paper);
+    }
+    .box > * + * {
+        margin-block-start: 10px;
+    }
+    .bad,
+    .box.bad,
+    input.bad {
+        background: var(--bad-bg);
+    }
+    .notice {
+        border: 1px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        color: var(--fg);
+        border-radius: var(--radius);
+        padding: 10px 12px;
+        text-align: center;
     }
 
-    /* Page-level entrance when switching from setup → play / play → result */
+    /* ---------- exercise frame ---------- */
+    [hidden] {
+        display: none !important;
+    }
     #page-exercises:not([hidden]),
     #page-result:not([hidden]) {
-        animation: page-in 220ms ease-out both;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space);
     }
-
-    /* Each new question fades up into view */
-    #exercise-content.question-enter {
-        animation: question-in 180ms ease-out both;
+    #exercise {
+        margin-block: 12px 0;
+        padding: var(--space);
     }
-
-    /* Correct answer: brief green glow around the exercise card.
-       Target is #exercise (.box) so the rounded corners shape the glow. */
-    #exercise.is-correct {
-        animation: correct-flash 280ms ease-out both;
+    #exercise-title {
+        text-align: center;
+        color: var(--muted);
+        margin: 0;
     }
-    #exercise.is-correct.is-streak-mid {
-        animation: correct-flash-mid 320ms ease-out both;
+    /* Single tight row at the top of the play / result page that holds the
+   "begin opnieuw" button and the "oefening N van M" label, so they don't
+   stack and eat ~80px of vertical space on a phone. */
+    .exercise-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 16px;
+        flex-wrap: wrap;
     }
-    #exercise.is-correct.is-streak-high {
-        animation: correct-flash-high 380ms ease-out both;
+    .exercise-meta .default-button {
+        flex: 0 0 auto;
     }
-
-    /* Wrong answer: horizontal shake */
-    #exercise-content.is-wrong {
-        animation: shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    .exercise-meta #exercise-title {
+        flex: 1 1 auto;
+        text-align: end;
     }
-
-    /* Feedback "try again" message: small pop so it registers */
+    .exercise-clock {
+        margin: 0;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--muted);
+        font-size: 1.15rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .exercise-clock .deadline {
+        color: var(--fg);
+    }
+    .exercise-clock .deadline.danger {
+        color: var(--bad);
+        font-weight: 700;
+    }
+    .badge.time {
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+        color: var(--accent);
+    }
+    .cycle-time {
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+    #exercise-feedback {
+        text-align: center;
+        min-height: 1.6em;
+        font-size: 1.1rem;
+        margin-block-end: 10px;
+    }
     #exercise-feedback.is-bad {
-        animation: pop-in 160ms ease both;
+        color: var(--bad);
+    }
+    #exercise-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        font-size: 1.25rem;
+        margin-block: 6px;
+        max-width: 100%;
+    }
+    #exercise-content > p {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 0;
+    }
+    #exercise-content.locked {
+        opacity: 0.5;
+        filter: saturate(0.6);
+        pointer-events: none;
+        user-select: none;
+    }
+    #exercise-content input {
+        font-size: 1.25rem;
+        text-align: center;
+        width: 4em;
+        max-width: 6em;
+        background: var(--paper);
+        flex: 0 0 auto;
+    }
+    #exercise-content .split-part {
+        flex: 0 0 auto;
+    }
+    .exercise-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-block-start: 14px;
+    }
+    .split-part {
+        width: 3em;
+        display: inline-block;
+        text-align: center;
+    }
+    input.split-part {
+        line-height: 2em;
+        width: 3em;
     }
 
-    /* History sessions: stagger fade so they don't all flash at once */
+    /* ---------- result ---------- */
+    #result {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        width: 100%;
+    }
+    #result h2 {
+        margin-block: 4px;
+    }
+    #result h3 {
+        font-size: 1.6rem;
+        margin-block: 4px;
+    }
+    #result .section-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--muted);
+        margin-block-start: 6px;
+    }
+    #result small.muted {
+        color: var(--muted);
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+    .result-cycles {
+        width: 100%;
+        max-width: 480px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+    .cycle-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-align: left;
+    }
+    .cycle-num {
+        font-weight: 600;
+        color: var(--muted);
+        min-width: 5em;
+    }
+    .cycle-score {
+        font-weight: 700;
+    }
+    .cycle-mode {
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-style: italic;
+    }
+    .cycle-perfect {
+        color: var(--good);
+        font-weight: 600;
+    }
+    .cycle-detail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-inline-start: auto;
+    }
+    .result-detail {
+        width: 100%;
+        max-width: 520px;
+        text-align: left;
+    }
+    .result-detail-list {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 10px;
+    }
+    .result-detail-list li {
+        padding: 12px 16px;
+        border-left: 3px solid var(--border);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        background: color-mix(in srgb, var(--bg) 96%, var(--fg) 4%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .result-detail-list li.item-wrong {
+        border-left-color: var(--bad);
+    }
+    .result-detail-list li.item-tricky {
+        border-left-color: var(--warn-fg);
+    }
+    .item-desc {
+        font-weight: 600;
+        line-height: 1.3;
+    }
+    .item-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--muted);
+    }
+    .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+    #review-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    #review {
+        width: 100%;
+        margin-block-start: 6px;
+    }
+    #review .exercise-feedback {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+    }
+    #review .exercise-feedback p {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0;
+    }
+
+    /* ---------- catalogue (home) ---------- */
+    .exercise-list {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-block: var(--space) 0;
+    }
+    .exercise-list a {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        color: inherit;
+        background: var(--paper);
+    }
+    .exercise-list .icon {
+        font-size: 1.8rem;
+        line-height: 1;
+        flex: 0 0 auto;
+    }
+    .exercise-list .exercise-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        min-width: 0;
+    }
+    .exercise-list .exercise-label {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .exercise-list .exercise-stats {
+        color: var(--muted);
+        font-size: 0.85rem;
+        min-height: 1.2em;
+    }
+    .exercise-list .exercise-stats[data-best="true"] {
+        color: var(--good);
+    }
+
+    /* ---------- footer ---------- */
+    .site-footer {
+        margin-block-start: calc(var(--space) * 3.5);
+        padding-block-start: calc(var(--space) * 1.25);
+        border-block-start: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+        color: var(--muted);
+        font-size: 0.88rem;
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap);
+    }
+    .site-footer h2 {
+        font-size: 1rem;
+        color: var(--fg);
+    }
+    .footer-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    /* ---------- mistake picker dialog ---------- */
+    dialog.mistake-picker,
+    dialog.leave-guard-dialog {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg);
+        color: var(--fg);
+        padding: 0;
+        max-width: min(92vw, 480px);
+        width: 100%;
+        max-height: 85vh;
+        overflow: hidden;
+    }
+    dialog.mistake-picker::backdrop,
+    dialog.leave-guard-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+    }
+    .mistake-picker-form,
+    .leave-guard-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px;
+        max-height: 85vh;
+        overflow: hidden;
+    }
+    .mistake-picker h2,
+    .leave-guard-dialog h2 {
+        font-size: 1.2rem;
+    }
+    .mistake-picker .muted,
+    .leave-guard-dialog .muted {
+        color: var(--muted);
+        font-size: 0.95rem;
+    }
+    .leave-guard-form .button-row {
+        justify-content: flex-end;
+    }
+    .mistake-picker .all-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        align-self: flex-start;
+    }
+    .mistake-picker .picker-list {
+        list-style: none;
+        padding: 4px 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow-y: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 50vh;
+        border-block: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+    }
+    .mistake-picker .picker-list label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        font-weight: 500;
+    }
+    .mistake-picker .picker-list label:hover {
+        background: color-mix(in srgb, var(--fg) 6%, transparent);
+    }
+
+    /* ---------- language banner ---------- */
+    .lang-banner {
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+        color: var(--fg);
+        padding: 10px 14px;
+        border-radius: var(--radius);
+        margin-block-end: var(--space);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 14px;
+        font-size: 0.9rem;
+    }
+    .lang-banner p {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .lang-banner .default-button {
+        flex: 0 0 auto;
+        padding: 6px 12px;
+        min-height: 36px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* ---------- offline indicator ---------- */
+    .offline-banner {
+        display: none;
+        background: var(--warn-bg);
+        color: var(--warn-fg);
+        padding: 8px 12px;
+        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border-radius: var(--radius);
+        margin-block-end: var(--space);
+    }
+    body.is-offline .offline-banner {
+        display: block;
+    }
+
+    /* ---------- history (parent view) ---------- */
+    .history {
+        margin-block-start: calc(var(--space) * 2);
+        padding-block-start: var(--space);
+        border-block-start: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+    }
+    .history h2 {
+        font-size: 1.2rem;
+    }
+    .history-content {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .history details {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        background: color-mix(in srgb, var(--bg) 85%, var(--fg) 15%);
+    }
+    .history summary {
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .history-list {
+        margin-block-start: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
     .history-session {
-        animation: question-in 180ms ease-out both;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 12px;
     }
-    .history-session:nth-child(2) {
-        animation-delay: 40ms;
+    .history-session-header {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px;
+        font-weight: 600;
     }
-    .history-session:nth-child(3) {
-        animation-delay: 80ms;
+    .history-perfect {
+        margin-block-start: 6px;
+        font-size: 0.9rem;
+        color: var(--good);
     }
-    .history-session:nth-child(n + 4) {
-        animation-delay: 120ms;
+    .history-empty {
+        color: var(--muted);
+        font-style: italic;
+    }
+    .history-detail-list {
+        margin-block-start: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 8px;
+    }
+    .history-detail-list li {
+        padding: 8px 12px;
+        gap: 4px;
+        font-size: 0.9rem;
+    }
+    .badge {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-inline-end: 4px;
+        line-height: 1.4;
+    }
+    .badge.bad {
+        background: var(--bad-bg);
+        color: var(--bad);
+    }
+    .badge.tricky {
+        background: color-mix(in srgb, var(--warn-bg) 60%, transparent);
+        color: var(--warn-fg);
     }
 
-    /* Mistake picker dialog entrance */
-    dialog.mistake-picker[open],
-    dialog.leave-guard-dialog[open] {
-        animation: page-in 180ms ease both;
+    /* ---------- confetti ---------- */
+    #confetti {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+        width: 100vw;
+        height: 0;
+        margin: 0;
+        overflow: hidden;
+    }
+    #confetti[data-active="true"] {
+        height: 100dvh;
     }
 
-    @keyframes page-in {
-        from {
-            opacity: 0;
-            transform: translateY(8px);
+    /* ---------- tablet upgrade ---------- */
+    @media (min-width: 600px) {
+        body {
+            padding: 28px;
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+        .page-header h1 {
+            font-size: 1.8rem;
         }
-    }
-    @keyframes question-in {
-        from {
-            opacity: 0;
-            transform: translateY(5px);
+        #exercise {
+            padding: calc(var(--space) * 1.25);
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+        #exercise-feedback {
+            font-size: 1.2rem;
         }
-    }
-    @keyframes pop-in {
-        from {
-            opacity: 0;
-            transform: scale(0.88);
+        #exercise-content {
+            font-size: 1.8rem;
+            gap: 14px;
         }
-        to {
-            opacity: 1;
-            transform: scale(1);
+        #exercise-content input {
+            font-size: 1.8rem;
+        }
+        .exercise-list {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        main > * + * {
+            margin-block-start: calc(var(--space) * 1.25);
         }
     }
-    @keyframes shake {
-        0%,
-        100% {
-            transform: translateX(0);
+
+    /* ---------- desktop upgrade ---------- */
+    @media (min-width: 960px) {
+        :root {
+            --content-width: 820px;
         }
-        15% {
-            transform: translateX(-6px);
-        }
-        35% {
-            transform: translateX(5px);
-        }
-        52% {
-            transform: translateX(-4px);
-        }
-        68% {
-            transform: translateX(3px);
-        }
-        84% {
-            transform: translateX(-1px);
+        .exercise-list {
+            grid-template-columns: repeat(3, 1fr);
         }
     }
-    /* streak 1-2: barely-there whisper */
-    @keyframes correct-flash {
-        0% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
-        }
-        40% {
-            box-shadow: 0 0 10px 0px rgba(21, 128, 61, 0.22);
-        }
-        100% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+
+    /* ---------- reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+        #confetti {
+            display: none;
         }
     }
-    /* streak 3-4: clearly visible ring */
-    @keyframes correct-flash-mid {
-        0% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+
+    /* ---------- micro-animations ---------- */
+    @media (prefers-reduced-motion: no-preference) {
+        /* Smooth lock/unlock transition when a deadline expires */
+        #exercise-content {
+            transition:
+                opacity 220ms ease,
+                filter 220ms ease;
         }
-        35% {
-            box-shadow: 0 0 18px 3px rgba(21, 128, 61, 0.4);
+
+        /* Button: hover lift, press sink */
+        .default-button {
+            transition:
+                transform 90ms ease,
+                box-shadow 100ms ease,
+                background-color 130ms ease,
+                border-color 130ms ease,
+                opacity 130ms ease;
         }
-        100% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+        .default-button.btn-lift:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px color-mix(in srgb, var(--fg) 12%, transparent);
+        }
+        .default-button.btn-lift:not(:disabled):active {
+            transform: translateY(1px) scale(0.98);
+            box-shadow: none;
+            transition-duration: 50ms;
+        }
+
+        /* Input: accent border on focus */
+        input[type="number"],
+        input[type="text"],
+        input[inputmode="numeric"] {
+            transition:
+                border-color 130ms ease,
+                outline-offset 80ms ease;
+        }
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        input[inputmode="numeric"]:focus {
+            border-color: var(--accent);
+        }
+
+        /* Exercise catalog cards */
+        .exercise-list a {
+            transition:
+                transform 130ms ease,
+                box-shadow 130ms ease,
+                border-color 130ms ease;
+        }
+        .exercise-list a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px color-mix(in srgb, var(--fg) 11%, transparent);
+            border-color: var(--accent);
+        }
+
+        /* Option buttons: smooth selection */
+        .option {
+            transition:
+                background-color 110ms ease,
+                color 110ms ease,
+                border-color 110ms ease;
+        }
+
+        /* Page-level entrance when switching from setup → play / play → result */
+        #page-exercises:not([hidden]),
+        #page-result:not([hidden]) {
+            animation: page-in 220ms ease-out both;
+        }
+
+        /* Each new question fades up into view */
+        #exercise-content.question-enter {
+            animation: question-in 180ms ease-out both;
+        }
+
+        /* Correct answer: brief green glow around the exercise card.
+       Target is #exercise (.box) so the rounded corners shape the glow. */
+        #exercise.is-correct {
+            animation: correct-flash 280ms ease-out both;
+        }
+        #exercise.is-correct.is-streak-mid {
+            animation: correct-flash-mid 320ms ease-out both;
+        }
+        #exercise.is-correct.is-streak-high {
+            animation: correct-flash-high 380ms ease-out both;
+        }
+
+        /* Wrong answer: horizontal shake */
+        #exercise-content.is-wrong {
+            animation: shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        /* Feedback "try again" message: small pop so it registers */
+        #exercise-feedback.is-bad {
+            animation: pop-in 160ms ease both;
+        }
+
+        /* History sessions: stagger fade so they don't all flash at once */
+        .history-session {
+            animation: question-in 180ms ease-out both;
+        }
+        .history-session:nth-child(2) {
+            animation-delay: 40ms;
+        }
+        .history-session:nth-child(3) {
+            animation-delay: 80ms;
+        }
+        .history-session:nth-child(n + 4) {
+            animation-delay: 120ms;
+        }
+
+        /* Mistake picker dialog entrance */
+        dialog.mistake-picker[open],
+        dialog.leave-guard-dialog[open] {
+            animation: page-in 180ms ease both;
+        }
+
+        @keyframes page-in {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes question-in {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes pop-in {
+            from {
+                opacity: 0;
+                transform: scale(0.88);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        @keyframes shake {
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+            15% {
+                transform: translateX(-6px);
+            }
+            35% {
+                transform: translateX(5px);
+            }
+            52% {
+                transform: translateX(-4px);
+            }
+            68% {
+                transform: translateX(3px);
+            }
+            84% {
+                transform: translateX(-1px);
+            }
+        }
+        /* Streak glow strength scales with how well the student is doing — same
+       shape, just brighter and wider. Colors derive from --good so dark mode
+       and any future palette tweak track automatically. */
+        @keyframes correct-flash {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 transparent;
+            }
+            40% {
+                box-shadow: 0 0 10px 0 color-mix(in srgb, var(--good) 22%, transparent);
+            }
+        }
+        @keyframes correct-flash-mid {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 transparent;
+            }
+            35% {
+                box-shadow: 0 0 18px 3px color-mix(in srgb, var(--good) 40%, transparent);
+            }
+        }
+        @keyframes correct-flash-high {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 transparent;
+            }
+            30% {
+                box-shadow: 0 0 26px 5px color-mix(in srgb, var(--good) 55%, transparent);
+            }
         }
     }
-    /* streak 5+: vivid but brief */
-    @keyframes correct-flash-high {
-        0% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
-        }
-        30% {
-            box-shadow: 0 0 26px 5px rgba(21, 128, 61, 0.55);
-        }
-        100% {
-            box-shadow: 0 0 0px 0px rgba(21, 128, 61, 0);
+
+    /* ---------- shared exercise patterns ---------- */
+    /* Most exercises render a vertical list of answer choices. Layout is the
+   same everywhere; each exercise just picks a column count via the modifier
+   class. */
+    .option-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        width: 100%;
+        max-inline-size: 360px;
+        margin-block-start: 10px;
+    }
+    .option-list.cols-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+    .option-list .default-button {
+        font-size: 1.05rem;
+    }
+    .option-list .default-button.selected {
+        background: var(--accent);
+        color: var(--accent-fg);
+        border-color: var(--accent);
+    }
+
+    /* `.kinds`: stacks checkboxes/radios in 1 column on mobile, 2 on tablet+.
+   Used by fractions and multiplications setup screens. */
+    .kinds {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    .kinds label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    @media (min-width: 600px) {
+        .kinds {
+            grid-template-columns: repeat(2, 1fr);
         }
     }
-}
+} /* end @layer base */
