@@ -306,6 +306,9 @@
     transform: rotateY(180deg);
     color: var(--accent);
 }
+.option-list .default-button.selected .word-option-back {
+    color: var(--accent-fg);
+}
 /* Peek button floats above the option in its own stacking layer and
    stays in place while the option button rotates behind it. */
 .word-variant-peek {

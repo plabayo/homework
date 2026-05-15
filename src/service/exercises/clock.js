@@ -385,13 +385,17 @@ function phraseFlipHtml(front, back) {
  */
 function sizeFlip(flip) {
     const inner = flip.querySelector(".phrase-flip-inner");
+    const front = flip.querySelector(".phrase-flip-front");
     const back = flip.querySelector(".phrase-flip-back");
-    if (!inner || !back) return;
-    // inner.scrollWidth = front face natural width (back is position:absolute)
-    // back.scrollWidth = back face natural text width (white-space:nowrap, abs-pos)
-    inner.dataset.frontW = inner.scrollWidth;
-    inner.dataset.backW = back.scrollWidth;
-    inner.style.width = `${inner.scrollWidth}px`;
+    if (!inner || !front || !back) return;
+    // Measure each face with offsetWidth — avoids inner.scrollWidth being
+    // inflated by the abs-pos back face in Chromium-based browsers.
+    // offsetWidth ignores CSS transforms, so rotateY(180deg) on back is fine.
+    const frontW = front.offsetWidth;
+    const backW = back.offsetWidth;
+    inner.dataset.frontW = frontW;
+    inner.dataset.backW = backW;
+    inner.style.width = `${frontW}px`;
 }
 
 /**
