@@ -532,13 +532,15 @@
     border-color: color-mix(in srgb, currentColor 60%, transparent);
     background: color-mix(in srgb, currentColor 6%, transparent);
 }
-/* The ? marker — fixed square so the chip is a perfect circle when collapsed */
+/* The ? marker — fixed square so the chip is a perfect circle when collapsed.
+ * min-width matches width so browser button UA styles can't widen it. */
 .fc-hint-q {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.9em;
-    height: 1.9em;
+    width: 2.2em;
+    height: 2.2em;
+    min-width: 2.2em;
     flex-shrink: 0;
     opacity: 0.5;
     font-weight: 600;
@@ -551,16 +553,19 @@
     overflow: hidden;
     white-space: nowrap;
     font-style: italic;
+    padding-left: 0;
     padding-right: 0;
     transition:
         max-width 0.35s ease,
         opacity 0.3s ease,
+        padding-left 0.3s ease,
         padding-right 0.35s ease;
 }
 .fc-hint-chip.open .fc-hint-body {
     max-width: 28ch;
     opacity: 0.82;
-    padding-right: 0.8em;
+    padding-left: 0.3em;
+    padding-right: 0.9em;
 }
 .fc-hint-chip.open .fc-hint-q {
     opacity: 0.75;
