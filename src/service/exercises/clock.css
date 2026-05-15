@@ -234,6 +234,7 @@
     display: inline-block;
     position: relative;
     transform-style: preserve-3d;
+    white-space: nowrap;
     transition:
         transform 0.38s ease,
         width 0.38s ease;
@@ -248,6 +249,7 @@
 /* Dotted underline on the front face signals "this is interactive" */
 .phrase-flip-front {
     display: inline-block;
+    white-space: nowrap;
     text-decoration-line: underline;
     text-decoration-style: dotted;
     text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
@@ -273,14 +275,39 @@
 }
 
 /* ---------- word-choice option with dual-variant peek ---------- */
-/* Wrapper that lets an option button and its peek sibling share one grid cell */
 .word-option-wrap {
     position: relative;
 }
 .word-option-wrap .default-button.option {
     width: 100%;
 }
-/* Small absolutely-positioned peek button — doesn't affect cell height */
+/* Button-level 3D flip: the whole option card rotates when peeking. */
+.word-option-btn {
+    transform-style: preserve-3d;
+    transition: transform 0.35s ease;
+    overflow: visible;
+}
+.word-option-wrap.flipped .word-option-btn {
+    transform: perspective(600px) rotateY(180deg);
+}
+/* Grid stacking: both faces overlap the same cell so the button is always
+   sized to its wider face — no layout shift when flipping. */
+.word-option-inner {
+    display: grid;
+    grid-template-areas: "stack";
+    transform-style: preserve-3d;
+}
+.word-option-face {
+    grid-area: stack;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.word-option-back {
+    transform: rotateY(180deg);
+    color: var(--accent);
+}
+/* Peek button floats above the option in its own stacking layer and
+   stays in place while the option button rotates behind it. */
 .word-variant-peek {
     position: absolute;
     bottom: 5px;
@@ -293,6 +320,7 @@
     color: color-mix(in srgb, currentColor 38%, transparent);
     cursor: pointer;
     border-radius: 3px;
+    z-index: 1;
     transition:
         color 0.15s,
         background 0.15s;

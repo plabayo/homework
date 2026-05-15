@@ -401,13 +401,18 @@ function sizeFlip(flip) {
 function wordOptionListHtml(options) {
     const items = options.map((o) => {
         const val = encodeURIComponent(JSON.stringify({ h: o.h, m: o.m }));
-        const btn = `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${o.label}</button>`;
-        if (!o.altLabel) return btn;
+        if (!o.altLabel) {
+            return `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${o.label}</button>`;
+        }
         return (
-            `<div class="word-option-wrap">${btn}` +
-            `<button type="button" class="word-variant-peek" ` +
-            `data-primary="${o.label}" data-secondary="${o.altLabel}" ` +
-            `aria-label="andere schrijfwijze">↔</button></div>`
+            `<div class="word-option-wrap">` +
+            `<button type="button" class="default-button option word-option-btn" role="radio" aria-checked="false" data-value="${val}">` +
+            `<span class="word-option-inner">` +
+            `<span class="word-option-face word-option-front">${o.label}</span>` +
+            `<span class="word-option-face word-option-back" aria-hidden="true">${o.altLabel}</span>` +
+            `</span></button>` +
+            `<button type="button" class="word-variant-peek" aria-label="andere schrijfwijze">↔</button>` +
+            `</div>`
         );
     });
     return `<div class="option-list" role="radiogroup">${items.join("")}</div>`;
@@ -438,7 +443,7 @@ function toggleFlip(flip) {
     // Transition the inner container width to match the now-visible face.
     const inner = flip.querySelector(".phrase-flip-inner");
     if (inner?.dataset.frontW) {
-        inner.style.width = `${parseFloat(flipped ? inner.dataset.backW : inner.dataset.frontW)}px`;
+        inner.style.width = `${Number.parseFloat(flipped ? inner.dataset.backW : inner.dataset.frontW)}px`;
     }
 }
 document.addEventListener("click", (e) => {
@@ -447,13 +452,11 @@ document.addEventListener("click", (e) => {
         toggleFlip(flip);
         return;
     }
-    // Peek button: swap the displayed text of the adjacent option button.
+    // Peek button: 3D-flip the adjacent option button to reveal the alt phrasing.
     const peek = e.target.closest(".word-variant-peek");
     if (!peek) return;
-    const optBtn = peek.closest(".word-option-wrap")?.querySelector(".option");
-    if (!optBtn) return;
-    const curr = optBtn.textContent.trim();
-    optBtn.textContent = curr === peek.dataset.primary ? peek.dataset.secondary : peek.dataset.primary;
+    const wrap = peek.closest(".word-option-wrap");
+    if (wrap) wrap.classList.toggle("flipped");
 });
 document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
