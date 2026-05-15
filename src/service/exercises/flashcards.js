@@ -1498,16 +1498,12 @@ function bindImageSearch(row) {
 
 function hintToggleHtml(hint) {
     if (!hint) return "";
-    return `<div class="fc-hint-wrap">
-        <button type="button" class="fc-hint-toggle">? hint</button>
-        <p class="fc-hint-text" hidden>${escapeHtml(hint)}</p>
-    </div>`;
+    return `<button type="button" class="fc-hint-chip"><span class="fc-hint-q">?</span><span class="fc-hint-body">${escapeHtml(hint)}</span></button>`;
 }
 
 function wireHintToggle(root) {
-    root.querySelector(".fc-hint-toggle")?.addEventListener("click", () => {
-        const hintText = root.querySelector(".fc-hint-text");
-        if (hintText) hintText.hidden = !hintText.hidden;
+    root.querySelector(".fc-hint-chip")?.addEventListener("click", (e) => {
+        e.currentTarget.classList.toggle("open");
     });
 }
 

@@ -504,33 +504,52 @@
     font-size: 1rem;
 }
 
-/* ---- Hint toggle button (play phase) ---- */
+/* ---- Hint chip (play phase) ---- */
 
-.fc-hint-toggle {
-    background: none;
-    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+.fc-hint-chip {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
     border-radius: 999px;
-    padding: 0.2rem 0.8rem;
-    font-size: 0.8rem;
+    border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
+    padding: 0.2em 0.55em;
+    font-size: 0.82rem;
     cursor: pointer;
-    opacity: 0.6;
-    transition:
-        opacity 0.15s,
-        background 0.15s;
-    font-family: inherit;
+    background: none;
     color: inherit;
+    font-family: inherit;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
 }
-.fc-hint-toggle:hover {
-    opacity: 1;
-    background: color-mix(in srgb, currentColor 8%, transparent);
+.fc-hint-chip:hover {
+    border-color: color-mix(in srgb, currentColor 55%, transparent);
+    background: color-mix(in srgb, currentColor 5%, transparent);
 }
-
-.fc-hint-text {
-    font-size: 0.9rem;
+.fc-hint-q {
+    opacity: 0.5;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+}
+.fc-hint-body {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
     font-style: italic;
-    opacity: 0.7;
-    margin: 0;
-    text-align: center;
+    margin-left: 0;
+    transition: max-width 0.3s ease, opacity 0.25s ease, margin-left 0.3s ease;
+}
+.fc-hint-chip.open .fc-hint-body {
+    max-width: 30ch;
+    opacity: 0.8;
+    margin-left: 0.45em;
+}
+.fc-hint-chip.open .fc-hint-q {
+    opacity: 0.65;
+}
+.fc-hint-chip.open {
+    border-color: color-mix(in srgb, currentColor 50%, transparent);
 }
 
 /* ---- Exercise question (play phase) ---- */
@@ -551,18 +570,6 @@
     gap: 0.75rem;
 }
 
-.fc-hint-wrap {
-    align-self: flex-end;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.25rem;
-}
-
-.flash-question .fc-hint-text {
-    text-align: right;
-    padding-inline-end: 0.1rem;
-}
 
 .fc-mp-progress {
     font-size: 0.88rem;

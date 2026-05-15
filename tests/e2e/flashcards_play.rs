@@ -170,30 +170,30 @@ async fn flashcards_hint_button_appears_and_reveals_hint() -> TestResult<()> {
     click(driver, "#form-setup button[type='submit']").await?;
 
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
-    wait_for_css(driver, ".fc-hint-toggle", Duration::from_secs(5)).await?;
+    wait_for_css(driver, ".fc-hint-chip", Duration::from_secs(5)).await?;
 
-    let hint_hidden_before = driver
+    let open_before = driver
         .execute(
-            "return document.querySelector('.fc-hint-text')?.hidden ?? true;",
+            "return document.querySelector('.fc-hint-chip')?.classList.contains('open') ?? false;",
             vec![],
         )
         .await?;
     assert!(
-        hint_hidden_before.json().as_bool().unwrap_or(false),
-        "hint text should be hidden before clicking the toggle"
+        !open_before.json().as_bool().unwrap_or(true),
+        "hint chip should be collapsed before clicking"
     );
 
-    click(driver, ".fc-hint-toggle").await?;
+    click(driver, ".fc-hint-chip").await?;
 
-    let hint_hidden_after = driver
+    let open_after = driver
         .execute(
-            "return document.querySelector('.fc-hint-text')?.hidden ?? true;",
+            "return document.querySelector('.fc-hint-chip')?.classList.contains('open') ?? false;",
             vec![],
         )
         .await?;
     assert!(
-        !hint_hidden_after.json().as_bool().unwrap_or(true),
-        "hint text should be visible after clicking the toggle"
+        open_after.json().as_bool().unwrap_or(false),
+        "hint chip should be open after clicking"
     );
 
     driver.clone().quit().await?;
