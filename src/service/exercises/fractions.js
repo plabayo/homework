@@ -31,6 +31,73 @@ const FRAC_INPUT = `<span class="fraction-input"><input inputmode="numeric" patt
 
 const INT_INPUT = `<input inputmode="numeric" pattern="[0-9]+" id="answer" min="0" max="100000" required>`;
 
+function genBreukVanGetal(dens) {
+    const den = pickRandom(dens);
+    const num = 1 + Math.floor(Math.random() * (den - 1));
+    const maxK = Math.max(2, Math.floor(20 / den));
+    const k = 1 + Math.floor(Math.random() * maxK);
+    return {
+        q: { kind: "breuk-van-getal", num, den, n: den * k, answer: num * k },
+        key: `bvg:${num}/${den}:${den * k}`,
+    };
+}
+
+function genOptellenAftrekken(kind, dens, mixedPairs, cfg) {
+    let aDen, bDen;
+    if (cfg.mixedDenominators && mixedPairs.length > 0) {
+        const [small, big] = pickRandom(mixedPairs);
+        [aDen, bDen] = Math.random() < 0.5 ? [small, big] : [big, small];
+    } else {
+        aDen = pickRandom(dens);
+        bDen = aDen;
+    }
+    const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
+    const bNum = 1 + Math.floor(Math.random() * (bDen - 1));
+    const commonDen = lcm(aDen, bDen);
+    const extA = aNum * (commonDen / aDen);
+    const extB = bNum * (commonDen / bDen);
+    let resNum;
+    if (kind === "optellen") {
+        resNum = extA + extB;
+    } else {
+        if (extA <= extB) return null;
+        resNum = extA - extB;
+    }
+    return {
+        q: { kind, aNum, aDen, bNum, bDen, answer: simplify(resNum, commonDen) },
+        key: `${kind}:${aNum}/${aDen}:${bNum}/${bDen}`,
+    };
+}
+
+function genVermenigvuldigen(dens) {
+    const aDen = pickRandom(dens);
+    const bDen = pickRandom(dens);
+    const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
+    const bNum = 1 + Math.floor(Math.random() * (bDen - 1));
+    return {
+        q: { kind: "vermenigvuldigen", aNum, aDen, bNum, bDen, answer: simplify(aNum * bNum, aDen * bDen) },
+        key: `vm:${aNum}/${aDen}:${bNum}/${bDen}`,
+    };
+}
+
+function genDelen(dens) {
+    const den = pickRandom(dens);
+    const num = 1 + Math.floor(Math.random() * (den - 1));
+    const divisor = 2 + Math.floor(Math.random() * 2);
+    return {
+        q: { kind: "delen", num, den, divisor, answer: simplify(num, den * divisor) },
+        key: `del:${num}/${den}:${divisor}`,
+    };
+}
+
+function pickQuestion(kind, dens, mixedPairs, cfg) {
+    if (kind === "breuk-van-getal") return genBreukVanGetal(dens);
+    if (kind === "optellen" || kind === "aftrekken") return genOptellenAftrekken(kind, dens, mixedPairs, cfg);
+    if (kind === "vermenigvuldigen") return genVermenigvuldigen(dens);
+    if (kind === "delen") return genDelen(dens);
+    return null;
+}
+
 function buildDeck(cfg) {
     const deck = [];
     const N = cfg.numExercises;
@@ -45,64 +112,35 @@ function buildDeck(cfg) {
         }
     }
 
-    let tries = 0;
-    while (deck.length < N && tries < N * 20) {
-        tries++;
-        const kind = pickRandom(cfg.kinds);
-        let q = null;
+    // Track used question keys to avoid repeating the same assignment.
+    // When we fail to find an unseen question too many times in a row (signal
+    // of exhaustion), reset so repeats become allowed again.
+    const seen = new Set();
+    let staleTries = 0;
+    let totalTries = 0;
 
-        switch (kind) {
-            case "breuk-van-getal": {
-                const den = pickRandom(dens);
-                const num = 1 + Math.floor(Math.random() * (den - 1));
-                const maxK = Math.max(2, Math.floor(20 / den));
-                const k = 1 + Math.floor(Math.random() * maxK);
-                q = { kind, num, den, n: den * k, answer: num * k };
-                break;
-            }
-            case "optellen":
-            case "aftrekken": {
-                let aDen, bDen;
-                if (cfg.mixedDenominators && mixedPairs.length > 0) {
-                    const [small, big] = pickRandom(mixedPairs);
-                    [aDen, bDen] = Math.random() < 0.5 ? [small, big] : [big, small];
-                } else {
-                    aDen = pickRandom(dens);
-                    bDen = aDen;
-                }
-                const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
-                const bNum = 1 + Math.floor(Math.random() * (bDen - 1));
-                const commonDen = lcm(aDen, bDen);
-                const extA = aNum * (commonDen / aDen);
-                const extB = bNum * (commonDen / bDen);
-                let resNum;
-                if (kind === "optellen") {
-                    resNum = extA + extB;
-                } else {
-                    if (extA <= extB) continue;
-                    resNum = extA - extB;
-                }
-                q = { kind, aNum, aDen, bNum, bDen, answer: simplify(resNum, commonDen) };
-                break;
-            }
-            case "vermenigvuldigen": {
-                const aDen = pickRandom(dens);
-                const bDen = pickRandom(dens);
-                const aNum = 1 + Math.floor(Math.random() * (aDen - 1));
-                const bNum = 1 + Math.floor(Math.random() * (bDen - 1));
-                q = { kind, aNum, aDen, bNum, bDen, answer: simplify(aNum * bNum, aDen * bDen) };
-                break;
-            }
-            case "delen": {
-                const den = pickRandom(dens);
-                const num = 1 + Math.floor(Math.random() * (den - 1));
-                const divisor = 2 + Math.floor(Math.random() * 2);
-                q = { kind, num, den, divisor, answer: simplify(num, den * divisor) };
-                break;
-            }
+    while (deck.length < N && totalTries < N * 50) {
+        totalTries++;
+
+        if (staleTries > Math.max(20, seen.size)) {
+            seen.clear();
+            staleTries = 0;
         }
 
-        if (q) deck.push(q);
+        const kind = pickRandom(cfg.kinds);
+        const result = pickQuestion(kind, dens, mixedPairs, cfg);
+
+        if (!result) continue;
+
+        const { q, key } = result;
+        if (seen.has(key)) {
+            staleTries++;
+            continue;
+        }
+
+        seen.add(key);
+        staleTries = 0;
+        deck.push(q);
     }
     return deck;
 }
