@@ -525,8 +525,10 @@
     color: inherit;
     font-family: inherit;
     overflow: hidden;
-    /* Circle: height and min-width are the same value. */
+    /* Circle: height, min-height, and min-width are the same value.
+     * min-height overrides theme.css `button { min-height: 44px }`. */
     height: 2.4em;
+    min-height: 2.4em;
     min-width: 2.4em;
     transition:
         border-color 0.25s,
