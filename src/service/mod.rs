@@ -9,7 +9,7 @@ use rama::{
     error::extra::OpaqueError,
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
-        headers::{StrictTransportSecurity, exotic::XClacksOverhead},
+        headers::{StrictTransportSecurity, XContentTypeOptions, exotic::XClacksOverhead},
         layer::{
             cors, map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
@@ -39,10 +39,7 @@ fn apply_common_middleware(
                 HeaderName::from_static("x-sponsored-by"),
                 HeaderValue::from_static("fly.io"),
             ),
-            SetResponseHeaderLayer::if_not_present(
-                HeaderName::from_static("x-content-type-options"),
-                HeaderValue::from_static("nosniff"),
-            ),
+            SetResponseHeaderLayer::if_not_present_typed(XContentTypeOptions::nosniff()),
             cors::CorsLayer::permissive(),
         )
             .into_layer(service),
