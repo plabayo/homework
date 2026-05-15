@@ -345,6 +345,8 @@ async fn flashcards_import_via_url_is_client_side() -> TestResult<()> {
         .goto(app.url(&format!("/extra/flashcards?import={param}")))
         .await?;
 
+    // Wait for the page to be ready before polling for the import box.
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
     wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
     click(driver, "#fc-confirm-import").await?;
     wait_for_css(driver, ".deck-item.selected", Duration::from_secs(5)).await?;
