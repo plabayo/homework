@@ -116,7 +116,8 @@ function buildWordOptions(q, minStep) {
         if (seenTimes.has(key) || seenLabels.has(label)) return;
         seenTimes.add(key);
         seenLabels.add(label);
-        out.push({ h, m, label });
+        const variants = dutchTimePhraseVariants(h, m);
+        out.push({ h, m, label, altLabel: variants.length > 1 ? variants[1] : null });
     };
 
     push(q.h, q.m);
@@ -377,6 +378,41 @@ function phraseFlipHtml(front, back) {
     );
 }
 
+/**
+ * Measure both faces of a .phrase-flip widget and store the pixel widths as
+ * data attributes so the click handler can transition width smoothly.
+ * Must be called after the widget is inserted into the live DOM.
+ */
+function sizeFlip(flip) {
+    const inner = flip.querySelector(".phrase-flip-inner");
+    const back = flip.querySelector(".phrase-flip-back");
+    if (!inner || !back) return;
+    // inner.scrollWidth = front face natural width (back is position:absolute)
+    // back.scrollWidth = back face natural text width (white-space:nowrap, abs-pos)
+    inner.dataset.frontW = inner.scrollWidth;
+    inner.dataset.backW = back.scrollWidth;
+    inner.style.width = `${inner.scrollWidth}px`;
+}
+
+/**
+ * Build an option-list HTML string for word choices, adding a small peek
+ * button for options that have two Dutch phrasings.
+ */
+function wordOptionListHtml(options) {
+    const items = options.map((o) => {
+        const val = encodeURIComponent(JSON.stringify({ h: o.h, m: o.m }));
+        const btn = `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${o.label}</button>`;
+        if (!o.altLabel) return btn;
+        return (
+            `<div class="word-option-wrap">${btn}` +
+            `<button type="button" class="word-variant-peek" ` +
+            `data-primary="${o.label}" data-secondary="${o.altLabel}" ` +
+            `aria-label="andere schrijfwijze">↔</button></div>`
+        );
+    });
+    return `<div class="option-list" role="radiogroup">${items.join("")}</div>`;
+}
+
 /** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
 function renderZetFeedback(feedbackEl, q) {
     if (q.promptStyle !== "words") {
@@ -387,6 +423,8 @@ function renderZetFeedback(feedbackEl, q) {
     if (variants.length > 1) {
         const idx = Math.random() < 0.5 ? 0 : 1;
         feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(variants[idx], variants[1 - idx])}" ⏰`;
+        const flip = feedbackEl.querySelector(".phrase-flip");
+        if (flip) sizeFlip(flip);
     } else {
         feedbackEl.textContent = `zet de klok op "${variants[0] ?? ""}" ⏰`;
     }
@@ -394,19 +432,35 @@ function renderZetFeedback(feedbackEl, q) {
 
 // Single delegated listener handles all .phrase-flip elements on the page,
 // including those injected dynamically into the exercise or freeplay area.
-document.addEventListener("click", (e) => {
-    const flip = e.target.closest(".phrase-flip");
-    if (!flip) return;
+function toggleFlip(flip) {
     const flipped = flip.classList.toggle("flipped");
     flip.setAttribute("aria-pressed", String(flipped));
+    // Transition the inner container width to match the now-visible face.
+    const inner = flip.querySelector(".phrase-flip-inner");
+    if (inner?.dataset.frontW) {
+        inner.style.width = `${parseFloat(flipped ? inner.dataset.backW : inner.dataset.frontW)}px`;
+    }
+}
+document.addEventListener("click", (e) => {
+    const flip = e.target.closest(".phrase-flip");
+    if (flip) {
+        toggleFlip(flip);
+        return;
+    }
+    // Peek button: swap the displayed text of the adjacent option button.
+    const peek = e.target.closest(".word-variant-peek");
+    if (!peek) return;
+    const optBtn = peek.closest(".word-option-wrap")?.querySelector(".option");
+    if (!optBtn) return;
+    const curr = optBtn.textContent.trim();
+    optBtn.textContent = curr === peek.dataset.primary ? peek.dataset.secondary : peek.dataset.primary;
 });
 document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const flip = e.target.closest(".phrase-flip");
     if (!flip) return;
     e.preventDefault();
-    const flipped = flip.classList.toggle("flipped");
-    flip.setAttribute("aria-pressed", String(flipped));
+    toggleFlip(flip);
 });
 
 function mountFreeplay() {
@@ -441,6 +495,8 @@ function mountFreeplay() {
                 const variants = dutchTimePhraseVariants(h, m);
                 if (variants.length > 1) {
                     phraseEl.innerHTML = phraseFlipHtml(variants[0], variants[1]);
+                    const flip = phraseEl.querySelector(".phrase-flip");
+                    if (flip) sizeFlip(flip);
                 } else {
                     phraseEl.textContent = variants[0] ?? "";
                 }
@@ -521,11 +577,15 @@ runExercise({
             root.innerHTML = `
                 ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                 ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
-                ${optionListHtml(
-                    options,
-                    (o) => o.label,
-                    (o) => JSON.stringify({ h: o.h, m: o.m }),
-                )}
+                ${
+                    wordChoices
+                        ? wordOptionListHtml(options)
+                        : optionListHtml(
+                              options,
+                              (o) => o.label,
+                              (o) => JSON.stringify({ h: o.h, m: o.m }),
+                          )
+                }
             `;
             const get = wireOptions(root);
             return () => {

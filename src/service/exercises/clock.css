@@ -227,22 +227,27 @@
     vertical-align: bottom;
 }
 .phrase-flip-inner {
-    /* inline-grid stacks both faces in the same grid cell so the container
-       always reserves space for the widest face — no layout jump on flip. */
-    display: inline-grid;
+    /* inline-block so the container naturally matches the front face width.
+       Back face is position:absolute so it never inflates the container.
+       Width is set explicitly by JS after measurement so it can transition
+       smoothly between front-width and back-width on flip. */
+    display: inline-block;
+    position: relative;
     transform-style: preserve-3d;
-    transition: transform 0.38s ease;
+    transition:
+        transform 0.38s ease,
+        width 0.38s ease;
 }
 .phrase-flip.flipped .phrase-flip-inner {
     transform: rotateY(180deg);
 }
 .phrase-flip-face {
-    grid-area: 1 / 1;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
 }
 /* Dotted underline on the front face signals "this is interactive" */
 .phrase-flip-front {
+    display: inline-block;
     text-decoration-line: underline;
     text-decoration-style: dotted;
     text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
@@ -258,8 +263,43 @@
     outline-offset: 2px;
     border-radius: 2px;
 }
-/* Back face is tinted accent so it reads as "the other/revealed variant" */
+/* Back face: absolute so the inner container width = front face width only */
 .phrase-flip-back {
+    position: absolute;
+    left: 0;
+    white-space: nowrap;
     transform: rotateY(180deg);
     color: var(--accent);
+}
+
+/* ---------- word-choice option with dual-variant peek ---------- */
+/* Wrapper that lets an option button and its peek sibling share one grid cell */
+.word-option-wrap {
+    position: relative;
+}
+.word-option-wrap .default-button.option {
+    width: 100%;
+}
+/* Small absolutely-positioned peek button — doesn't affect cell height */
+.word-variant-peek {
+    position: absolute;
+    bottom: 5px;
+    right: 6px;
+    background: none;
+    border: none;
+    padding: 1px 4px;
+    font-size: 0.75em;
+    line-height: 1;
+    color: color-mix(in srgb, currentColor 38%, transparent);
+    cursor: pointer;
+    border-radius: 3px;
+    transition:
+        color 0.15s,
+        background 0.15s;
+}
+.word-variant-peek:hover,
+.word-variant-peek:focus-visible {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    outline: none;
 }
