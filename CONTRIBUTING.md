@@ -110,3 +110,8 @@ just watch-run    # auto-reload on file change (requires cargo-watch)
 just qa           # fmt + clippy + doc + unit tests
 just qa-full      # qa + browser e2e tests (requires chromedriver)
 ```
+
+**`just qa-full` must pass before you open a PR.** CI runs the same suite; a
+failure blocks the merge and prevents deployment. If you cannot run
+`chromedriver` locally, run `just qa` at minimum and note the gap in your PR
+description so a maintainer can verify the e2e tests.
