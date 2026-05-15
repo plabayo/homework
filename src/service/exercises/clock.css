@@ -211,6 +211,11 @@
     padding-inline: 0.3em;
 }
 
+/* ---------- no-numbers mode ---------- */
+.clock.no-numbers .num {
+    display: none;
+}
+
 /* ---------- inline phrase-flip widget ---------- */
 /* Wraps a Dutch time phrase that has two valid wordings.  Clicking/tapping
    spins the text 180° to reveal the alternative phrasing.  Only rendered

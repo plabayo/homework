@@ -54,6 +54,7 @@ function buildDeck(cfg) {
             m: entry.m,
             granularity: cfg.granularity,
             answerMode: cfg.answerMode || "multiple",
+            showNumbers: !cfg.hideNumbers,
             promptStyle:
                 kind === "zet-woorden"
                     ? "words"
@@ -162,9 +163,11 @@ function clockSvg(h, m, opts) {
         );
     }
     const numbers = [];
-    for (let i = 1; i <= 12; i++) {
-        const p = num(i);
-        numbers.push(`<text class="num" x="${p.x}" y="${p.y}">${i}</text>`);
+    if (opts.showNumbers !== false) {
+        for (let i = 1; i <= 12; i++) {
+            const p = num(i);
+            numbers.push(`<text class="num" x="${p.x}" y="${p.y}">${i}</text>`);
+        }
     }
     // hour hand length 24, minute hand length 36
     const hr = (deg, len) => {
@@ -457,6 +460,7 @@ const FIELDS = [
     { field: "granularity", type: "radio", key: "granularity", default: "five" },
     { field: "ck", type: "checkboxes", key: "kinds" },
     { field: "answer", type: "radio", key: "answerMode", default: "multiple" },
+    { field: "hide-numbers", type: "checkbox", key: "hideNumbers" },
 ];
 
 runExercise({
@@ -480,7 +484,7 @@ runExercise({
             const fb = q.kind === "lees" ? "lees de klok 🕐" : "zet de klok ⏰";
             root.innerHTML = `
                 <h3>${fb}</h3>
-                ${clockSvg(q.h, q.m, { interactive: false })}
+                ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                 <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
             `;
             return;
@@ -490,7 +494,7 @@ runExercise({
             if (q.answerMode === "fill") {
                 // child types the time
                 root.innerHTML = `
-                    ${clockSvg(q.h, q.m, { interactive: false })}
+                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                     <div class="time-pair">
                         <input inputmode="numeric" pattern="[0-9]+" id="answer-h" min="1" max="12" placeholder="uu" required>
                         <span>:</span>
@@ -515,7 +519,7 @@ runExercise({
                       label: timeLabel(o.h, o.m),
                   }));
             root.innerHTML = `
-                ${clockSvg(q.h, q.m, { interactive: false })}
+                ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                 ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
                 ${optionListHtml(
                     options,
@@ -532,7 +536,7 @@ runExercise({
             // q.kind === 'zet' or 'zet-woorden'
             renderZetFeedback(document.getElementById("exercise-feedback"), q);
             root.innerHTML = `
-                ${clockSvg(0, 0, { interactive: true })}
+                ${clockSvg(0, 0, { interactive: true, showNumbers: q.showNumbers })}
                 <div class="clock-controls">
                     <div class="clock-control-row">
                         <span class="label">uur</span>

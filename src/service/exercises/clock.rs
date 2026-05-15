@@ -139,6 +139,17 @@ fn config_fields() -> impl rama::http::html::IntoHtml {
                 " typ de tijd zelf in",
             ),
         ),
+        fieldset!(
+            legend!("Extra opties (gevorderd)"),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    name = "hide-numbers",
+                    value = "1",
+                ),
+                " verberg de getallen op de wijzerplaat",
+            ),
+        ),
     )
 }
 
