@@ -2097,8 +2097,7 @@ async function initManager() {
                 // overwrite vs. save-as-new options.
                 importPending = nameConflict ? { ...data, _conflictId: nameConflict.id } : data;
             }
-        } catch (e) {
-            console.error("[homework] import decode failed:", e);
+        } catch (_e) {
             history.replaceState({}, "", location.pathname);
         }
     }
