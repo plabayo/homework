@@ -4,8 +4,7 @@
 
 use std::borrow::Cow;
 
-use rama::http::HeaderValue;
-use rama::http::header::CACHE_CONTROL;
+use rama::http::headers::{CacheControl, HeaderMapExt};
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
     p, script, title,
@@ -56,7 +55,9 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
 // heuristic freshness it will keep loading the old assets too. Firefox is
 // noticeably more aggressive about this than Safari, which made stale CSS
 // look like a "Firefox-only" bug.
-const HTML_CACHE_CONTROL: HeaderValue = HeaderValue::from_static("no-cache");
+fn html_cache_control() -> CacheControl {
+    CacheControl::new().with_no_cache()
+}
 
 pub fn page(
     meta_data: PageMeta,
@@ -140,7 +141,7 @@ pub fn page(
         ),
     );
     let mut res = markup.into_response();
-    res.headers_mut().insert(CACHE_CONTROL, HTML_CACHE_CONTROL);
+    res.headers_mut().typed_insert(html_cache_control());
     res
 }
 

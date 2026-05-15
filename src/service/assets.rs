@@ -4,7 +4,8 @@
 
 use rama::http::{
     HeaderValue,
-    header::{CACHE_CONTROL, CONTENT_TYPE},
+    header::CONTENT_TYPE,
+    headers::{CacheControl, HeaderMapExt},
     service::web::response::{Css, IntoResponse, Script},
 };
 
@@ -23,33 +24,39 @@ const MANIFEST_VERSIONED: &str = const_format::str_replace!(
 );
 
 // Static assets are served with a versioned URL (`?v=<git-sha>`), so the
-// content for any given URL never changes — safe to cache forever. This is
-// what makes Firefox stop serving the previous build's CSS after an update;
-// without it the browser falls back to heuristic freshness and can hold on to
-// the old HTML (which references the old `?v=` URLs) for hours.
-const CACHE_IMMUTABLE: HeaderValue =
-    HeaderValue::from_static("public, max-age=31536000, immutable");
+// content for any given URL never changes — safe to cache forever. Without
+// this, browsers fall back to heuristic freshness; Firefox is much more
+// aggressive there than Safari and can hold on to the old HTML (with its
+// old `?v=` references) for hours, so the cache-bust never gets a chance.
+fn cache_immutable() -> CacheControl {
+    CacheControl::new()
+        .with_public()
+        .with_immutable()
+        .with_max_age_seconds(31_536_000)
+}
 
 // The service worker script bootstraps everything else, so it must always be
 // revalidated against the server — otherwise an update would be invisible
 // until the browser's own SW-update heuristic fires.
-const CACHE_REVALIDATE: HeaderValue = HeaderValue::from_static("no-cache");
+fn cache_revalidate() -> CacheControl {
+    CacheControl::new().with_no_cache()
+}
 
 pub async fn theme_css() -> impl IntoResponse {
     let mut res = Css(THEME_CSS).into_response();
-    res.headers_mut().insert(CACHE_CONTROL, CACHE_IMMUTABLE);
+    res.headers_mut().typed_insert(cache_immutable());
     res
 }
 
 pub async fn homework_js() -> impl IntoResponse {
     let mut res = Script(HOMEWORK_JS).into_response();
-    res.headers_mut().insert(CACHE_CONTROL, CACHE_IMMUTABLE);
+    res.headers_mut().typed_insert(cache_immutable());
     res
 }
 
 pub async fn service_worker_js() -> impl IntoResponse {
     let mut res = Script(SERVICE_WORKER_JS).into_response();
-    res.headers_mut().insert(CACHE_CONTROL, CACHE_REVALIDATE);
+    res.headers_mut().typed_insert(cache_revalidate());
     res
 }
 
@@ -60,7 +67,7 @@ pub async fn manifest() -> impl IntoResponse {
         CONTENT_TYPE,
         HeaderValue::from_static("application/manifest+json"),
     );
-    headers.insert(CACHE_CONTROL, CACHE_IMMUTABLE);
+    headers.typed_insert(cache_immutable());
     res
 }
 
@@ -68,6 +75,6 @@ pub async fn favicon_svg() -> impl IntoResponse {
     let mut res = FAVICON_SVG.into_response();
     let headers = res.headers_mut();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
-    headers.insert(CACHE_CONTROL, CACHE_IMMUTABLE);
+    headers.typed_insert(cache_immutable());
     res
 }
