@@ -483,8 +483,8 @@ runExercise({
                     <div class="clock-control-row">
                         <span class="label">uur</span>
                         <div class="button-pair">
-                            <button type="button" id="hour-dec">➖</button>
-                            <button type="button" id="hour-inc">➕</button>
+                            <button type="button" class="btn" id="hour-dec">➖</button>
+                            <button type="button" class="btn" id="hour-inc">➕</button>
                         </div>
                     </div>
                     ${
@@ -493,8 +493,8 @@ runExercise({
                         <div class="clock-control-row">
                             <span class="label">minuut</span>
                             <div class="button-pair">
-                                <button type="button" id="min-dec">➖</button>
-                                <button type="button" id="min-inc">➕</button>
+                                <button type="button" class="btn" id="min-dec">➖</button>
+                                <button type="button" class="btn" id="min-inc">➕</button>
                             </div>
                         </div>
                     `

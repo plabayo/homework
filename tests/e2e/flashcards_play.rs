@@ -172,6 +172,23 @@ async fn flashcards_hint_button_appears_and_reveals_hint() -> TestResult<()> {
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     wait_for_css(driver, ".fc-hint-chip", Duration::from_secs(5)).await?;
 
+    // CSS sanity: collapsed chip must be a perfect square so it renders as a circle.
+    // If theme.css or another rule sets a conflicting min-height, this catches it immediately.
+    let dims = driver
+        .execute(
+            "const el = document.querySelector('.fc-hint-chip'); \
+             return [el.offsetWidth, el.offsetHeight];",
+            vec![],
+        )
+        .await?;
+    let dims = dims.json();
+    let chip_w = dims[0].as_u64().unwrap_or(0);
+    let chip_h = dims[1].as_u64().unwrap_or(0);
+    assert_eq!(
+        chip_w, chip_h,
+        "hint chip must be square (circle) when collapsed, got {chip_w}×{chip_h}"
+    );
+
     let open_before = driver
         .execute(
             "return document.querySelector('.fc-hint-chip')?.classList.contains('open') ?? false;",

@@ -525,8 +525,7 @@
     color: inherit;
     font-family: inherit;
     overflow: hidden;
-    /* Circle: height, min-height, and min-width are the same value.
-     * min-height overrides theme.css `button { min-height: 44px }`. */
+    /* Circle: height, min-height, and min-width are the same value. */
     height: 2.4em;
     min-height: 2.4em;
     min-width: 2.4em;
@@ -840,7 +839,7 @@
     width: 100%;
 }
 
-.fc-review-controls button {
+.fc-review-controls .btn {
     min-width: 7.25rem;
     min-height: 38px;
     padding: 0.55rem 0.8rem;
@@ -1205,7 +1204,7 @@
         gap: 0.55rem;
     }
 
-    .fc-review-controls button {
+    .fc-review-controls .btn {
         min-width: 0;
         flex: 1 1 10rem;
     }
@@ -1225,7 +1224,7 @@
         gap: 0.35rem;
     }
 
-    .fc-review-controls button {
+    .fc-review-controls .btn {
         font-size: 0.82rem;
         padding-block: 0.45rem;
         padding-inline: 0.6rem;

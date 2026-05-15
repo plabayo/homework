@@ -42,6 +42,10 @@ h6 {
 button {
     cursor: pointer;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 .button-row,
 .button-pair,
@@ -201,7 +205,7 @@ input[type="checkbox"] {
     accent-color: var(--accent);
 }
 
-button {
+.btn {
     padding: 12px 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -210,17 +214,12 @@ button {
     font-weight: 600;
     min-height: 44px;
     line-height: 1.1;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
 }
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
-button.primary {
+.btn.primary {
     background: var(--accent);
     color: var(--accent-fg);
     border-color: var(--accent);
@@ -245,7 +244,7 @@ a:focus-visible {
     justify-content: center;
     align-items: stretch;
 }
-.button-pair button {
+.button-pair .btn {
     flex: 0 0 auto;
     min-width: 64px;
 }
@@ -303,7 +302,7 @@ input.bad {
     gap: 8px 16px;
     flex-wrap: wrap;
 }
-.exercise-meta button {
+.exercise-meta .btn {
     flex: 0 0 auto;
 }
 .exercise-meta #exercise-title {
@@ -694,7 +693,7 @@ dialog.leave-guard-dialog::backdrop {
     flex: 1 1 auto;
     min-width: 0;
 }
-.lang-banner button {
+.lang-banner .btn {
     flex: 0 0 auto;
     padding: 6px 12px;
     min-height: 36px;
@@ -869,7 +868,7 @@ body.is-offline .offline-banner {
     }
 
     /* Button: hover lift, press sink */
-    button {
+    .btn {
         transition:
             transform 90ms ease,
             box-shadow 100ms ease,
@@ -877,11 +876,11 @@ body.is-offline .offline-banner {
             border-color 130ms ease,
             opacity 130ms ease;
     }
-    button.btn-lift:not(:disabled):hover {
+    .btn.btn-lift:not(:disabled):hover {
         transform: translateY(-1px);
         box-shadow: 0 3px 8px color-mix(in srgb, var(--fg) 12%, transparent);
     }
-    button.btn-lift:not(:disabled):active {
+    .btn.btn-lift:not(:disabled):active {
         transform: translateY(1px) scale(0.98);
         box-shadow: none;
         transition-duration: 50ms;

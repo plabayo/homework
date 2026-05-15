@@ -347,7 +347,7 @@ export function optionListHtml(options, labelFn, valueFn = String) {
     const btns = options
         .map(
             (o) =>
-                `<button type="button" class="option" role="radio" aria-checked="false" data-value="${encodeURIComponent(valueFn(o))}">${escapeHtml(String(labelFn(o)))}</button>`,
+                `<button type="button" class="btn option" role="radio" aria-checked="false" data-value="${encodeURIComponent(valueFn(o))}">${escapeHtml(String(labelFn(o)))}</button>`,
         )
         .join("");
     return `<div class="option-list" role="radiogroup">${btns}</div>`;
@@ -474,7 +474,7 @@ function showLeaveGuardDialog(spec) {
                 (btn) => `
                 <button
                     type="button"
-                    class="${escapeHtml(btn.className || "")}"
+                    class="${escapeHtml(`btn ${btn.className || ""}`.trim())}"
                     data-choice="${escapeHtml(btn.value)}"
                     ${btn.autofocus ? "autofocus" : ""}
                     ${btn.id ? `id="${escapeHtml(btn.id)}"` : ""}
@@ -644,8 +644,8 @@ function pickMistakes(spec, mistakes) {
                 <label class="all-toggle"><input type="checkbox" id="picker-all" checked> alles in/uit</label>
                 <ul class="picker-list">${items}</ul>
                 <div class="button-row">
-                    <button type="submit" value="cancel">annuleer</button>
-                    <button type="submit" class="primary" value="start" id="picker-start">🟢 start</button>
+                    <button type="submit" class="btn" value="cancel">annuleer</button>
+                    <button type="submit" class="btn primary" value="start" id="picker-start">🟢 start</button>
                 </div>
             </form>
         `;
@@ -1093,7 +1093,7 @@ export function runExercise(spec) {
         if (!actions || document.getElementById("button-next")) return;
         const next = document.createElement("button");
         next.type = "button";
-        next.className = "primary btn-lift";
+        next.className = "btn primary btn-lift";
         next.id = "button-next";
         next.textContent = "volgende ➡️";
         next.addEventListener("click", (e) => {
@@ -1298,8 +1298,8 @@ export function runExercise(spec) {
             <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
             ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
             <div class="result-actions">
-                ${reviewable ? `<button type="button" class="primary btn-lift" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
-                <button type="button" class="button-reset btn-lift">🆕 nieuwe oefening</button>
+                ${reviewable ? `<button type="button" class="btn primary btn-lift" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
+                <button type="button" class="btn button-reset btn-lift">🆕 nieuwe oefening</button>
             </div>
             ${trickyList}
         `;

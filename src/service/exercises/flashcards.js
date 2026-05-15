@@ -936,7 +936,7 @@ function ensureReviewLaunchButton() {
     btn = document.createElement("button");
     btn.type = "button";
     btn.id = "fc-start-review";
-    btn.className = "btn-lift";
+    btn.className = "btn btn-lift";
     btn.textContent = "👀 bekijk kaarten";
     btn.addEventListener("click", () => {
         void startReviewSession();
@@ -1054,9 +1054,9 @@ function renderReviewViewer() {
                 </div>
             </div>
             <div class="fc-review-controls">
-                <button type="button" class="btn-lift" id="fc-review-prev" disabled>⬅ vorige</button>
+                <button type="button" class="btn btn-lift" id="fc-review-prev" disabled>⬅ vorige</button>
                 <p class="fc-review-counter">1 / ${total}</p>
-                <button type="button" class="btn-lift" id="fc-review-next"${total <= 1 ? " disabled" : ""}>volgende ➡</button>
+                <button type="button" class="btn btn-lift" id="fc-review-next"${total <= 1 ? " disabled" : ""}>volgende ➡</button>
             </div>
         </div>`;
 
@@ -1560,8 +1560,8 @@ function renderEditor() {
                 <button type="button" id="fc-add-card" class="fc-btn-add btn-lift">＋ Kaart toevoegen</button>
             </div>
             <div class="button-row editor-actions">
-                <button type="button" id="fc-save-deck" class="primary btn-lift">💾 Opslaan</button>
-                <button type="button" id="fc-cancel-edit" class="btn-lift">✖ Annuleer</button>
+                <button type="button" id="fc-save-deck" class="btn primary btn-lift">💾 Opslaan</button>
+                <button type="button" id="fc-cancel-edit" class="btn btn-lift">✖ Annuleer</button>
             </div>
         </div>`;
 
@@ -2009,9 +2009,9 @@ function renderImport() {
                     <input type="text" id="fc-import-name" value="${escapeHtml(deck.name)}" autocomplete="off">
                 </div>
                 <div class="button-row">
-                    <button type="button" id="fc-overwrite-import" class="primary btn-lift">♻️ Overschrijf bestaand</button>
-                    <button type="button" id="fc-saveas-import" class="btn-lift">💾 Opslaan als nieuw</button>
-                    <button type="button" id="fc-cancel-import" class="btn-lift">Annuleer</button>
+                    <button type="button" id="fc-overwrite-import" class="btn primary btn-lift">♻️ Overschrijf bestaand</button>
+                    <button type="button" id="fc-saveas-import" class="btn btn-lift">💾 Opslaan als nieuw</button>
+                    <button type="button" id="fc-cancel-import" class="btn btn-lift">Annuleer</button>
                 </div>
             </div>`;
 
@@ -2030,8 +2030,8 @@ function renderImport() {
                 ${deckPreview}
                 ${imageNoteParagraph}
                 <div class="button-row">
-                    <button type="button" id="fc-confirm-import" class="primary">📥 Importeer dit deck</button>
-                    <button type="button" id="fc-cancel-import">Annuleer</button>
+                    <button type="button" id="fc-confirm-import" class="btn primary">📥 Importeer dit deck</button>
+                    <button type="button" id="fc-cancel-import" class="btn">Annuleer</button>
                 </div>
             </div>`;
 

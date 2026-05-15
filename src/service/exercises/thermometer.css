@@ -24,7 +24,11 @@
     width: 2.6em;
     min-width: 2.6em;
     height: 2.6em;
+    min-height: 2.6em;
     padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
     font-weight: 800;
     font-size: 1.6rem;
     line-height: 1;

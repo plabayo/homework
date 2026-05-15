@@ -39,11 +39,11 @@
     max-width: 360px;
     margin-block-start: 10px;
 }
-.option-list button {
+.option-list .btn {
     text-align: center;
     font-size: 1rem;
 }
-.option-list button.selected {
+.option-list .btn.selected {
     background: var(--accent);
     color: var(--accent-fg);
     border-color: var(--accent);
