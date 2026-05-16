@@ -64,19 +64,24 @@ reach out at [hello@plabayo.tech](mailto:hello@plabayo.tech).
 ### Web platform guidelines (CSS & vanilla JS)
 
 This project is built with **vanilla CSS and vanilla JavaScript** — no React,
-no styled-components, no JS framework. Before adding or improving an exercise,
-page, or any frontend code, read and follow
-**[guidelines/css_and_some_js.md](./guidelines/css_and_some_js.md)**.
+no styled-components, no JS animation library, no framework. Before adding or
+improving an exercise, page, or any frontend code, read and follow:
 
-It collects the mental models, rules, and gotchas that make the web platform
-pleasant to work with: selectors and the cascade, the box model, positioning,
-Flexbox and Grid, responsive design, typography, colour and visual styling,
-motion, scroll, and accessibility. Lean on it when deciding how a feature
-should be built.
+- **[guidelines/css_and_some_js.md](./guidelines/css_and_some_js.md)** — the
+  language of the web platform. Selectors and the cascade, the box model,
+  positioning, Flexbox and Grid, responsive design, typography, colour and
+  visual styling, scroll, and accessibility.
+- **[guidelines/animations.md](./guidelines/animations.md)** — the craft of
+  motion on top of that language. Animation categories and design tricks,
+  timing functions and springs, View Transitions, SVG and Canvas animation,
+  sound, scroll-driven and scroll-triggered effects, performance, and the
+  accessibility rules that govern all of it.
 
-The document is **living**. When you encounter a useful pattern, a non-obvious
-gotcha, or a technique worth remembering while working on the repo,
-contributions back to the guidelines are very welcome — the goal is to keep
+Lean on both when deciding how a feature should be built.
+
+Both documents are **living**. When you encounter a useful pattern, a
+non-obvious gotcha, or a technique worth remembering while working on the
+repo, contributions back to them are very welcome — the goal is to keep
 making the best of the web platform in its beautiful vanilla form.
 
 ### Adding a new exercise

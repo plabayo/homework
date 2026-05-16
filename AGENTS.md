@@ -11,15 +11,19 @@ clear, consistent style — in Rust, in JavaScript, and in tests. Match it.
 
 When creating or improving an exercise, page, or any frontend code, follow the
 mental models, rules, and patterns documented in
-**[guidelines/css_and_some_js.md](./guidelines/css_and_some_js.md)**. This
+**[guidelines/css_and_some_js.md](./guidelines/css_and_some_js.md)** and its
+companion **[guidelines/animations.md](./guidelines/animations.md)**. This
 project is **vanilla CSS + vanilla JS** — no React, no styled-components, no
-JS framework. The guidelines document captures how to make the best of the web
-platform in that vanilla form, including layout (Flexbox/Grid), responsive
-design, typography, motion, and accessibility.
+JS animation library, no framework. The guidelines documents capture how to
+make the best of the web platform in that vanilla form: the CSS doc covers
+layout (Flexbox/Grid), responsive design, typography, scroll, and
+accessibility; the animations doc covers motion craft — design tricks,
+springs, View Transitions, SVG and Canvas animation, performance, and the
+accessibility rules that govern all of it.
 
-The document is a **living reference**. When you discover a useful pattern,
-gotcha, or technique while working on this repo, contributions back to it are
-welcome and encouraged.
+Both documents are **living references**. When you discover a useful pattern,
+gotcha, or technique while working on this repo, contributions back to them
+are welcome and encouraged.
 
 ## Before every commit
 
