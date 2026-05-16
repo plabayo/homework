@@ -290,9 +290,12 @@
 .word-option-btn {
     position: relative;
     overflow: hidden;
-    /* Reserve bottom space so text never overlaps the absolute-positioned
-       ↔ peek button (bottom: 5px; ~14px tall) sitting in the wrap corner. */
-    padding-bottom: 1.4em;
+    /* Reserve a generous strip below the centered label for the peek (↔)
+       button. The face uses the same inset so the label is centered above
+       this strip — never crowding the peek icon. Easier on younger readers
+       and anyone with low vision: the label and the affordance to flip it
+       are visually distinct rather than mashed together. */
+    padding-bottom: 1.8em;
 }
 .word-option-spacer {
     /* Sizing-only ghost: stacks both labels in the same grid cell so the
@@ -308,11 +311,12 @@
     grid-area: stack;
 }
 .word-option-face {
-    /* inset:0 fills the button's padding box, so each face sits exactly
-       over the (invisible) spacer. flex centering handles vertical/
-       horizontal alignment — no padding needed on the face itself. */
+    /* Stops short of the bottom strip reserved for the ↔ peek button
+       (matches the button's padding-bottom). flex centering then puts the
+       label in the middle of the *remaining* area, giving the peek icon
+       its own breathing room below the wording. */
     position: absolute;
-    inset: 0;
+    inset: 0 0 1.8em 0;
     display: flex;
     align-items: center;
     justify-content: center;
