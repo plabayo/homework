@@ -19,7 +19,6 @@
     cursor: pointer;
     opacity: 0.6;
     user-select: none;
-    transition: opacity 0.12s;
 }
 .fc-type-label:has(input:checked) {
     opacity: 1;
@@ -90,9 +89,6 @@
     border-radius: 4px;
     cursor: pointer;
     padding: 2px;
-    transition:
-        border-color 0.1s,
-        background 0.1s;
     overflow: hidden;
 }
 .wm-result-btn:hover {
@@ -198,9 +194,6 @@
     font-size: 0.9rem;
     font-weight: 600;
     opacity: 0.75;
-    transition:
-        opacity 0.15s,
-        background 0.15s;
 }
 .fc-btn-new:hover {
     opacity: 1;
@@ -232,9 +225,6 @@
     border: 2px solid color-mix(in srgb, currentColor 18%, transparent);
     border-radius: 10px;
     background: color-mix(in srgb, currentColor 3%, transparent);
-    transition:
-        border-color 0.15s,
-        background 0.15s;
     overflow: hidden;
 }
 
@@ -297,7 +287,6 @@
     border-radius: 6px;
     font-size: 1rem;
     line-height: 1;
-    transition: background 0.12s;
 }
 .fc-btn-sm:hover {
     background: color-mix(in srgb, currentColor 10%, transparent);
@@ -409,9 +398,6 @@
     font-size: 0.85rem;
     width: 100%;
     text-align: center;
-    transition:
-        border-color 0.15s,
-        background 0.15s;
     font-family: inherit;
     color: inherit;
 }
@@ -530,9 +516,6 @@
     height: 2.4em;
     min-height: 2.4em;
     min-width: 2.4em;
-    transition:
-        box-shadow 0.25s,
-        background 0.25s;
 }
 .fc-hint-chip:hover {
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 60%, transparent);
@@ -546,7 +529,6 @@
     justify-content: center;
     opacity: 0.5;
     font-weight: 600;
-    transition: opacity 0.2s;
 }
 /* Hint text — hidden behind the circle until .open */
 .fc-hint-body {
@@ -557,11 +539,6 @@
     font-style: italic;
     padding-left: 0;
     padding-right: 0;
-    transition:
-        max-width 0.35s ease,
-        opacity 0.3s ease,
-        padding-left 0.3s ease,
-        padding-right 0.35s ease;
 }
 .fc-hint-chip.open .fc-hint-body {
     max-width: 28ch;
@@ -621,7 +598,6 @@
 .fc-review-stage {
     width: 100%;
     overflow: hidden;
-    transition: opacity 80ms linear;
 }
 
 .fc-review-stage.is-resizing {
@@ -649,7 +625,6 @@
     perspective: 900px;
     cursor: pointer;
     position: relative;
-    transition: transform 180ms ease;
 }
 
 .fc-review-card:focus {
@@ -662,36 +637,8 @@
     border-radius: 22px;
 }
 
-.fc-review-card:hover {
-    transform: translateY(-5px);
-}
-
-.fc-review-card:active {
-    transform: translateY(-2px);
-}
-
 .fc-review-card.no-flip {
     cursor: default;
-}
-
-.fc-review-card.no-flip:hover,
-.fc-review-card.no-flip:active {
-    transform: none;
-}
-
-.fc-review-card.is-active {
-    animation: fc-card-appear 140ms ease-out;
-}
-
-@keyframes fc-card-appear {
-    from {
-        opacity: 0.5;
-        scale: 0.97;
-    }
-    to {
-        opacity: 1;
-        scale: 1;
-    }
 }
 
 .fc-review-card-inner {
@@ -701,7 +648,6 @@
     height: 100%;
     transform-style: preserve-3d;
     rotate: y var(--fc-review-rotate);
-    transition: rotate 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .fc-review-card.is-flipped .fc-review-card-inner {
@@ -720,11 +666,6 @@
     border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
     box-shadow: var(--shadow-card);
     overflow: hidden;
-    transition: box-shadow 180ms ease;
-}
-
-.fc-review-card:hover .fc-review-face {
-    box-shadow: var(--shadow-card-hover);
 }
 
 .fc-review-face-front {
@@ -934,18 +875,6 @@
     z-index: 9999;
     box-shadow: 0 4px 16px color-mix(in srgb, var(--fg) 25%, transparent);
     white-space: nowrap;
-    animation: toast-in 0.2s ease-out;
-}
-
-@keyframes toast-in {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(0.5rem);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
 }
 
 /* ---- Fill-in grid (one-sided play mode) ---- */
@@ -1141,21 +1070,9 @@
     border-left-color: var(--info);
 }
 
-/* ---------- Deck-item highlight (after save / import) ---------- */
-
-@keyframes fc-deck-new {
-    0%,
-    65% {
-        box-shadow: 0 0 0 3px var(--accent);
-    }
-    100% {
-        box-shadow: none;
-    }
-}
-
-.deck-item-new {
-    animation: fc-deck-new 1.4s ease-out forwards;
-}
+/* ---------- Deck-item highlight (after save / import) ----------
+   The highlight itself only exists when the user accepts motion; the
+   `.deck-item-new` class is harmless if no animation runs. */
 
 @media (max-width: 640px) {
     .fc-review-controls {
@@ -1197,6 +1114,10 @@
 
 /* ---------- Card wave animation ---------- */
 
+/* The wave overlay/card and their keyframes only exist under
+   `prefers-reduced-motion: no-preference`. The JS gate in showCardWave
+   skips DOM insertion entirely when motion is reduced, so the static
+   styles below are never needed in that case. */
 .fc-wave-overlay {
     position: fixed;
     inset: 0;
@@ -1206,11 +1127,6 @@
     z-index: 9999;
     pointer-events: none;
     background: color-mix(in srgb, var(--bg) 60%, transparent);
-    animation: fc-wave-bg-in 0.25s ease-out;
-}
-
-.fc-wave-overlay.fc-wave-fade {
-    animation: fc-wave-bg-out 0.4s ease-in forwards;
 }
 
 .fc-wave-stage {
@@ -1230,41 +1146,193 @@
     font-size: 0.9rem;
     font-weight: 600;
     box-shadow: 0 2px 10px color-mix(in srgb, var(--fg) 12%, transparent);
-    opacity: 0;
-    animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
 }
 
-@keyframes fc-card-wave {
-    0% {
-        opacity: 0;
-        transform: translateY(0) scale(1);
+/* ---------- micro-animations ----------
+   Every transition / @keyframes that used to live inline lives here, gated
+   behind the user's motion preference. Same progressive-enhancement pattern
+   as theme.css: the static rules above stay calm and unconditional; motion
+   is layered on top only when the user opted in to it. */
+@media (prefers-reduced-motion: no-preference) {
+    /* Editor / setup chrome */
+    .fc-type-label {
+        transition: opacity 0.12s;
     }
-    20% {
-        opacity: 1;
+    .wm-result-btn {
+        transition:
+            border-color 0.1s,
+            background 0.1s;
     }
-    45% {
-        transform: translateY(-18px) scale(1.13);
+    .fc-btn-new {
+        transition:
+            opacity 0.15s,
+            background 0.15s;
     }
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
+    .deck-item {
+        transition:
+            border-color 0.15s,
+            background 0.15s;
     }
-}
+    .fc-btn-sm {
+        transition: background 0.12s;
+    }
+    .fc-btn-add {
+        transition:
+            border-color 0.15s,
+            background 0.15s;
+    }
 
-@keyframes fc-wave-bg-in {
-    from {
-        opacity: 0;
+    /* Hint chip — morphs from `?` circle into a pill of hint text */
+    .fc-hint-chip {
+        transition:
+            box-shadow 0.25s,
+            background 0.25s;
     }
-    to {
-        opacity: 1;
+    .fc-hint-q {
+        transition: opacity 0.2s;
     }
-}
+    .fc-hint-body {
+        transition:
+            max-width 0.35s ease,
+            opacity 0.3s ease,
+            padding-left 0.3s ease,
+            padding-right 0.35s ease;
+    }
 
-@keyframes fc-wave-bg-out {
-    from {
-        opacity: 1;
+    /* Review viewer — card pickup, flip, entrance, resize fade */
+    .fc-review-stage {
+        transition: opacity 80ms linear;
     }
-    to {
+    .fc-review-card {
+        transition: transform 180ms ease;
+    }
+    .fc-review-card:hover {
+        transform: translateY(-5px);
+    }
+    .fc-review-card:active {
+        transform: translateY(-2px);
+    }
+    .fc-review-card.no-flip:hover,
+    .fc-review-card.no-flip:active {
+        transform: none;
+    }
+    .fc-review-card.is-active {
+        animation: fc-card-appear 140ms ease-out;
+    }
+    .fc-review-card.is-leaving {
+        animation: fc-card-leave 120ms ease-in both;
+    }
+    .fc-review-card-inner {
+        transition: rotate 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+    .fc-review-face {
+        transition: box-shadow 180ms ease;
+    }
+    .fc-review-card:hover .fc-review-face {
+        box-shadow: var(--shadow-card-hover);
+    }
+
+    /* The just-matched chip in a multi-part question and the just-resolved
+       row in a fill-in grid each pop in once, on the render after the
+       answer was accepted. All siblings render plain — only the freshly
+       changed element carries the marker class. */
+    .mp-part.mp-matched.is-just-matched,
+    .fill-row.is-just-resolved {
+        animation: pop-in 200ms ease-out both;
+    }
+
+    /* Toast (clipboard / import) */
+    .fc-toast {
+        animation: toast-in 0.2s ease-out;
+    }
+
+    /* Deck-item highlight after save / import */
+    .deck-item-new {
+        animation: fc-deck-new 1.4s ease-out forwards;
+    }
+
+    /* Perfect-run celebration. JS in showCardWave also gates on the same
+       media query and skips DOM insertion entirely when motion is reduced. */
+    .fc-wave-overlay {
+        animation: fc-wave-bg-in 0.25s ease-out;
+    }
+    .fc-wave-overlay.fc-wave-fade {
+        animation: fc-wave-bg-out 0.4s ease-in forwards;
+    }
+    .fc-wave-card {
         opacity: 0;
+        animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
+    }
+
+    @keyframes fc-card-appear {
+        from {
+            opacity: 0.5;
+            scale: 0.97;
+        }
+        to {
+            opacity: 1;
+            scale: 1;
+        }
+    }
+    @keyframes fc-card-leave {
+        from {
+            opacity: 1;
+            scale: 1;
+        }
+        to {
+            opacity: 0;
+            scale: 0.97;
+        }
+    }
+    @keyframes toast-in {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(0.5rem);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+    @keyframes fc-deck-new {
+        0%,
+        65% {
+            box-shadow: 0 0 0 3px var(--accent);
+        }
+        100% {
+            box-shadow: none;
+        }
+    }
+    @keyframes fc-card-wave {
+        0% {
+            opacity: 0;
+            transform: translateY(0) scale(1);
+        }
+        20% {
+            opacity: 1;
+        }
+        45% {
+            transform: translateY(-18px) scale(1.13);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    @keyframes fc-wave-bg-in {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    @keyframes fc-wave-bg-out {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
     }
 }

@@ -25,13 +25,31 @@ function buildDeck(cfg) {
 
 function bindSelectAll(form) {
     const all = form.querySelector("#select-all");
+    const tables = form.querySelector("#tables");
     const boxes = () => Array.from(form.querySelectorAll("#tables input[type=checkbox]"));
     all.addEventListener("change", () => {
-        boxes().forEach((cb) => {
-            cb.checked = all.checked;
+        const labels = Array.from(tables.querySelectorAll("label"));
+        labels.forEach((lbl, i) => {
+            const cb = lbl.querySelector("input[type=checkbox]");
+            if (cb) cb.checked = all.checked;
+            // Cascade ripple: each label pulses with a small stagger so the
+            // master toggle feels like it's reaching across the group rather
+            // than 10 boxes flipping in one frame. CSS picks up the index
+            // from --i and gates on reduced-motion.
+            lbl.style.setProperty("--i", String(i));
+            lbl.classList.remove("is-cascading");
+            void lbl.offsetWidth;
+            lbl.classList.add("is-cascading");
         });
+        // Clean up the marker class once the longest delay + duration finishes.
+        setTimeout(
+            () => {
+                for (const lbl of labels) lbl.classList.remove("is-cascading");
+            },
+            labels.length * 25 + 250,
+        );
     });
-    form.querySelector("#tables").addEventListener("change", () => {
+    tables.addEventListener("change", () => {
         const all = form.querySelector("#select-all");
         const bs = boxes();
         all.checked = bs.length > 0 && bs.every((cb) => cb.checked);

@@ -1119,15 +1119,36 @@ function updateReviewActiveCard() {
     const title = exerciseTitle();
     if (title) title.textContent = `kaart ${current + 1} van ${total}`;
     const viewport = document.querySelector(".fc-review-viewport");
-    if (viewport) viewport.innerHTML = buildReviewCardHtml(current);
     const counter = document.querySelector(".fc-review-counter");
-    if (counter) counter.textContent = `${current + 1} / ${total}`;
     const prev = document.getElementById("fc-review-prev");
     const next = document.getElementById("fc-review-next");
-    if (prev) prev.disabled = current === 0;
-    if (next) next.disabled = current >= total - 1;
-    fitReviewFaceText();
-    hydrateReviewImages();
+
+    const commit = () => {
+        if (viewport) viewport.innerHTML = buildReviewCardHtml(current);
+        if (counter) counter.textContent = `${current + 1} / ${total}`;
+        if (prev) prev.disabled = current === 0;
+        if (next) next.disabled = current >= total - 1;
+        fitReviewFaceText();
+        hydrateReviewImages();
+    };
+
+    // Symmetric exit: fade the outgoing card before swapping in the next one
+    // so arrow-key spamming doesn't snap-cut between cards. Reduced-motion
+    // skips the fade and commits immediately.
+    const outgoing = viewport?.querySelector(".fc-review-card");
+    if (outgoing && window.matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+        let done = false;
+        const finish = () => {
+            if (done) return;
+            done = true;
+            commit();
+        };
+        outgoing.addEventListener("animationend", finish, { once: true });
+        outgoing.classList.add("is-leaving");
+        setTimeout(finish, 160);
+        return;
+    }
+    commit();
 }
 
 function moveReviewBy(step) {
@@ -2136,8 +2157,14 @@ initManager();
 // populated by isCorrect() as the user works through the blanks.
 const fillInResults = {}; // card-index → true | false
 
+// Card-index that was just flipped in evaluateAnswer's fill-in branch.
+// Read+cleared by renderFillInQuestion so only that row pops in on
+// re-render, instead of every row replaying its entrance.
+let _lastFillInResolvedIdx = null;
+
 function clearFillInState() {
     for (const k of Object.keys(fillInResults)) delete fillInResults[k];
+    _lastFillInResolvedIdx = null;
 }
 
 // Shows the full list with all positions visible:
@@ -2150,6 +2177,11 @@ function renderFillInQuestion(q, root) {
     // Active input goes at the first unanswered blank — order of typing doesn't matter.
     const activeIdx = q.blankIndices.find((i) => !(i in fillInResults));
 
+    // The row that just flipped from blank → green/red (set in evaluateAnswer)
+    // gets `is-just-resolved` so it can pop in. Consumed once per render.
+    const justResolved = _lastFillInResolvedIdx;
+    _lastFillInResolvedIdx = null;
+
     let html = `<div class="flash-fill-grid">`;
     q.allCards.forEach((cardFront, i) => {
         if (!blankSet.has(i)) {
@@ -2158,7 +2190,8 @@ function renderFillInQuestion(q, root) {
             </div>`;
         } else if (i in fillInResults) {
             const ok = fillInResults[i];
-            html += `<div class="fill-row ${ok ? "fill-answer-ok" : "fill-answer-bad"}">
+            const fresh = i === justResolved ? " is-just-resolved" : "";
+            html += `<div class="fill-row ${ok ? "fill-answer-ok" : "fill-answer-bad"}${fresh}">
                 <span class="fill-answer-text">${escapeHtml(cardFront)}</span>
             </div>`;
         } else if (i === activeIdx) {
@@ -2248,7 +2281,19 @@ function renderMultiPartQuestion(q, root, mode) {
         checkBtn.textContent = "👉 antwoord";
     }
 
-    const matchedHtml = [...matched].map((p) => `<div class="mp-part mp-matched">✅ ${escapeHtml(p)}</div>`).join("");
+    // Only the *newly* matched chip gets `is-just-matched` so it can pop in;
+    // every chip rendered before that already played its entrance on the
+    // previous tick. `_lastSeenMatchedSize` is a per-question scratch field
+    // that survives the framework's re-render between attempts.
+    const matchedArr = [...matched];
+    const isFreshMatch = matchedArr.length > (q._lastSeenMatchedSize || 0);
+    q._lastSeenMatchedSize = matchedArr.length;
+    const matchedHtml = matchedArr
+        .map((p, i) => {
+            const fresh = isFreshMatch && i === matchedArr.length - 1 ? " is-just-matched" : "";
+            return `<div class="mp-part mp-matched${fresh}">✅ ${escapeHtml(p)}</div>`;
+        })
+        .join("");
 
     root.innerHTML = `
         <div class="flash-question">
@@ -2577,6 +2622,7 @@ runExercise({
                     const match = matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "));
                     if (match) {
                         fillInResults[idx] = true;
+                        _lastFillInResolvedIdx = idx;
                         return {
                             correct: true,
                             exact: match.exact,
@@ -2590,7 +2636,10 @@ runExercise({
                 }
                 // No match — mark the first unanswered blank as wrong.
                 const firstOpen = q.blankIndices.find((i) => !(i in fillInResults));
-                if (firstOpen !== undefined) fillInResults[firstOpen] = false;
+                if (firstOpen !== undefined) {
+                    fillInResults[firstOpen] = false;
+                    _lastFillInResolvedIdx = firstOpen;
+                }
                 return { correct: false };
             }
             case "image": {
@@ -2693,6 +2742,13 @@ runExercise({
 
 function showCardWave(cards) {
     if (cards.length === 0) return;
+    // Honour the user's motion preference: under reduced-motion the wave
+    // overlay would just sit there as a static stack of un-animated cards,
+    // so skip it entirely. The matching CSS keyframes live inside the same
+    // media query so the styling never applies either.
+    if (!window.matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+        return;
+    }
     const overlay = document.createElement("div");
     overlay.className = "fc-wave-overlay";
     const items = cards

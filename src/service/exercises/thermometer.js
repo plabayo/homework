@@ -72,27 +72,33 @@ function drawThermometer({ value, vmin, vmax, filled }) {
 }
 
 function attachInteractive(root, q) {
-    // Stable container; we replace inner HTML on every value change so listeners
-    // bound to the container survive while the SVG itself is rebuilt.
+    // Build the SVG once; subsequent setValue calls only mutate the
+    // liquid <rect>'s y/height. Keeping the rect mounted lets CSS animate
+    // those attributes — the liquid then flows like a real column instead
+    // of teleporting between values, which matches a thermometer's whole
+    // point as a continuous-quantity teaching tool.
     const container = root.querySelector(".thermo-svg-host");
     let current = 0;
 
-    const render = () => {
-        container.innerHTML = drawThermometer({
-            value: current,
-            vmin: q.vmin,
-            vmax: q.vmax,
-            filled: true,
-        });
-        const dec = root.querySelector("#thermo-dec");
-        const inc = root.querySelector("#thermo-inc");
-        if (dec) dec.disabled = current <= q.vmin;
-        if (inc) inc.disabled = current >= q.vmax;
-    };
+    container.innerHTML = drawThermometer({
+        value: current,
+        vmin: q.vmin,
+        vmax: q.vmax,
+        filled: true,
+    });
+    const liquid = container.querySelector(".liquid");
+    const dec = root.querySelector("#thermo-dec");
+    const inc = root.querySelector("#thermo-inc");
 
     const setValue = (v) => {
         current = Math.max(q.vmin, Math.min(q.vmax, v));
-        render();
+        if (liquid) {
+            const yVal = valueToY(current, q.vmin, q.vmax);
+            liquid.setAttribute("y", yVal);
+            liquid.setAttribute("height", TUBE.bottom - yVal + 6);
+        }
+        if (dec) dec.disabled = current <= q.vmin;
+        if (inc) inc.disabled = current >= q.vmax;
     };
 
     container.classList.add("interactive");
@@ -117,7 +123,9 @@ function attachInteractive(root, q) {
         e.preventDefault();
         setValue(current + 1);
     });
-    render();
+    // Set the initial disabled state.
+    if (dec) dec.disabled = current <= q.vmin;
+    if (inc) inc.disabled = current >= q.vmax;
     return () => current;
 }
 

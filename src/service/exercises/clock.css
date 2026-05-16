@@ -50,6 +50,17 @@
     fill: currentColor;
     font-family: system-ui, sans-serif;
 }
+/* Hands are drawn pointing straight up (12 o'clock) and rotated via
+   `transform: rotate(...)` set inline by JS. The pivot is the SVG centre
+   (viewBox is 0 0 100 100), so transform-origin can be a literal pixel
+   value rather than `center` — see guidelines/animations.md, the SVG
+   transform-origin gotcha. */
+.clock .hand-hour,
+.clock .hand-minute,
+.clock .hand-hit,
+.clock .hand-hit-tip {
+    transform-origin: 50px 50px;
+}
 .clock .hand-hour {
     stroke: currentColor;
     stroke-width: 2.2;
@@ -226,10 +237,6 @@
     display: inline-block;
     position: relative;
     white-space: nowrap;
-    transition: width 0.38s ease;
-}
-.phrase-flip-face {
-    transition: opacity 0.22s ease;
 }
 /* Front face is in flow — sets layout. Back face is absolute and crossfades
    in. `.flipped` swaps which one is visible. */
@@ -240,9 +247,6 @@
     text-decoration-style: dotted;
     text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
     text-underline-offset: 3px;
-    transition:
-        text-decoration-color 0.15s,
-        opacity 0.22s ease;
 }
 .phrase-flip-back {
     /* Anchored at the inner's left edge but content-sized in both axes —
@@ -327,7 +331,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.22s ease;
 }
 .word-option-back {
     color: var(--accent);
@@ -358,13 +361,53 @@
     cursor: pointer;
     border-radius: 3px;
     z-index: 1;
-    transition:
-        color 0.15s,
-        background 0.15s;
 }
 .word-variant-peek:hover,
 .word-variant-peek:focus-visible {
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
     outline: none;
+}
+
+/* ---------- micro-animations ----------
+   Every transition declared above gets added back here only when the user
+   has not asked for reduced motion. Same pattern as theme.css: static rules
+   stay clean; motion is a progressive enhancement. */
+@media (prefers-reduced-motion: no-preference) {
+    .phrase-flip-inner {
+        transition: width 0.38s ease;
+    }
+    .phrase-flip-face {
+        transition: opacity 0.22s ease;
+    }
+    .phrase-flip-front {
+        transition:
+            text-decoration-color 0.15s,
+            opacity 0.22s ease;
+    }
+    .word-option-face {
+        transition: opacity 0.22s ease;
+    }
+    .word-variant-peek {
+        transition:
+            color 0.15s,
+            background 0.15s;
+    }
+
+    /* Hands sweep smoothly to their new angle on +/- presses, and the hour
+       hand drifts continuously as the minute hand moves. During a drag the
+       `.dragging` class disables the transition so the hand stays under
+       the finger instead of trailing 300 ms behind. */
+    .clock .hand-hour,
+    .clock .hand-minute,
+    .clock .hand-hit,
+    .clock .hand-hit-tip {
+        transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .clock.dragging .hand-hour,
+    .clock.dragging .hand-minute,
+    .clock.dragging .hand-hit,
+    .clock.dragging .hand-hit-tip {
+        transition: none;
+    }
 }

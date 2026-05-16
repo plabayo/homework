@@ -33,3 +33,31 @@
     align-items: stretch;
     justify-content: center;
 }
+
+/* ---------- micro-animations ----------
+   When a new splitsen question (or its review) appears, the two connector
+   legs draw outward from the top number, and the bottom parts pop in
+   slightly after. The motion *is* the lesson — the child sees the top
+   number being split into two parts. Keep durations short so the answer
+   field is reachable almost immediately. */
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes split-leg-draw {
+        from {
+            stroke-dashoffset: 50;
+        }
+        to {
+            stroke-dashoffset: 0;
+        }
+    }
+    .split-stack .split-legs line {
+        /* Leg length in viewBox units is ~44; dasharray of 50 is safely
+           longer than the visible line so the animation fully reveals it. */
+        stroke-dasharray: 50;
+        animation: split-leg-draw 280ms ease-out both;
+    }
+    .split-stack .split-bottom .split-part {
+        /* `pop-in` is declared in theme.css inside the same media query, so
+           it's available here whenever this rule is. */
+        animation: pop-in 200ms ease-out 220ms both;
+    }
+}

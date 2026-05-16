@@ -942,9 +942,10 @@
                 border-color 110ms ease;
         }
 
-        /* Page-level entrance when switching from setup → play / play → result */
-        #page-exercises:not([hidden]),
-        #page-result:not([hidden]) {
+        /* Page-level entrance when switching between setup / play / result.
+           Driven by JS adding `.section-enter` with a reflow-restart so the
+           animation replays on every transition, not just initial load. */
+        .section-enter {
             animation: page-in 220ms ease-out both;
         }
 
@@ -989,10 +990,20 @@
             animation-delay: 120ms;
         }
 
-        /* Mistake picker dialog entrance */
+        /* Mistake picker / leave-guard dialog entrance. We don't animate
+           the *exit* of these dialogs: closed `<dialog>` elements get
+           `display: none` from the UA stylesheet, which prevents any CSS
+           animation from running. JS removes them immediately on close. */
         dialog.mistake-picker[open],
         dialog.leave-guard-dialog[open] {
             animation: page-in 180ms ease both;
+        }
+
+        /* Language banner dismiss — banner is a regular element (not a
+           <dialog>), so a CSS exit animation actually runs. JS adds
+           `.is-leaving` and waits for animationend before removing. */
+        .lang-banner.is-leaving {
+            animation: page-out 160ms ease both;
         }
 
         @keyframes page-in {
@@ -1003,6 +1014,16 @@
             to {
                 opacity: 1;
                 transform: translateY(0);
+            }
+        }
+        @keyframes page-out {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-6px);
             }
         }
         @keyframes question-in {

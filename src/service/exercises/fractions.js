@@ -176,25 +176,62 @@ function renderPlay(q) {
     return { feedback: fb, html };
 }
 
+// On the review screen we render the intermediate (unsimplified) step so the
+// child can see *why* the answer is what it is — the common-denominator form
+// for sum/diff, the raw num*num / den*den for multiply, the implicit ÷
+// denominator multiplication for divide. Each stage fades in with a small
+// delay (driven by CSS using `--step` as a custom property) so the eye reads
+// left-to-right. The `→` arrow is wrapped in `.frac-step` so the same CSS
+// rule reaches the intermediate and the simplified box.
 function renderReview(q) {
     const fb = FEEDBACK[q.kind];
     let body;
+    const stepArrow = `<span class="frac-step-arrow" aria-hidden="true">→</span>`;
     switch (q.kind) {
         case "breuk-van-getal":
             body = `<p class="fraction-expr">${frac(q.num, q.den)} van ${q.n} = <span class="box bad">${q.answer}</span></p>`;
             break;
         case "optellen":
-            body = `<p class="fraction-expr">${frac(q.aNum, q.aDen)} + ${frac(q.bNum, q.bDen)} = <span class="box bad">${frac(q.answer.num, q.answer.den)}</span></p>`;
+        case "aftrekken": {
+            const op = q.kind === "optellen" ? "+" : "−";
+            const commonDen = lcm(q.aDen, q.bDen);
+            const extA = q.aNum * (commonDen / q.aDen);
+            const extB = q.bNum * (commonDen / q.bDen);
+            const resNum = q.kind === "optellen" ? extA + extB : extA - extB;
+            // Skip the intermediate when both sides already share a
+            // denominator — it would just repeat the same expression.
+            const sameDen = q.aDen === q.bDen;
+            const intermediateStep = sameDen
+                ? ""
+                : `${stepArrow}<span class="frac-step">${frac(extA, commonDen)} ${op} ${frac(extB, commonDen)}</span>`;
+            const sumStep = `${stepArrow}<span class="frac-step">${frac(resNum, commonDen)}</span>`;
+            // The combined raw sum (resNum/commonDen) reduces to the
+            // canonical answer; only show the reduction step when it
+            // actually does something.
+            const reduced = resNum === q.answer.num && commonDen === q.answer.den ? "" : sumStep;
+            body = `<p class="fraction-expr">${frac(q.aNum, q.aDen)} ${op} ${frac(q.bNum, q.bDen)}${intermediateStep}${reduced} = <span class="box bad frac-step">${frac(q.answer.num, q.answer.den)}</span></p>`;
             break;
-        case "aftrekken":
-            body = `<p class="fraction-expr">${frac(q.aNum, q.aDen)} − ${frac(q.bNum, q.bDen)} = <span class="box bad">${frac(q.answer.num, q.answer.den)}</span></p>`;
+        }
+        case "vermenigvuldigen": {
+            const rawNum = q.aNum * q.bNum;
+            const rawDen = q.aDen * q.bDen;
+            const reduced =
+                rawNum === q.answer.num && rawDen === q.answer.den
+                    ? ""
+                    : `${stepArrow}<span class="frac-step">${frac(rawNum, rawDen)}</span>`;
+            body = `<p class="fraction-expr">${frac(q.aNum, q.aDen)} × ${frac(q.bNum, q.bDen)}${reduced} = <span class="box bad frac-step">${frac(q.answer.num, q.answer.den)}</span></p>`;
             break;
-        case "vermenigvuldigen":
-            body = `<p class="fraction-expr">${frac(q.aNum, q.aDen)} × ${frac(q.bNum, q.bDen)} = <span class="box bad">${frac(q.answer.num, q.answer.den)}</span></p>`;
+        }
+        case "delen": {
+            const rawNum = q.num;
+            const rawDen = q.den * q.divisor;
+            const reduced =
+                rawNum === q.answer.num && rawDen === q.answer.den
+                    ? ""
+                    : `${stepArrow}<span class="frac-step">${frac(rawNum, rawDen)}</span>`;
+            body = `<p class="fraction-expr">${frac(q.num, q.den)} ÷ ${q.divisor}${reduced} = <span class="box bad frac-step">${frac(q.answer.num, q.answer.den)}</span></p>`;
             break;
-        case "delen":
-            body = `<p class="fraction-expr">${frac(q.num, q.den)} ÷ ${q.divisor} = <span class="box bad">${frac(q.answer.num, q.answer.den)}</span></p>`;
-            break;
+        }
     }
     return `<h3>${fb}</h3>${body}`;
 }

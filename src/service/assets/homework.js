@@ -463,6 +463,26 @@ function getLeaveGuardDialogSpec(guard, reason) {
     return guard.dialog || null;
 }
 
+// Add `.is-leaving` to an element, wait for its CSS exit animation (capped
+// by a fallback timer), then run `done`. Falls through instantly under
+// `prefers-reduced-motion: reduce` where no animation is declared.
+function leaveAnimated(el, done, fallbackMs = 220) {
+    if (!el?.isConnected) {
+        done();
+        return;
+    }
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        el.removeEventListener("animationend", finish);
+        done();
+    };
+    el.addEventListener("animationend", finish, { once: true });
+    el.classList.add("is-leaving");
+    setTimeout(finish, fallbackMs);
+}
+
 function showLeaveGuardDialog(spec) {
     if (leaveGuardDialogOpen) return Promise.resolve("stay");
     leaveGuardDialogOpen = true;
@@ -492,6 +512,11 @@ function showLeaveGuardDialog(spec) {
         document.body.appendChild(dlg);
         const close = (choice) => {
             leaveGuardDialogOpen = false;
+            // Remove the dialog immediately on close. A CSS exit animation
+            // doesn't run anyway — closed <dialog> elements get
+            // `display: none` from the UA stylesheet — and leaving the
+            // node around briefly causes id-collisions with the next
+            // dialog (`getElementById` picks the stale one first).
             dlg.remove();
             resolve(choice || "stay");
         };
@@ -680,6 +705,9 @@ function pickMistakes(spec, mistakes) {
             list.forEach((cb) => {
                 if (cb.checked) selected.push(mistakes[Number(cb.dataset.i)]);
             });
+            // Remove immediately — closed <dialog> elements are already
+            // hidden by the UA stylesheet, and lingering in the DOM with
+            // display:none causes id-collisions with the next dialog.
             dlg.remove();
             resolve(action === "start" ? selected : null);
         });
@@ -922,6 +950,7 @@ export function runExercise(spec) {
         state.currentCleanup = null;
     }
 
+    let _hasShownOnce = false;
     function show(which) {
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
@@ -929,6 +958,21 @@ export function runExercise(spec) {
         if (which !== "result") stopConfetti();
         if (which !== "play") stopSessionTimer();
         if (which !== "play") cleanupCurrentQuestion();
+        // Replay the page-in animation on whichever section just became
+        // visible. The remove+reflow+re-add cycle restarts the CSS animation
+        // so swapping setup ↔ play ↔ result always shows a fresh entrance.
+        // Under reduced-motion the animation rule itself is absent, so the
+        // class toggle is harmless. Skip the *initial* call: the setup page
+        // is being set up by runExercise's bootstrap, no user-initiated
+        // navigation has happened yet, and animating here makes axe/a11y
+        // checks see the page mid-fade (with reduced effective contrast).
+        const activeSection = which === "setup" ? setup : which === "play" ? play : result;
+        if (activeSection && _hasShownOnce) {
+            activeSection.classList.remove("section-enter");
+            void activeSection.offsetWidth;
+            activeSection.classList.add("section-enter");
+        }
+        _hasShownOnce = true;
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
         if (which === "play") {
@@ -1769,7 +1813,7 @@ function setupLangBanner() {
     const btn = document.getElementById("lang-banner-dismiss");
     btn?.addEventListener("click", () => {
         document.cookie = `lang_ok=1; path=/; max-age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
-        banner.remove();
+        leaveAnimated(banner, () => banner.remove(), 200);
     });
 }
 

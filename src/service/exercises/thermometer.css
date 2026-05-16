@@ -126,3 +126,34 @@
         width: min(30vw, calc(65dvh / 2.4), 150px);
     }
 }
+
+/* ---------- micro-animations ----------
+   The liquid column flows between values instead of teleporting. Animating
+   the rect's y and height attributes is the modern-browsers equivalent of
+   tweening the SVG geometry directly. Under reduced motion the values
+   still update — they just snap as before. */
+@media (prefers-reduced-motion: no-preference) {
+    .thermo .liquid {
+        transition:
+            y 220ms ease-out,
+            height 220ms ease-out;
+    }
+    /* Sign chip crossfades between red and green — the sign change is the
+       lesson, so the swap deserves to feel deliberate, not glitchy. */
+    .sign-toggle {
+        transition:
+            background 140ms ease,
+            color 140ms ease,
+            border-color 140ms ease;
+    }
+    /* +/− buttons quietly fade out at the ends of the range so the boundary
+       becomes visible without an attention grab. */
+    .thermo-wrap .button-pair .default-button {
+        transition:
+            opacity 130ms ease,
+            transform 90ms ease,
+            box-shadow 100ms ease,
+            background-color 130ms ease,
+            border-color 130ms ease;
+    }
+}

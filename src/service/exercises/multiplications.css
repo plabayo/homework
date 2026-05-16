@@ -20,3 +20,24 @@
         grid-template-columns: repeat(5, 1fr);
     }
 }
+
+/* ---------- micro-animations ----------
+   When the "select all" master toggle flips, JS assigns each label a `--i`
+   index and adds `.is-cascading`. The labels pulse with a 25 ms stagger so
+   the master toggle visibly reaches across the group instead of all 10
+   boxes flipping in one frame. */
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes tick-pulse {
+        0%,
+        100% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+        }
+    }
+    #tables label.is-cascading {
+        animation: tick-pulse 200ms ease-out both;
+        animation-delay: calc(var(--i, 0) * 25ms);
+    }
+}

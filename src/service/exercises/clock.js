@@ -151,6 +151,14 @@ function buildWordOptions(q, minStep) {
     return shuffle(out.slice(0, 4));
 }
 
+// Hand lengths in viewBox units. Hands are drawn pointing straight up
+// (12 o'clock) and rotated via CSS `transform`, so changes to the rotation
+// can be smoothly tweened — the +/- buttons sweep the hand around the face
+// instead of teleporting, and the hour hand drifts continuously as the
+// minute hand crosses 12. transform-origin is set in CSS to the pivot.
+const HAND_HOUR_LEN = 24;
+const HAND_MINUTE_LEN = 36;
+
 function clockSvg(h, m, opts) {
     const interactive = !!opts.interactive;
     const minuteAngle = (m / 60) * 360;
@@ -178,29 +186,31 @@ function clockSvg(h, m, opts) {
             numbers.push(`<text class="num" x="${p.x}" y="${p.y}">${i}</text>`);
         }
     }
-    // hour hand length 24, minute hand length 36
-    const hr = (deg, len) => {
-        const a = ((deg - 90) * Math.PI) / 180;
-        return { x2: 50 + len * Math.cos(a), y2: 50 + len * Math.sin(a) };
-    };
-    const hh = hr(hourAngle, 24);
-    const mm = hr(minuteAngle, 36);
+    const hourTip = 50 - HAND_HOUR_LEN;
+    const minTip = 50 - HAND_MINUTE_LEN;
     return `
         <div class="clock${interactive ? " interactive" : ""}" data-h="${h}" data-m="${m}">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <circle class="face" cx="50" cy="50" r="46" />
                 ${ticks.join("")}
                 ${numbers.join("")}
-                <line class="hand-hour" x1="50" y1="50" x2="${hh.x2}" y2="${hh.y2}" />
-                <line class="hand-minute" x1="50" y1="50" x2="${mm.x2}" y2="${mm.y2}" />
+                <line class="hand-hour" style="transform: rotate(${hourAngle}deg)"
+                      x1="50" y1="50" x2="50" y2="${hourTip}" />
+                <line class="hand-minute" style="transform: rotate(${minuteAngle}deg)"
+                      x1="50" y1="50" x2="50" y2="${minTip}" />
                 ${
                     interactive
                         ? `
-                    <!-- Wider invisible hit-zones along each hand, plus a tip circle for easy grabbing. -->
-                    <line class="hand-hit" data-hand="hour"   x1="50" y1="50" x2="${hh.x2}" y2="${hh.y2}" />
-                    <circle class="hand-hit-tip" data-hand="hour"   cx="${hh.x2}" cy="${hh.y2}" r="8" />
-                    <line class="hand-hit" data-hand="minute" x1="50" y1="50" x2="${mm.x2}" y2="${mm.y2}" />
-                    <circle class="hand-hit-tip" data-hand="minute" cx="${mm.x2}" cy="${mm.y2}" r="8" />
+                    <!-- Wider invisible hit-zones along each hand, plus a tip circle for easy grabbing.
+                         They rotate alongside the visible hand so the hit area follows the visual. -->
+                    <line class="hand-hit" data-hand="hour" style="transform: rotate(${hourAngle}deg)"
+                          x1="50" y1="50" x2="50" y2="${hourTip}" />
+                    <circle class="hand-hit-tip" data-hand="hour" style="transform: rotate(${hourAngle}deg)"
+                            cx="50" cy="${hourTip}" r="8" />
+                    <line class="hand-hit" data-hand="minute" style="transform: rotate(${minuteAngle}deg)"
+                          x1="50" y1="50" x2="50" y2="${minTip}" />
+                    <circle class="hand-hit-tip" data-hand="minute" style="transform: rotate(${minuteAngle}deg)"
+                            cx="50" cy="${minTip}" r="8" />
                 `
                         : ""
                 }
@@ -224,6 +234,9 @@ function attachInteractive(root, q, opts = {}) {
     // so neither is hidden under the other and either can be grabbed.
     const state = { h: 6, m: 0 };
 
+    const rotate = (el, deg) => {
+        if (el) el.style.transform = `rotate(${deg}deg)`;
+    };
     const set = (rawH, rawM) => {
         const m = (Math.round(rawM / minStep) * minStep + 60) % 60;
         const h = ((rawH % 12) + 12) % 12;
@@ -232,33 +245,16 @@ function attachInteractive(root, q, opts = {}) {
         wrap.dataset.h = h;
         wrap.dataset.m = m;
         const minuteAngle = (m / 60) * 360;
+        // Hour angle includes the minute offset so the hour hand drifts
+        // continuously between the numbers — a half-past-three has the
+        // hour hand sitting between 3 and 4, not snapped to 3.
         const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
-        const setHand = (els, deg, len, innerLen = 0) => {
-            const a = ((deg - 90) * Math.PI) / 180;
-            const x2 = 50 + len * Math.cos(a);
-            const y2 = 50 + len * Math.sin(a);
-            for (const el of els) {
-                if (!el) continue;
-                if (innerLen > 0) {
-                    el.setAttribute("x1", 50 + innerLen * Math.cos(a));
-                    el.setAttribute("y1", 50 + innerLen * Math.sin(a));
-                }
-                el.setAttribute("x2", x2);
-                el.setAttribute("y2", y2);
-            }
-        };
-        const setTip = (el, deg, len) => {
-            if (!el) return;
-            const a = ((deg - 90) * Math.PI) / 180;
-            el.setAttribute("cx", 50 + len * Math.cos(a));
-            el.setAttribute("cy", 50 + len * Math.sin(a));
-        };
-        setHand([minHand], minuteAngle, 36);
-        setHand([hitMin], minuteAngle, 36, 8);
-        setTip(tipMin, minuteAngle, 36);
-        setHand([hourHand], hourAngle, 24);
-        setHand([hitHour], hourAngle, 24, 8);
-        setTip(tipHour, hourAngle, 24);
+        rotate(minHand, minuteAngle);
+        rotate(hitMin, minuteAngle);
+        rotate(tipMin, minuteAngle);
+        rotate(hourHand, hourAngle);
+        rotate(hitHour, hourAngle);
+        rotate(tipHour, hourAngle);
         opts.onSet?.(state.h, state.m);
     };
     set(state.h, state.m);
@@ -285,6 +281,10 @@ function attachInteractive(root, q, opts = {}) {
             (t.classList?.contains("hand-hour") ? "hour" : t.classList?.contains("hand-minute") ? "minute" : null);
         if (!hand) return;
         dragging = hand;
+        // Disable the sweep transition while the user is actively dragging
+        // — they want the hand under their finger right now, not 300ms
+        // behind. The transition kicks back in for button presses.
+        wrap.classList.add("dragging");
         onMove(e);
     };
     const onMove = (e) => {
@@ -311,6 +311,7 @@ function attachInteractive(root, q, opts = {}) {
     };
     const onUp = () => {
         dragging = null;
+        wrap.classList.remove("dragging");
     };
 
     svg.addEventListener("pointerdown", onDown);

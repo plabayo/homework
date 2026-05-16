@@ -67,10 +67,6 @@
     font-size: 0.88em;
     font-variant-numeric: tabular-nums;
     user-select: none;
-    transition:
-        background 120ms,
-        border-color 120ms,
-        color 120ms;
 }
 .den-chip input[type="checkbox"] {
     position: absolute;
@@ -106,4 +102,33 @@
     gap: 0.6em;
     font-size: 1.3em;
     padding-block: 0.5em;
+}
+
+/* Review-only: the small `→` arrows that link the original expression to
+   its intermediate form and the simplified answer. Quiet by default —
+   their job is to scaffold the eye, not steal it. */
+.frac-step-arrow {
+    color: var(--muted);
+    font-size: 0.9em;
+}
+
+/* ---------- micro-animations ---------- */
+@media (prefers-reduced-motion: no-preference) {
+    .den-chip {
+        transition:
+            background 120ms,
+            border-color 120ms,
+            color 120ms;
+    }
+
+    /* On the review screen the original expression renders immediately,
+       and the reduction steps (arrows + intermediate fractions + the
+       boxed simplified answer) fade in a moment later. The eye reads the
+       expression first, then watches the buildup — the *motion* enacts
+       the lesson about equivalence. Uses `pop-in` from theme.css, which
+       is defined inside the same media query. */
+    .frac-step,
+    .frac-step-arrow {
+        animation: pop-in 220ms ease-out 180ms both;
+    }
 }
