@@ -113,9 +113,14 @@
     color: var(--muted);
     text-align: center;
 }
-/* Base .option-list lives in theme.css. Clock uses two columns. */
+/* Base .option-list lives in theme.css. Clock uses two columns and a touch
+   more horizontal padding around the answer text so longer Dutch wordings
+   ("vijfentwintig over vijf") still have breathing room from the border. */
 .option-list {
     grid-template-columns: 1fr 1fr;
+}
+.option-list .default-button {
+    padding-inline: 1.4rem;
 }
 .clock-controls {
     display: flex;
