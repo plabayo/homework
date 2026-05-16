@@ -412,13 +412,20 @@ function wordOptionListHtml(options) {
         if (!o.altLabel) {
             return `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${o.label}</button>`;
         }
+        // Structure: a visibility-hidden spacer (in flow, no 3D) sizes the
+        // button to fit whichever variant is wider, and the two faces sit
+        // absolutely over it inside the preserve-3d button. Separating the
+        // sizing layer from the 3D layer avoids long-standing Firefox bugs
+        // around `preserve-3d` combined with `display: grid` / `inline-block`.
         return (
             `<div class="word-option-wrap">` +
             `<button type="button" class="default-button option word-option-btn" role="radio" aria-checked="false" data-value="${val}">` +
-            `<span class="word-option-inner">` +
+            `<span class="word-option-spacer" aria-hidden="true">` +
+            `<span>${o.label}</span><span>${o.altLabel}</span>` +
+            `</span>` +
             `<span class="word-option-face word-option-front">${o.label}</span>` +
             `<span class="word-option-face word-option-back" aria-hidden="true">${o.altLabel}</span>` +
-            `</span></button>` +
+            `</button>` +
             `<button type="button" class="word-variant-peek" aria-label="andere schrijfwijze">↔</button>` +
             `</div>`
         );

@@ -215,11 +215,13 @@
     vertical-align: bottom;
 }
 .phrase-flip-inner {
-    /* inline-block so the container naturally matches the front face width.
-       Back face is position:absolute so it never inflates the container.
-       Width is set explicitly by JS after measurement so it can transition
-       smoothly between front-width and back-width on flip. */
-    display: inline-block;
+    /* inline-flex establishes a reliable 3D rendering context inline (Firefox
+       has long-standing bugs with `transform-style: preserve-3d` on plain
+       inline-block elements — the rotation either doesn't apply or the back
+       face leaks through). Back face is position:absolute so it never
+       inflates the container; width is set explicitly by JS after measurement
+       so it can transition smoothly between front-width and back-width. */
+    display: inline-flex;
     position: relative;
     transform-style: preserve-3d;
     white-space: nowrap;
@@ -270,8 +272,15 @@
     width: 100%;
     height: 100%; /* fill grid-stretched wrap so all row buttons match height */
 }
-/* Button-level 3D flip: the whole option card rotates when peeking. */
+/* Button-level 3D flip: the whole option card rotates when peeking.
+   The button is the single preserve-3d layer; faces sit absolutely inside
+   it. A visibility-hidden spacer (also a child of the button) takes the
+   normal flow so the button's natural size fits whichever variant is
+   wider. Keeping the sizing layer separate from the 3D layer avoids
+   Firefox's preserve-3d + grid rendering bug — there's no grid anywhere
+   inside the 3D context, so backface-visibility behaves consistently. */
 .word-option-btn {
+    position: relative;
     transform-style: preserve-3d;
     transition: transform 0.35s ease;
     overflow: visible;
@@ -282,15 +291,28 @@
 .word-option-wrap.flipped .word-option-btn {
     transform: perspective(600px) rotateY(180deg);
 }
-/* Grid stacking: both faces overlap the same cell so the button is always
-   sized to its wider face — no layout shift when flipping. */
-.word-option-inner {
+.word-option-spacer {
+    /* Sizing-only ghost: stacks both labels in the same grid cell so the
+       button's intrinsic width = max of the two. visibility:hidden keeps
+       it invisible but in flow. aria-hidden in markup keeps it out of the
+       a11y tree. */
     display: grid;
     grid-template-areas: "stack";
-    transform-style: preserve-3d;
+    visibility: hidden;
+    pointer-events: none;
+}
+.word-option-spacer > * {
+    grid-area: stack;
 }
 .word-option-face {
-    grid-area: stack;
+    /* inset:0 fills the button's padding box, so each face sits exactly
+       over the (invisible) spacer. flex centering handles vertical/
+       horizontal alignment — no padding needed on the face itself. */
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
 }
