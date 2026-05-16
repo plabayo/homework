@@ -10,12 +10,34 @@ import {
     normalizePhrase,
     optionListHtml,
     pad,
+    phraseFlipHtml,
     pickRandom,
     readFields,
     runExercise,
     shuffle,
+    sizeFlip,
     wireOptions,
+    wordOptionListHtml,
 } from "@homework";
+
+/**
+ * Build the HTML for the prompt phrase shown to the child in the
+ * "words → digital" direction. When the time has two Dutch variants
+ * (`tien voor half ...` ↔ `twintig over ...`, etc.) we render the
+ * phrase-flip widget so the child can peek at the alternate wording —
+ * same affordance as the analog-clock exercise. Otherwise plain text.
+ */
+function promptPhraseHtml(q, correctPhrase) {
+    const variants = dutchTimePhraseVariants(q.h, q.m);
+    const alt = variants.length > 1 ? variants.find((v) => v !== correctPhrase) : null;
+    return alt ? phraseFlipHtml(correctPhrase, alt) : correctPhrase;
+}
+
+/** After the prompt is mounted in the DOM, measure both phrase-flip faces. */
+function sizeQuestionFlip(root) {
+    const flip = root.querySelector(".phrase-flip");
+    if (flip) sizeFlip(flip);
+}
 
 // Dutch time expression utilities. Covers every 5-minute step that has a
 // standard Flemish/Dutch idiom:
@@ -136,14 +158,37 @@ runExercise({
 
         if (q.dir === "digital-to-words") {
             document.getElementById("exercise-feedback").textContent = "lees de digitale klok 🔢";
-            const distractors = buildDistractors(q, 3)
-                .map((d) => dutchTimePhrase(d.h, d.m))
-                .filter((p) => p && p !== correctPhrase);
-            const options = shuffle([correctPhrase, ...distractors.slice(0, 3)]);
+            // For each option, pick the "other" Dutch variant (if any) as
+            // the peek label so the kid can compare "vijf voor half twaalf"
+            // with "vijfentwintig over elf" before committing. The button's
+            // submitted value stays the front-face phrase, so peeking is a
+            // pure preview — it doesn't change what gets answered.
+            const altOf = (phrase, h, m) => {
+                const variants = dutchTimePhraseVariants(h, m);
+                return variants.length > 1 ? variants.find((v) => v !== phrase) : null;
+            };
+            const correctOpt = {
+                label: correctPhrase,
+                altLabel: altOf(correctPhrase, q.h, q.m),
+                value: correctPhrase,
+            };
+            const distractorOpts = buildDistractors(q, 3)
+                .map((d) => {
+                    const front = dutchTimePhrase(d.h, d.m);
+                    if (!front || front === correctPhrase) return null;
+                    return {
+                        label: front,
+                        altLabel: altOf(front, d.h, d.m),
+                        value: front,
+                    };
+                })
+                .filter(Boolean)
+                .slice(0, 3);
+            const options = shuffle([correctOpt, ...distractorOpts]);
             root.innerHTML = `
                 <div class="dclock">${dt}</div>
                 <p class="dclock-label">welke zin past bij deze tijd?</p>
-                ${optionListHtml(options, (o) => o)}
+                ${wordOptionListHtml(options)}
             `;
             return wireOptions(root);
         } else {
@@ -154,7 +199,7 @@ runExercise({
             if (fill) {
                 const maxHourHint = q.use24h ? "0–23" : "1–12";
                 root.innerHTML = `
-                    <p class="dclock-label">${correctPhrase}</p>
+                    <p class="dclock-label">${promptPhraseHtml(q, correctPhrase)}</p>
                     <div class="dclock dclock-input">
                         <input class="dclock-field" id="answer-h" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required>
                         <span class="dclock-colon">:</span>
@@ -162,6 +207,7 @@ runExercise({
                     </div>
                     <small class="muted">${maxHourHint} : 00–59</small>
                 `;
+                sizeQuestionFlip(root);
                 const hh = root.querySelector("#answer-h");
                 const mm = root.querySelector("#answer-m");
                 hh.addEventListener("input", () => {
@@ -185,13 +231,14 @@ runExercise({
             const distractors = buildDistractors(q, 3);
             const options = shuffle([{ h: q.h, m: q.m }, ...distractors.slice(0, 3)]);
             root.innerHTML = `
-                <p class="dclock-label">${correctPhrase}</p>
+                <p class="dclock-label">${promptPhraseHtml(q, correctPhrase)}</p>
                 ${optionListHtml(
                     options,
                     (o) => digitalLabel(o.h, o.m, q.use24h),
                     (o) => JSON.stringify(o),
                 )}
             `;
+            sizeQuestionFlip(root);
             return wireOptions(root);
         }
     },

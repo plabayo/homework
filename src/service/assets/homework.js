@@ -353,6 +353,118 @@ export function optionListHtml(options, labelFn, valueFn = String) {
     return `<div class="option-list" role="radiogroup">${btns}</div>`;
 }
 
+/**
+ * Build an option-list of word-choice buttons that can each peek at an
+ * alternate label via a small `↔` button. Used by the analog and digital
+ * clock exercises so the kid can compare the two Dutch wordings of a
+ * time (e.g. `vijf voor half twaalf` ↔ `vijfentwintig over elf`).
+ *
+ * options: array of `{ label, altLabel?, value }`. When `altLabel` is
+ * absent the option renders as a plain button — same shape as
+ * `optionListHtml`. The peek toggle (`.word-variant-peek`) is wired up
+ * globally on the document below.
+ */
+export function wordOptionListHtml(options) {
+    const items = options.map((o) => {
+        const val = encodeURIComponent(o.value);
+        const label = escapeHtml(String(o.label));
+        const alt = o.altLabel ? escapeHtml(String(o.altLabel)) : null;
+        if (!alt) {
+            return `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${label}</button>`;
+        }
+        // A visibility-hidden spacer stacks both labels in the same grid
+        // cell so the button's intrinsic width fits whichever variant is
+        // wider. The two faces sit absolutely over the spacer and crossfade
+        // when `.flipped` toggles.
+        return (
+            `<div class="word-option-wrap">` +
+            `<button type="button" class="default-button option word-option-btn" role="radio" aria-checked="false" data-value="${val}">` +
+            `<span class="word-option-spacer" aria-hidden="true">` +
+            `<span>${label}</span><span>${alt}</span>` +
+            `</span>` +
+            `<span class="word-option-face word-option-front">${label}</span>` +
+            `<span class="word-option-face word-option-back" aria-hidden="true">${alt}</span>` +
+            `</button>` +
+            `<button type="button" class="word-variant-peek" aria-label="andere schrijfwijze">↔</button>` +
+            `</div>`
+        );
+    });
+    return `<div class="option-list" role="radiogroup">${items.join("")}</div>`;
+}
+
+// Peek button toggles the adjacent option button's `.flipped` state so the
+// alt label crossfades into view. Lives in the shared lib so any exercise
+// rendering `wordOptionListHtml` gets the behaviour for free.
+document.addEventListener("click", (e) => {
+    const peek = e.target.closest?.(".word-variant-peek");
+    if (!peek) return;
+    const wrap = peek.closest(".word-option-wrap");
+    if (wrap) wrap.classList.toggle("flipped");
+});
+
+/**
+ * Inline phrase-flip widget: a tappable span that crossfades between two
+ * wordings of the same time (or, in principle, any two strings). Used by
+ * both clock exercises so the kid can peek at the alternate phrasing.
+ *
+ * Pair with sizeFlip(flip) called once the widget is in the live DOM so
+ * the container width can transition smoothly between the two faces.
+ *
+ * Styling lives in theme.css under `.phrase-flip*`; the click/keydown
+ * handlers are wired up globally on the document below.
+ */
+export function phraseFlipHtml(front, back) {
+    return (
+        `<span class="phrase-flip" tabindex="0" role="button" aria-pressed="false">` +
+        `<span class="phrase-flip-inner">` +
+        `<span class="phrase-flip-face phrase-flip-front">${escapeHtml(front)}</span>` +
+        `<span class="phrase-flip-face phrase-flip-back">${escapeHtml(back)}</span>` +
+        `</span></span>`
+    );
+}
+
+/**
+ * Measure both faces of a phrase-flip widget and store their pixel widths
+ * as data attributes so toggling can transition the container width.
+ * Must be called after the widget is inserted into the live DOM.
+ */
+export function sizeFlip(flip) {
+    const inner = flip.querySelector(".phrase-flip-inner");
+    const front = flip.querySelector(".phrase-flip-front");
+    const back = flip.querySelector(".phrase-flip-back");
+    if (!inner || !front || !back) return;
+    const frontW = front.offsetWidth;
+    const backW = back.offsetWidth;
+    inner.dataset.frontW = frontW;
+    inner.dataset.backW = backW;
+    inner.style.width = `${frontW}px`;
+}
+
+function togglePhraseFlip(flip) {
+    const flipped = flip.classList.toggle("flipped");
+    flip.setAttribute("aria-pressed", String(flipped));
+    const inner = flip.querySelector(".phrase-flip-inner");
+    if (inner?.dataset.frontW) {
+        inner.style.width = `${Number.parseFloat(flipped ? inner.dataset.backW : inner.dataset.frontW)}px`;
+    }
+}
+
+// One global delegated listener handles every `.phrase-flip` widget on the
+// page, including widgets injected dynamically into question content. Lives
+// in the shared lib so both the analog and digital clock exercises get it
+// for free.
+document.addEventListener("click", (e) => {
+    const flip = e.target.closest?.(".phrase-flip");
+    if (flip) togglePhraseFlip(flip);
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const flip = e.target.closest?.(".phrase-flip");
+    if (!flip) return;
+    e.preventDefault();
+    togglePhraseFlip(flip);
+});
+
 function uuid() {
     if (crypto.randomUUID) return crypto.randomUUID();
     return "xxxxxxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));

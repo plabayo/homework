@@ -9,11 +9,14 @@ import {
     minutesForStep,
     optionListHtml,
     pad,
+    phraseFlipHtml,
     pickRandom,
     readFields,
     runExercise,
     shuffle,
+    sizeFlip,
     wireOptions,
+    wordOptionListHtml,
 } from "@homework";
 
 // Maps granularity config keys to minute step sizes.
@@ -125,7 +128,7 @@ function buildWordOptions(q, minStep) {
         const showAlt = variants.length > 1 && Math.random() < 0.5;
         const label = showAlt ? variants[1] : variants[0];
         const altLabel = variants.length > 1 ? (showAlt ? variants[0] : variants[1]) : null;
-        out.push({ h, m, label, altLabel });
+        out.push({ h, m, label, altLabel, value: JSON.stringify({ h, m }) });
     };
 
     push(q.h, q.m);
@@ -234,8 +237,19 @@ function attachInteractive(root, q, opts = {}) {
     // so neither is hidden under the other and either can be grabbed.
     const state = { h: 6, m: 0 };
 
+    // Cumulative (un-modded) rotation degrees. Storing the running total
+    // lets us pick the next angle as the *nearest* equivalent to the last
+    // one (within ±180°), so wrapping from 55 → 0 minutes rotates 30°
+    // forward (330° → 360°) instead of taking the long way back through
+    // every previous tick.
+    const cum = { hour: 0, min: 0 };
     const rotate = (el, deg) => {
         if (el) el.style.transform = `rotate(${deg}deg)`;
+    };
+    // Return `target` adjusted by ±360°*k so it's within ±180° of `prev`.
+    const nearestAngle = (prev, target) => {
+        const delta = ((((target - prev) % 360) + 540) % 360) - 180;
+        return prev + delta;
     };
     const set = (rawH, rawM) => {
         const m = (Math.round(rawM / minStep) * minStep + 60) % 60;
@@ -249,12 +263,14 @@ function attachInteractive(root, q, opts = {}) {
         // continuously between the numbers — a half-past-three has the
         // hour hand sitting between 3 and 4, not snapped to 3.
         const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
-        rotate(minHand, minuteAngle);
-        rotate(hitMin, minuteAngle);
-        rotate(tipMin, minuteAngle);
-        rotate(hourHand, hourAngle);
-        rotate(hitHour, hourAngle);
-        rotate(tipHour, hourAngle);
+        cum.min = nearestAngle(cum.min, minuteAngle);
+        cum.hour = nearestAngle(cum.hour, hourAngle);
+        rotate(minHand, cum.min);
+        rotate(hitMin, cum.min);
+        rotate(tipMin, cum.min);
+        rotate(hourHand, cum.hour);
+        rotate(hitHour, cum.hour);
+        rotate(tipHour, cum.hour);
         opts.onSet?.(state.h, state.m);
     };
     set(state.h, state.m);
@@ -373,71 +389,6 @@ function timeLabel(h, m) {
     return `${pad(hh)}:${pad(m)}`;
 }
 
-/**
- * Inline 3D-flip widget for a Dutch time phrase that has two valid wordings.
- * Clicking toggles between front and back.  Only call this when variants.length > 1.
- */
-function phraseFlipHtml(front, back) {
-    return (
-        `<span class="phrase-flip" tabindex="0" role="button" aria-pressed="false">` +
-        `<span class="phrase-flip-inner">` +
-        `<span class="phrase-flip-face phrase-flip-front">${front}</span>` +
-        `<span class="phrase-flip-face phrase-flip-back">${back}</span>` +
-        `</span></span>`
-    );
-}
-
-/**
- * Measure both faces of a .phrase-flip widget and store the pixel widths as
- * data attributes so the click handler can transition width smoothly.
- * Must be called after the widget is inserted into the live DOM.
- */
-function sizeFlip(flip) {
-    const inner = flip.querySelector(".phrase-flip-inner");
-    const front = flip.querySelector(".phrase-flip-front");
-    const back = flip.querySelector(".phrase-flip-back");
-    if (!inner || !front || !back) return;
-    // Measure each face with offsetWidth — avoids inner.scrollWidth being
-    // inflated by the abs-pos back face in Chromium-based browsers.
-    // offsetWidth ignores CSS transforms, so rotateY(180deg) on back is fine.
-    const frontW = front.offsetWidth;
-    const backW = back.offsetWidth;
-    inner.dataset.frontW = frontW;
-    inner.dataset.backW = backW;
-    inner.style.width = `${frontW}px`;
-}
-
-/**
- * Build an option-list HTML string for word choices, adding a small peek
- * button for options that have two Dutch phrasings.
- */
-function wordOptionListHtml(options) {
-    const items = options.map((o) => {
-        const val = encodeURIComponent(JSON.stringify({ h: o.h, m: o.m }));
-        if (!o.altLabel) {
-            return `<button type="button" class="default-button option" role="radio" aria-checked="false" data-value="${val}">${o.label}</button>`;
-        }
-        // Structure: a visibility-hidden spacer (in flow, no 3D) sizes the
-        // button to fit whichever variant is wider, and the two faces sit
-        // absolutely over it inside the preserve-3d button. Separating the
-        // sizing layer from the 3D layer avoids long-standing Firefox bugs
-        // around `preserve-3d` combined with `display: grid` / `inline-block`.
-        return (
-            `<div class="word-option-wrap">` +
-            `<button type="button" class="default-button option word-option-btn" role="radio" aria-checked="false" data-value="${val}">` +
-            `<span class="word-option-spacer" aria-hidden="true">` +
-            `<span>${o.label}</span><span>${o.altLabel}</span>` +
-            `</span>` +
-            `<span class="word-option-face word-option-front">${o.label}</span>` +
-            `<span class="word-option-face word-option-back" aria-hidden="true">${o.altLabel}</span>` +
-            `</button>` +
-            `<button type="button" class="word-variant-peek" aria-label="andere schrijfwijze">↔</button>` +
-            `</div>`
-        );
-    });
-    return `<div class="option-list" role="radiogroup">${items.join("")}</div>`;
-}
-
 /** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
 function renderZetFeedback(feedbackEl, q) {
     if (q.promptStyle !== "words") {
@@ -455,36 +406,9 @@ function renderZetFeedback(feedbackEl, q) {
     }
 }
 
-// Single delegated listener handles all .phrase-flip elements on the page,
-// including those injected dynamically into the exercise or freeplay area.
-function toggleFlip(flip) {
-    const flipped = flip.classList.toggle("flipped");
-    flip.setAttribute("aria-pressed", String(flipped));
-    // Transition the inner container width to match the now-visible face.
-    const inner = flip.querySelector(".phrase-flip-inner");
-    if (inner?.dataset.frontW) {
-        inner.style.width = `${Number.parseFloat(flipped ? inner.dataset.backW : inner.dataset.frontW)}px`;
-    }
-}
-document.addEventListener("click", (e) => {
-    const flip = e.target.closest(".phrase-flip");
-    if (flip) {
-        toggleFlip(flip);
-        return;
-    }
-    // Peek button: 3D-flip the adjacent option button to reveal the alt phrasing.
-    const peek = e.target.closest(".word-variant-peek");
-    if (!peek) return;
-    const wrap = peek.closest(".word-option-wrap");
-    if (wrap) wrap.classList.toggle("flipped");
-});
-document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    const flip = e.target.closest(".phrase-flip");
-    if (!flip) return;
-    e.preventDefault();
-    toggleFlip(flip);
-});
+// The shared `.phrase-flip` and `.word-variant-peek` click handlers both
+// live in homework.js — they're wired up globally, so this module no
+// longer needs its own listener.
 
 function mountFreeplay() {
     const clockDiv = document.getElementById("freeplay-clock");

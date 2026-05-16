@@ -1099,6 +1099,173 @@
         }
     }
 
+    /* ---------- inline phrase-flip widget ----------
+   Shared between the analog and digital clock exercises. Toggles between
+   two Dutch wordings of the same time when clicked. Flat opacity
+   crossfade rather than a 3D rotation: relying on `backface-visibility`
+   is unreliable across engines (Firefox in particular), and a crossfade
+   is a safe baseline. JS (homework.js sizeFlip) measures both faces and
+   animates the container width so the layout glides between them. */
+    .phrase-flip {
+        display: inline-block;
+        cursor: pointer;
+        vertical-align: bottom;
+    }
+    .phrase-flip-inner {
+        display: inline-block;
+        position: relative;
+        white-space: nowrap;
+    }
+    .phrase-flip-front {
+        display: inline-block;
+        white-space: nowrap;
+        text-decoration-line: underline;
+        text-decoration-style: dotted;
+        text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+        text-underline-offset: 3px;
+    }
+    .phrase-flip-back {
+        /* Anchored at the inner's left edge but content-sized in both axes —
+       sizeFlip() reads back.offsetWidth to drive the width transition of
+       the inner container, so surrounding text hugs whichever face is
+       currently showing. `inset: 0` would stretch the back to the inner's
+       current width and make sizeFlip think both faces are equal-sized. */
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline-start: 0;
+        white-space: nowrap;
+        color: var(--accent);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .phrase-flip.flipped .phrase-flip-front {
+        opacity: 0;
+    }
+    .phrase-flip.flipped .phrase-flip-back {
+        opacity: 1;
+    }
+    .phrase-flip:hover .phrase-flip-front,
+    .phrase-flip:focus-visible .phrase-flip-front {
+        text-decoration-color: color-mix(in srgb, currentColor 75%, transparent);
+    }
+    .phrase-flip:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+        outline-offset: 2px;
+        border-radius: 2px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .phrase-flip-inner {
+            transition: width 0.38s ease;
+        }
+        .phrase-flip-face {
+            transition: opacity 0.22s ease;
+        }
+        .phrase-flip-front {
+            transition:
+                text-decoration-color 0.15s,
+                opacity 0.22s ease;
+        }
+    }
+
+    /* ---------- word-choice option with dual-variant peek ----------
+   Shared between the analog and digital clock exercises: each option is
+   a button containing two label faces stacked over a visibility-hidden
+   spacer that sizes the button to fit the wider variant. The `↔` peek
+   button toggles `.flipped` on the wrap, crossfading between the two
+   faces. Flat 2D crossfade because relying on `backface-visibility` is
+   unreliable across engines (Firefox in particular). */
+    .word-option-wrap {
+        position: relative;
+    }
+    .word-option-wrap .default-button.option {
+        width: 100%;
+        height: 100%; /* fill grid-stretched wrap so all row buttons match height */
+    }
+    .word-option-btn {
+        position: relative;
+        overflow: hidden;
+        /* Reserve a strip below the centered label for the peek (↔)
+       button. The face uses the same inset so the label is centered
+       above this strip — never crowding the peek icon. Easier on
+       younger readers: the label and the affordance to flip it are
+       visually distinct rather than mashed together. */
+        padding-bottom: 1.8em;
+    }
+    .word-option-spacer {
+        /* Sizing-only ghost: stacks both labels in the same grid cell so
+       the button's intrinsic width = max of the two. visibility:hidden
+       keeps it invisible but in flow. aria-hidden in markup keeps it
+       out of the a11y tree. */
+        display: grid;
+        grid-template-areas: "stack";
+        visibility: hidden;
+        pointer-events: none;
+    }
+    .word-option-spacer > * {
+        grid-area: stack;
+    }
+    .word-option-face {
+        /* Insets match the button's own padding so the face occupies the
+       *content* box, not the padding box. This is what gives long
+       wordings ("vijfentwintig over een") visible breathing room from
+       the button border — without it the face would span edge-to-edge
+       and the text would wrap right up against the border on its
+       longest line. Bottom inset (1.8em) leaves the peek (↔) strip free. */
+        position: absolute;
+        inset: 0.5em 1.4rem 1.8em 1.4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .word-option-back {
+        color: var(--accent);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .word-option-wrap.flipped .word-option-front {
+        opacity: 0;
+    }
+    .word-option-wrap.flipped .word-option-back {
+        opacity: 1;
+    }
+    .option-list .default-button.selected .word-option-back {
+        color: var(--accent-fg);
+    }
+    /* Peek button floats above the option in its own stacking layer and
+   stays in place while the option button flips behind it. */
+    .word-variant-peek {
+        position: absolute;
+        bottom: 5px;
+        right: 6px;
+        background: none;
+        border: none;
+        padding: 1px 4px;
+        font-size: 0.75em;
+        line-height: 1;
+        color: color-mix(in srgb, currentColor 38%, transparent);
+        cursor: pointer;
+        border-radius: 3px;
+        z-index: 1;
+    }
+    .word-variant-peek:hover,
+    .word-variant-peek:focus-visible {
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+        outline: none;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .word-option-face {
+            transition: opacity 0.22s ease;
+        }
+        .word-variant-peek {
+            transition:
+                color 0.15s,
+                background 0.15s;
+        }
+    }
+
     /* ---------- shared exercise patterns ---------- */
     /* Most exercises render a vertical list of answer choices. Layout is the
    same everywhere; each exercise just picks a column count via the modifier

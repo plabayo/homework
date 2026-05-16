@@ -177,7 +177,12 @@ fn freeplay_section() -> impl rama::http::html::IntoHtml {
                 class = "button-reset btn-lift",
                 "terug naar menu ↩️",
             ),
-            p!(id = "exercise-title", "vrij verkennen 🕐"),
+            // Decorative title for the free-play page. Must NOT use the
+            // `exercise-title` id — that one belongs to the play-page
+            // scaffold (homework.js writes `oefening N van M` into it),
+            // and two same-id elements in the DOM means the wrong one
+            // wins via getElementById.
+            p!(id = "freeplay-title", "vrij verkennen 🕐"),
         ),
         div!(id = "freeplay-clock"),
         div!(
