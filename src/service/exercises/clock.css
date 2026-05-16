@@ -240,8 +240,15 @@
         opacity 0.22s ease;
 }
 .phrase-flip-back {
+    /* Anchored at the inner's left edge but content-sized in both axes —
+       sizeFlip() in clock.js measures back.offsetWidth to drive the
+       width transition of the inner container, so the surrounding
+       quotes hug whichever face is currently showing. Using `inset: 0`
+       here would stretch the back to the inner's current width and
+       leave sizeFlip thinking front and back are the same size. */
     position: absolute;
-    inset: 0;
+    inset-block-start: 0;
+    inset-inline-start: 0;
     white-space: nowrap;
     color: var(--accent);
     opacity: 0;
