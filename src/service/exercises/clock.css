@@ -316,12 +316,14 @@
     grid-area: stack;
 }
 .word-option-face {
-    /* Stops short of the bottom strip reserved for the ↔ peek button
-       (matches the button's padding-bottom). flex centering then puts the
-       label in the middle of the *remaining* area, giving the peek icon
-       its own breathing room below the wording. */
+    /* Insets match the button's own padding so the face occupies the
+       *content* box, not the padding box. This is what gives long
+       wordings ("vijfentwintig over een") visible breathing room from
+       the button border — without it the face would span edge-to-edge
+       and the text would wrap right up against the border on its
+       longest line. Bottom inset (1.8em) leaves the peek (↔) strip free. */
     position: absolute;
-    inset: 0 0 1.8em 0;
+    inset: 0.5em 1.4rem 1.8em 1.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
