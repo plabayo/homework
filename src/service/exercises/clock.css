@@ -215,22 +215,22 @@
     vertical-align: bottom;
 }
 .phrase-flip-inner {
-    /* inline-flex establishes a reliable 3D rendering context inline (Firefox
-       has long-standing bugs with `transform-style: preserve-3d` on plain
-       inline-block elements — the rotation either doesn't apply or the back
-       face leaks through). Back face is position:absolute so it never
-       inflates the container; width is set explicitly by JS after measurement
-       so it can transition smoothly between front-width and back-width. */
+    /* Same flip pattern as flashcards: perspective lives on the parent
+       (.phrase-flip), this element preserves-3d and rotates via the
+       `rotate:` shorthand. inline-flex (rather than inline-block) makes
+       Firefox actually establish a 3D rendering context for an inline
+       element. Width is set explicitly by JS after measurement so it can
+       transition smoothly between front-width and back-width on flip. */
     display: inline-flex;
     position: relative;
     transform-style: preserve-3d;
     white-space: nowrap;
     transition:
-        transform 0.38s ease,
+        rotate 0.38s ease,
         width 0.38s ease;
 }
 .phrase-flip.flipped .phrase-flip-inner {
-    transform: rotateY(180deg);
+    rotate: y 180deg;
 }
 .phrase-flip-face {
     backface-visibility: hidden;
@@ -260,36 +260,40 @@
     position: absolute;
     left: 0;
     white-space: nowrap;
-    transform: rotateY(180deg);
+    rotate: y 180deg;
     color: var(--accent);
 }
 
-/* ---------- word-choice option with dual-variant peek ---------- */
+/* ---------- word-choice option with dual-variant peek ----------
+   This mirrors the working pattern from .fc-review-card in flashcards.css:
+     - perspective lives on the OUTER, non-rotating element (.word-option-wrap)
+     - the inner element gets `transform-style: preserve-3d` and rotates via
+       the `rotate:` shorthand (animated through the `rotate` property)
+     - both faces are absolutely positioned with `backface-visibility: hidden`
+   Putting perspective inside the rotated element's `transform` function
+   (e.g. `transform: perspective(600px) rotateY(180deg)`) doesn't propagate
+   to descendants in Firefox, which causes the back face's pre-rotation to
+   draw on top of the front face — that's the "mirrored overlap" bug. */
 .word-option-wrap {
     position: relative;
+    perspective: 600px;
 }
 .word-option-wrap .default-button.option {
     width: 100%;
     height: 100%; /* fill grid-stretched wrap so all row buttons match height */
 }
-/* Button-level 3D flip: the whole option card rotates when peeking.
-   The button is the single preserve-3d layer; faces sit absolutely inside
-   it. A visibility-hidden spacer (also a child of the button) takes the
-   normal flow so the button's natural size fits whichever variant is
-   wider. Keeping the sizing layer separate from the 3D layer avoids
-   Firefox's preserve-3d + grid rendering bug — there's no grid anywhere
-   inside the 3D context, so backface-visibility behaves consistently. */
 .word-option-btn {
     position: relative;
     transform-style: preserve-3d;
-    transition: transform 0.35s ease;
+    rotate: y var(--word-option-rotate, 0deg);
+    transition: rotate 0.35s ease;
     overflow: visible;
     /* Reserve bottom space so text never overlaps the absolute-positioned
        ↔ peek button (bottom: 5px; ~14px tall) sitting in the wrap corner. */
     padding-bottom: 1.4em;
 }
 .word-option-wrap.flipped .word-option-btn {
-    transform: perspective(600px) rotateY(180deg);
+    --word-option-rotate: 180deg;
 }
 .word-option-spacer {
     /* Sizing-only ghost: stacks both labels in the same grid cell so the
@@ -317,7 +321,7 @@
     -webkit-backface-visibility: hidden;
 }
 .word-option-back {
-    transform: rotateY(180deg);
+    rotate: y 180deg;
     color: var(--accent);
 }
 .option-list .default-button.selected .word-option-back {
