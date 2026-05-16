@@ -27,8 +27,12 @@ function buildDeck(cfg) {
             allowed.push({ h, m });
         }
     }
-    // Times that have a Dutch-phrase form (volle uur/half/kwart).
-    const wordsAllowed = allowed.filter((e) => e.m === 0 || e.m === 15 || e.m === 30 || e.m === 45);
+    // Every 5-minute boundary has a Dutch phrasing (vijf over, tien voor
+    // half, kwart over, …), and four of them — xx:20, xx:25, xx:35, xx:40 —
+    // even have two valid variants that drive the phrase-flip widget. So
+    // any time that `dutchTimePhrase` accepts is fair game for the
+    // "zet de klok vanuit woorden" prompt at finer granularities.
+    const wordsAllowed = allowed.filter((e) => dutchTimePhrase(e.h, e.m) !== null);
 
     const out = [];
     let bag = allowed.slice();
