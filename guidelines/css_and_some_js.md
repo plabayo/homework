@@ -4009,6 +4009,31 @@ Avoid `display: none` (removes from accessibility tree) and `visibility: hidden`
 
 Use `<button>` for buttons, `<a href>` for navigation, `<nav>` / `<main>` / `<aside>` / `<header>` / `<footer>` for landmarks, `<h1>`–`<h6>` in a sensible hierarchy. Each of these brings keyboard handling, screen-reader announcements, and default focus management for free. ARIA is the fallback when no semantic element fits.
 
+#### Lists — pick by meaning, not by bullet style
+
+HTML has five list-shaped elements. Choosing the right one is a semantic decision; CSS handles the visual question of whether you see bullets, numbers, or nothing. Don't pick `<ul>` "because I'll remove the dot anyway" — pick it because order doesn't change meaning. (Inspiration & deeper read: Frank M Taylor, ["You Don't Know HTML Lists"](https://blog.frankmtaylor.com/2026/05/13/you-dont-know-html-lists/).)
+
+- **`<ul>`** — collection where reordering wouldn't change meaning (nav items, tag chips, a roster). The catch-all when nothing more specific fits.
+- **`<ol>`** — order *is* the meaning (steps in a recipe, ranked results, an algorithm). Use `start` to continue numbering across a split list and `reversed` for descending.
+- **`<dl>` / `<dt>` / `<dd>`** — name/value pairs: metadata blocks, profile field rows, glossary entries, debug dumps of an object. HTML5 allows a `<div>` wrapper around each `dt`+`dd` group, which makes Flex/Grid layout straightforward. Reach for this before building a two-column "label: value" grid out of `<p>`s.
+- **`<menu>` + `<li>`** — a list of *commands* (a toolbar, a contextual action set). Semantically distinct from `<nav>`, which is a landmark for site navigation and can contain prose, not just links. Using `<menu>` removes the temptation to slap `role="menu"` on a `<ul>`.
+- **`<select>` / `<option>` / `<datalist>`** — these are lists too. `<select>` for "must choose from this fixed set"; `<datalist>` for *suggested* completions on any `<input>` type (including `range`, where supported). Avoid `value` attributes on `<datalist>` options unless the label and value really need to differ — picking an option swaps the displayed text for the value, which surprises users.
+
+CSS gotcha that follows from the above: don't assume `<li>` only appears inside `<ul>` / `<ol>`. A bare `li { list-style: none }` is fine, but a scoped reset needs every container:
+
+```css
+nav ul,
+menu {
+  list-style: none;
+  padding-inline-start: 0;
+}
+```
+
+Two more practical notes:
+
+- Nesting an `<ol>` inside a `<ul>` (or vice-versa) is fine and often clearer than inventing a custom structure — e.g. an unordered list of recipes where each recipe contains an ordered list of steps.
+- A `role="list"` on a `<ul>` is occasionally needed: Safari/VoiceOver drops list semantics when `list-style: none` is applied. If the list-ness matters for AT users, add the role back explicitly.
+
 #### Optical alignment
 
 A heading with `padding: 32px` on all four sides will *measure* symmetrical but *look* top-heavy. Text glyphs sit inside a "text selection box" that has built-in space above (and a touch more below, for descenders). Mathematical symmetry ≠ perceived symmetry.
