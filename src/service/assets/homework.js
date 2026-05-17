@@ -1911,6 +1911,33 @@ document.addEventListener("input", (e) => {
     }
 });
 
+// ---------- theme toggle ----------
+
+function setupThemeToggle() {
+    const btn = document.getElementById("theme-toggle");
+    const icon = document.getElementById("theme-toggle-icon");
+    if (!btn || !icon) return;
+
+    function apply(dark) {
+        const scheme = dark ? "dark" : "light";
+        document.documentElement.style.colorScheme = scheme;
+        localStorage.setItem("homework:theme", scheme);
+        icon.textContent = dark ? "🌙" : "☀️";
+        btn.setAttribute("aria-label", dark ? "Donker thema — klik voor licht" : "Licht thema — klik voor donker");
+    }
+
+    // Initialise icon to match whatever is already applied (by the inline
+    // anti-FOUC script or the OS default).
+    const stored = localStorage.getItem("homework:theme");
+    const dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    apply(dark);
+
+    btn.addEventListener("click", () => {
+        const currentlyDark = document.documentElement.style.colorScheme === "dark";
+        apply(!currentlyDark);
+    });
+}
+
 // ---------- language banner ----------
 
 function setupLangBanner() {
@@ -1933,6 +1960,7 @@ setupOfflineIndicator();
 setupLeaveGuardNavigation();
 registerServiceWorker();
 setupLangBanner();
+setupThemeToggle();
 window.addEventListener("DOMContentLoaded", () => {
     hydrateHomeStats();
 });

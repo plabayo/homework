@@ -6,8 +6,8 @@ use std::borrow::Cow;
 
 use rama::http::headers::{CacheControl, HeaderMapExt};
 use rama::http::html::{
-    IntoHtml, PreEscaped, a, body, canvas, div, h1, head, header, html, link, main, meta, noscript,
-    p, script, title,
+    IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
+    noscript, p, script, span, title,
 };
 use rama::http::service::web::response::IntoResponse;
 
@@ -115,6 +115,10 @@ pub fn page(
             } else {
                 format!("<style>{extra_style}</style>")
             }),
+            // Apply stored theme override before first paint to avoid flash.
+            PreEscaped(
+                r#"<script>(function(){var t=localStorage.getItem('homework:theme');if(t)document.documentElement.style.colorScheme=t;})()</script>"#
+            ),
         ),
         body!(
             canvas!(id = "confetti", "aria-hidden" = "true"),
@@ -145,7 +149,7 @@ pub fn page(
     res
 }
 
-/// Standard page header with a 🏠 home link and centered title.
+/// Standard page header with a 🏠 home link, centered title, and theme toggle.
 pub fn page_header(title_text: impl IntoHtml) -> impl IntoHtml {
     header!(
         class = "page-header",
@@ -156,5 +160,12 @@ pub fn page_header(title_text: impl IntoHtml) -> impl IntoHtml {
             "🏠",
         ),
         h1!(title_text),
+        button!(
+            class = "theme-toggle",
+            id = "theme-toggle",
+            r#type = "button",
+            "aria-label" = "Licht thema — klik voor donker",
+            span!(id = "theme-toggle-icon", "aria-hidden" = "true", "☀️"),
+        ),
     )
 }
