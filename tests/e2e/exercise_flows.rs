@@ -108,6 +108,10 @@ async fn wrong_answer_creates_reviewable_result_and_history() -> TestResult<()> 
     wait_for_css(driver, "#button-skip", Duration::from_secs(10)).await?;
     click(driver, "#button-skip").await?;
 
+    // Skip now shows the correct answer — advance past it before checking the result.
+    wait_for_css(driver, "#button-next", Duration::from_secs(10)).await?;
+    click(driver, "#button-next").await?;
+
     wait_for_css(driver, "#review-button-repeat", Duration::from_secs(10)).await?;
 
     click(driver, "#page-result .button-reset").await?;
@@ -422,6 +426,95 @@ async fn thermometer_draw_mode_renders_interactive_widget() -> TestResult<()> {
     )
     .await?;
     wait_for_css(driver, "#thermo-inc", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn skip_shows_correct_answer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    // One wrong answer to reveal the skip button, then skip.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(10)).await?;
+    click(driver, "#button-skip").await?;
+
+    // The question must now be locked with the correct answer visible.
+    wait_for_css(driver, "#exercise-content.locked", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    let answer_text = text_of(driver, "#exercise-content .box").await?;
+    assert!(
+        answer_text.chars().any(|c| c.is_ascii_digit()),
+        "expected the skip screen to show the correct answer, got: {answer_text:?}"
+    );
+    assert!(
+        driver
+            .find_all(By::Css("#exercise-content #answer"))
+            .await?
+            .is_empty(),
+        "expected the answer input to be replaced by the review",
+    );
+
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn max_attempts_forces_correct_answer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-3", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    // Submit three wrong answers — the third must trigger the forced review.
+    for _ in 0..3 {
+        set_input_value(driver, "#answer", "999").await?;
+        click(driver, "#button-check").await?;
+    }
+
+    // Content must be locked with the correct answer shown and no answer input.
+    wait_for_css(driver, "#exercise-content.locked", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    let answer_text = text_of(driver, "#exercise-content .box").await?;
+    assert!(
+        answer_text.chars().any(|c| c.is_ascii_digit()),
+        "expected the forced review to show the correct answer, got: {answer_text:?}"
+    );
+    assert!(
+        driver
+            .find_all(By::Css("#exercise-content #answer"))
+            .await?
+            .is_empty(),
+        "expected the answer input to be replaced after max attempts",
+    );
+
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

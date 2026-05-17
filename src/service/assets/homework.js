@@ -941,7 +941,8 @@ function renderTrickyList(session) {
  *                                   re-rendered in place (state mutated by
  *                                   evaluateAnswer) without advancing the deck
  *   }
- *   evaluateSkip?: (q) => null | { showReview?: boolean, feedback?: string, bad?: boolean }
+ *   evaluateSkip?: (q) => null | { skipRemainingFillIn?: boolean, feedback?: string }
+ *   maxAttempts?: number                       — wrong attempts before answer is forced (default 3, 0 = no cap)
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
  * }
@@ -1316,6 +1317,16 @@ export function runExercise(spec) {
         state.currentAttempts += 1;
         state.currentGiven = given;
         state.streak = 0;
+
+        // Once the attempt cap is reached, stop accepting guesses and show the
+        // correct answer so the child learns rather than keeps guessing blindly.
+        const maxAttempts = spec.maxAttempts ?? 3;
+        if (maxAttempts > 0 && state.currentAttempts >= maxAttempts) {
+            recordOutcome(false, given, false);
+            showReviewState({ given, correct: false });
+            return;
+        }
+
         if (!feedbackEl.classList.contains("is-bad")) {
             feedbackEl.dataset.assignment = feedbackEl.textContent;
         }
@@ -1372,15 +1383,9 @@ export function runExercise(spec) {
         state.streak = 0;
         recordOutcome(false, state.currentGiven, true);
         const skipEval = spec.evaluateSkip ? spec.evaluateSkip(state.currentQuestion) : null;
-        if (skipEval?.showReview) {
-            showReviewState({
-                given: state.currentGiven,
-                correct: false,
-                feedback: skipEval.feedback,
-                bad: !!skipEval.bad,
-            });
-            return;
-        }
+        // Fill-in "stop oefening": batch-record all remaining blanks of this card
+        // as skipped, then advance to the next question (which cascades to finish
+        // when none remain). No review screen — the child chose to end the session.
         if (skipEval?.skipRemainingFillIn) {
             const anchor = state.currentQuestion.blankIndices;
             while (state.currentIndex + 1 < state.deck.length) {
@@ -1400,8 +1405,12 @@ export function runExercise(spec) {
                     label: spec.describe ? spec.describe(next) : null,
                 });
             }
+            nextQuestion();
+            return;
         }
-        nextQuestion();
+        // For all other question kinds (two-sided, multi-part, etc.): show the
+        // correct answer so the child learns what they missed.
+        showReviewState({ given: state.currentGiven, correct: false, feedback: skipEval?.feedback });
     }
 
     function finishPartial() {
