@@ -485,10 +485,25 @@ runExercise({
     renderQuestion(q, root, mode) {
         const minStep = GRAN_STEP[q.granularity] || 5;
         if (mode.kind === "review") {
-            root.innerHTML = `
-                ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
-            `;
+            const phrase = dutchTimePhrase(q.h, q.m);
+            if (q.kind === "lees") {
+                // For word-choice the correct answer is a Dutch phrase, not a digital time.
+                const answer = q.choiceStyle === "words" && phrase ? phrase : timeLabel(q.h, q.m);
+                root.innerHTML = `
+                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+                    <p class="time-readout bad">${answer}</p>
+                `;
+            } else {
+                // "zet" / "zet-woorden": show the original phrase prompt so the child
+                // can see what they were asked to set, then the correct clock + time.
+                const promptHtml =
+                    q.promptStyle === "words" && phrase ? `<p class="clock-choice-label">${phrase}</p>` : "";
+                root.innerHTML = `
+                    ${promptHtml}
+                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+                    <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
+                `;
+            }
             return;
         }
         if (q.kind === "lees") {
