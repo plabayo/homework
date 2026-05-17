@@ -412,6 +412,82 @@ function renderZetFeedback(feedbackEl, q) {
 // live in homework.js — they're wired up globally, so this module no
 // longer needs its own listener.
 
+function renderClockReview(q, root, mode) {
+    const phrase = dutchTimePhrase(q.h, q.m);
+    if (q.kind === "lees") {
+        const wordChoices = q.choiceStyle === "words" && !!phrase;
+        let answerHtml;
+        if (q._reviewOpts && q.answerMode === "multiple") {
+            const givenObj = mode.given;
+            answerHtml = buildReviewOptionList(
+                q._reviewOpts,
+                (o) => o.h === q.h && o.m === q.m,
+                (o) => !!givenObj && o.h === Number(givenObj.h) && o.m === Number(givenObj.m),
+            );
+        } else {
+            const answer = wordChoices ? phrase : timeLabel(q.h, q.m);
+            answerHtml = `<p class="time-readout bad">${escapeHtml(answer)}</p>`;
+        }
+        root.innerHTML = `
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+            ${wordChoices && q._reviewOpts ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
+            ${answerHtml}
+        `;
+    } else {
+        const promptHtml = q.promptStyle === "words" && phrase ? `<p class="clock-choice-label">${phrase}</p>` : "";
+        root.innerHTML = `
+            ${promptHtml}
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+            <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
+        `;
+    }
+}
+
+function renderClockLees(q, root, minStep) {
+    document.getElementById("exercise-feedback").textContent = "lees de klok 🕐";
+    if (q.answerMode === "fill") {
+        root.innerHTML = `
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+            <div class="time-pair">
+                <input inputmode="numeric" pattern="[0-9]+" id="answer-h" min="1" max="12" placeholder="uu" required>
+                <span>:</span>
+                <input inputmode="numeric" pattern="[0-9]+" id="answer-m" min="0" max="59" step="${minStep}" placeholder="mm" required>
+            </div>
+        `;
+        const hh = root.querySelector("#answer-h");
+        const mm = root.querySelector("#answer-m");
+        return () => {
+            if (!hh.value || mm.value === "") return null;
+            let h = Number(hh.value);
+            if (h === 12) h = 0;
+            return { h, m: Number(mm.value) };
+        };
+    }
+    const wordChoices = q.choiceStyle === "words" && !!dutchTimePhrase(q.h, q.m);
+    const options = wordChoices
+        ? buildWordOptions(q, minStep)
+        : buildClockOptions(q, minStep).map((o) => ({ ...o, label: timeLabel(o.h, o.m) }));
+    q._reviewOpts = options.map((o) => ({ label: o.label, h: o.h, m: o.m }));
+    root.innerHTML = `
+        ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+        ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
+        ${
+            wordChoices
+                ? wordOptionListHtml(options)
+                : optionListHtml(
+                      options,
+                      (o) => o.label,
+                      (o) => JSON.stringify({ h: o.h, m: o.m }),
+                  )
+        }
+    `;
+    const get = wireOptions(root);
+    return () => {
+        const s = get();
+        return s ? JSON.parse(s) : null;
+    };
+}
+
 function mountFreeplay() {
     const clockDiv = document.getElementById("freeplay-clock");
     if (!clockDiv) return;
@@ -487,117 +563,40 @@ runExercise({
     renderQuestion(q, root, mode) {
         const minStep = GRAN_STEP[q.granularity] || 5;
         if (mode.kind === "review") {
-            const phrase = dutchTimePhrase(q.h, q.m);
-            if (q.kind === "lees") {
-                const wordChoices = q.choiceStyle === "words" && !!phrase;
-                let answerHtml;
-                if (q._reviewOpts && q.answerMode === "multiple") {
-                    const givenObj = mode.given;
-                    answerHtml = buildReviewOptionList(
-                        q._reviewOpts,
-                        (o) => o.h === q.h && o.m === q.m,
-                        (o) => !!givenObj && o.h === Number(givenObj.h) && o.m === Number(givenObj.m),
-                    );
-                } else {
-                    const answer = wordChoices ? phrase : timeLabel(q.h, q.m);
-                    answerHtml = `<p class="time-readout bad">${escapeHtml(answer)}</p>`;
-                }
-                root.innerHTML = `
-                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                    ${wordChoices && q._reviewOpts ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
-                    ${answerHtml}
-                `;
-            } else {
-                // "zet" / "zet-woorden": show the original phrase prompt so the child
-                // can see what they were asked to set, then the correct clock + time.
-                const promptHtml =
-                    q.promptStyle === "words" && phrase ? `<p class="clock-choice-label">${phrase}</p>` : "";
-                root.innerHTML = `
-                    ${promptHtml}
-                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                    <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
-                `;
-            }
+            renderClockReview(q, root, mode);
             return;
         }
         if (q.kind === "lees") {
-            document.getElementById("exercise-feedback").textContent = "lees de klok 🕐";
-            if (q.answerMode === "fill") {
-                // child types the time
-                root.innerHTML = `
-                    ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                    <div class="time-pair">
-                        <input inputmode="numeric" pattern="[0-9]+" id="answer-h" min="1" max="12" placeholder="uu" required>
-                        <span>:</span>
-                        <input inputmode="numeric" pattern="[0-9]+" id="answer-m" min="0" max="59" step="${minStep}" placeholder="mm" required>
-                    </div>
-                `;
-                const hh = root.querySelector("#answer-h");
-                const mm = root.querySelector("#answer-m");
-                return () => {
-                    if (!hh.value || mm.value === "") return null;
-                    let h = Number(hh.value);
-                    if (h === 12) h = 0;
-                    return { h, m: Number(mm.value) };
-                };
-            }
-            // multiple-choice mode: pick the correct time from 4 plausible options
-            const wordChoices = q.choiceStyle === "words" && !!dutchTimePhrase(q.h, q.m);
-            const options = wordChoices
-                ? buildWordOptions(q, minStep)
-                : buildClockOptions(q, minStep).map((o) => ({
-                      ...o,
-                      label: timeLabel(o.h, o.m),
-                  }));
-            q._reviewOpts = options.map((o) => ({ label: o.label, h: o.h, m: o.m }));
-            root.innerHTML = `
-                ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
-                ${
-                    wordChoices
-                        ? wordOptionListHtml(options)
-                        : optionListHtml(
-                              options,
-                              (o) => o.label,
-                              (o) => JSON.stringify({ h: o.h, m: o.m }),
-                          )
-                }
-            `;
-            const get = wireOptions(root);
-            return () => {
-                const s = get();
-                return s ? JSON.parse(s) : null;
-            };
-        } else {
-            // q.kind === 'zet' or 'zet-woorden'
-            renderZetFeedback(document.getElementById("exercise-feedback"), q);
-            root.innerHTML = `
-                ${clockSvg(0, 0, { interactive: true, showNumbers: q.showNumbers })}
-                <div class="clock-controls">
-                    <div class="clock-control-row">
-                        <span class="label">uur</span>
-                        <div class="button-pair">
-                            <button type="button" class="default-button" id="hour-dec">➖</button>
-                            <button type="button" class="default-button" id="hour-inc">➕</button>
-                        </div>
-                    </div>
-                    ${
-                        minStep < 60
-                            ? `
-                        <div class="clock-control-row">
-                            <span class="label">minuut</span>
-                            <div class="button-pair">
-                                <button type="button" class="default-button" id="min-dec">➖</button>
-                                <button type="button" class="default-button" id="min-inc">➕</button>
-                            </div>
-                        </div>
-                    `
-                            : ""
-                    }
-                </div>
-            `;
-            return attachInteractive(root, q);
+            return renderClockLees(q, root, minStep);
         }
+        // q.kind === 'zet' or 'zet-woorden'
+        renderZetFeedback(document.getElementById("exercise-feedback"), q);
+        root.innerHTML = `
+            ${clockSvg(0, 0, { interactive: true, showNumbers: q.showNumbers })}
+            <div class="clock-controls">
+                <div class="clock-control-row">
+                    <span class="label">uur</span>
+                    <div class="button-pair">
+                        <button type="button" class="default-button" id="hour-dec">➖</button>
+                        <button type="button" class="default-button" id="hour-inc">➕</button>
+                    </div>
+                </div>
+                ${
+                    minStep < 60
+                        ? `
+                    <div class="clock-control-row">
+                        <span class="label">minuut</span>
+                        <div class="button-pair">
+                            <button type="button" class="default-button" id="min-dec">➖</button>
+                            <button type="button" class="default-button" id="min-inc">➕</button>
+                        </div>
+                    </div>
+                `
+                        : ""
+                }
+            </div>
+        `;
+        return attachInteractive(root, q);
     },
     isCorrect(q, given) {
         if (!given) return false;
