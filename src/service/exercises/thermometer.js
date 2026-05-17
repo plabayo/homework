@@ -192,9 +192,7 @@ runExercise({
     buildDeck,
     renderQuestion(q, root, mode) {
         if (mode.kind === "review") {
-            const fb = q.kind === "teken" ? "kleur de thermometer 🎨" : "lees de temperatuur ✏️";
             root.innerHTML = `
-                <h3>${fb}</h3>
                 <div class="thermo-wrap">
                     ${drawThermometer({ value: q.value, vmin: q.vmin, vmax: q.vmax, filled: true })}
                     <p><span class="box split-part bad">${q.value}</span> <span>℃</span></p>

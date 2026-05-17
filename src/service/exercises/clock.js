@@ -485,9 +485,7 @@ runExercise({
     renderQuestion(q, root, mode) {
         const minStep = GRAN_STEP[q.granularity] || 5;
         if (mode.kind === "review") {
-            const fb = q.kind === "lees" ? "lees de klok 🕐" : "zet de klok ⏰";
             root.innerHTML = `
-                <h3>${fb}</h3>
                 ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                 <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
             `;

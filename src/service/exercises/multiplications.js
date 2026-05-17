@@ -89,7 +89,6 @@ runExercise({
     renderQuestion(q, root, mode) {
         if (mode.kind === "review") {
             root.innerHTML = `
-                <h3>maak de vermenigvuldiging ✖️</h3>
                 <p>
                     <span>${q.a} × ${q.b} = </span>
                     <span class="box bad split-part">${q.answer}</span>

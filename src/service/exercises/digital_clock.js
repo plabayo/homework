@@ -142,11 +142,17 @@ runExercise({
         if (mode.kind === "review") {
             const dt = digitalLabel(q.h, q.m, q.use24h);
             const phrase = dutchTimePhrase(q.h, q.m) || dt;
-            root.innerHTML = `
-                <h3>${q.dir === "digital-to-words" ? "lees de digitale klok 🔢" : "schrijf de tijd in cijfers 🔢"}</h3>
-                <div class="dclock">${dt}</div>
-                <p class="bad box split-part" style="width:auto;padding:6px 12px">${phrase}</p>
-            `;
+            if (q.dir === "digital-to-words") {
+                root.innerHTML = `
+                    <div class="dclock">${dt}</div>
+                    <p class="bad box split-part" style="width:auto;padding:6px 12px">${phrase}</p>
+                `;
+            } else {
+                root.innerHTML = `
+                    <p class="dclock-label">${phrase}</p>
+                    <p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>
+                `;
+            }
             return;
         }
         const dt = digitalLabel(q.h, q.m, q.use24h);

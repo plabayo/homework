@@ -84,7 +84,6 @@ const FEEDBACK = {
 };
 
 function renderReview(q) {
-    const fb = FEEDBACK[q.kind];
     let body;
     switch (q.kind) {
         case "som":
@@ -115,7 +114,7 @@ function renderReview(q) {
             break;
         }
     }
-    return `<h3>${fb}</h3>${body}`;
+    return body;
 }
 
 const FIELDS = [

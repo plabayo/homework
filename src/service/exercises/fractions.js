@@ -184,7 +184,6 @@ function renderPlay(q) {
 // left-to-right. The `→` arrow is wrapped in `.frac-step` so the same CSS
 // rule reaches the intermediate and the simplified box.
 function renderReview(q) {
-    const fb = FEEDBACK[q.kind];
     let body;
     const stepArrow = `<span class="frac-step-arrow" aria-hidden="true">→</span>`;
     switch (q.kind) {
@@ -233,7 +232,7 @@ function renderReview(q) {
             break;
         }
     }
-    return `<h3>${fb}</h3>${body}`;
+    return body;
 }
 
 const FIELDS = [
