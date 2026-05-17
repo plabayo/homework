@@ -1329,12 +1329,14 @@
         background: var(--good-tint);
         border-color: var(--good);
         color: var(--good);
+        opacity: 1;
         cursor: default;
     }
     .option-list .default-button.review-wrong {
         background: var(--bad-tint);
         border-color: var(--bad);
         color: var(--bad);
+        opacity: 1;
         cursor: default;
     }
     .option-list .default-button.review-dim {
