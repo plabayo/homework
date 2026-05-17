@@ -16,7 +16,9 @@
 //!   • Clock "lees" (word-choice)  — Dutch phrase shown in .time-readout.bad
 //!   • Thermometer "teken"         — target value preserved in review bad-box
 
-use super::helpers::{click, set_checkbox, set_input_value, text_of, wait_for_css};
+use super::helpers::{
+    click, set_checkbox, set_input_value, text_of, wait_for_css, wait_for_nonempty_text,
+};
 use super::{BrowserHarness, Duration, TestApp, TestResult};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -252,7 +254,9 @@ async fn thermometer_teken_review_shows_target_value() -> TestResult<()> {
         .await?;
 
     // Read the target from the "Doel: X ℃" display in the question.
-    let goal_text = text_of(driver, "#exercise-content .box.split-part").await?;
+    // Use wait_for_nonempty_text so CI paint delays don't return "".
+    let goal_text =
+        wait_for_nonempty_text(driver, "#exercise-content .box.split-part", TIMEOUT).await?;
     let target: i32 = goal_text.trim().parse().unwrap_or(-1);
     assert!(
         target > 0,
@@ -263,7 +267,8 @@ async fn thermometer_teken_review_shows_target_value() -> TestResult<()> {
     skip_to_review(driver).await?;
 
     // The same target value must be visible in the review bad box.
-    let review_text = text_of(driver, "#exercise-content .box.split-part.bad").await?;
+    let review_text =
+        wait_for_nonempty_text(driver, "#exercise-content .box.split-part.bad", TIMEOUT).await?;
     let review_val: i32 = review_text.trim().parse().unwrap_or(-2);
     assert_eq!(
         review_val, target,
