@@ -1115,9 +1115,8 @@
 /* ---------- Card wave animation ---------- */
 
 /* The wave overlay/card and their keyframes only exist under
-   `prefers-reduced-motion: no-preference`. The JS gate in showCardWave
-   skips DOM insertion entirely when motion is reduced, so the static
-   styles below are never needed in that case. */
+   `prefers-reduced-motion: no-preference`. The overlay always appears;
+   under reduced motion the cards are shown statically without animation. */
 .fc-wave-overlay {
     position: fixed;
     inset: 0;
@@ -1125,7 +1124,8 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
     background: color-mix(in srgb, var(--bg) 60%, transparent);
 }
 

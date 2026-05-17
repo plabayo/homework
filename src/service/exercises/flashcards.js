@@ -2742,13 +2742,9 @@ runExercise({
 
 function showCardWave(cards) {
     if (cards.length === 0) return;
-    // Honour the user's motion preference: under reduced-motion the wave
-    // overlay would just sit there as a static stack of un-animated cards,
-    // so skip it entirely. The matching CSS keyframes live inside the same
-    // media query so the styling never applies either.
-    if (!window.matchMedia("(prefers-reduced-motion: no-preference)").matches) {
-        return;
-    }
+    // Always insert the overlay — motion preference is a CSS concern.
+    // The keyframes live inside @media (prefers-reduced-motion: no-preference)
+    // so reduced-motion users see the cards statically without animation.
     const overlay = document.createElement("div");
     overlay.className = "fc-wave-overlay";
     const items = cards
@@ -2756,11 +2752,16 @@ function showCardWave(cards) {
         .join("");
     overlay.innerHTML = `<div class="fc-wave-stage">${items}</div>`;
     document.body.appendChild(overlay);
-    const totalMs = Math.min(cards.length - 1, 19) * 80 + 900;
-    setTimeout(() => {
+    let dismissed = false;
+    function dismiss() {
+        if (dismissed) return;
+        dismissed = true;
         overlay.classList.add("fc-wave-fade");
         setTimeout(() => overlay.remove(), 400);
-    }, totalMs);
+    }
+    overlay.addEventListener("click", dismiss, { once: true });
+    const totalMs = Math.min(cards.length - 1, 19) * 80 + 3000;
+    setTimeout(dismiss, totalMs);
 }
 
 // ---------- Lenient-match observer ----------
