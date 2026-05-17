@@ -201,13 +201,15 @@ async fn clock_lees_word_choice_review_shows_phrase() -> TestResult<()> {
 
     skip_to_review(driver).await?;
 
-    // Review must show a Dutch phrase, not a bare "HH:MM" digital time.
-    wait_for_css(driver, ".time-readout.bad", TIMEOUT).await?;
-    let readout = text_of(driver, ".time-readout.bad").await?;
+    // Review now shows the full option list with the correct phrase highlighted in
+    // `.review-correct`. The correct Dutch phrase must appear there — not a bare
+    // "HH:MM" digital time string.
+    wait_for_css(driver, ".option-list .review-correct", TIMEOUT).await?;
+    let readout = text_of(driver, ".option-list .review-correct").await?;
     let dutch_words = ["uur", "half", "kwart", "voor", "over"];
     assert!(
         dutch_words.iter().any(|w| readout.contains(w)),
-        "expected Dutch phrase in .time-readout.bad for lees word-choice review, got: {readout:?}"
+        "expected Dutch phrase in .review-correct for lees word-choice review, got: {readout:?}"
     );
 
     driver.clone().quit().await?;

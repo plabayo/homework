@@ -68,6 +68,12 @@
     outline-offset: 2px;
     border-style: solid;
 }
+.dclock-field.is-invalid {
+    border-color: var(--bad);
+    border-style: solid;
+    outline: 2px solid var(--bad);
+    outline-offset: 2px;
+}
 .dclock-field::placeholder {
     color: color-mix(in srgb, currentColor 35%, transparent);
 }

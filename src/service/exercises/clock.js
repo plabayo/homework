@@ -3,8 +3,10 @@
 // Source-available; non-commercial use only.
 
 import {
+    buildReviewOptionList,
     dutchTimePhrase,
     dutchTimePhraseVariants,
+    escapeHtml,
     loadFields,
     minutesForStep,
     optionListHtml,
@@ -487,11 +489,23 @@ runExercise({
         if (mode.kind === "review") {
             const phrase = dutchTimePhrase(q.h, q.m);
             if (q.kind === "lees") {
-                // For word-choice the correct answer is a Dutch phrase, not a digital time.
-                const answer = q.choiceStyle === "words" && phrase ? phrase : timeLabel(q.h, q.m);
+                const wordChoices = q.choiceStyle === "words" && !!phrase;
+                let answerHtml;
+                if (q._reviewOpts && q.answerMode === "multiple") {
+                    const givenObj = mode.given;
+                    answerHtml = buildReviewOptionList(
+                        q._reviewOpts,
+                        (o) => o.h === q.h && o.m === q.m,
+                        (o) => !!givenObj && o.h === Number(givenObj.h) && o.m === Number(givenObj.m),
+                    );
+                } else {
+                    const answer = wordChoices ? phrase : timeLabel(q.h, q.m);
+                    answerHtml = `<p class="time-readout bad">${escapeHtml(answer)}</p>`;
+                }
                 root.innerHTML = `
                     ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-                    <p class="time-readout bad">${answer}</p>
+                    ${wordChoices && q._reviewOpts ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
+                    ${answerHtml}
                 `;
             } else {
                 // "zet" / "zet-woorden": show the original phrase prompt so the child
@@ -535,6 +549,7 @@ runExercise({
                       ...o,
                       label: timeLabel(o.h, o.m),
                   }));
+            q._reviewOpts = options.map((o) => ({ label: o.label, h: o.h, m: o.m }));
             root.innerHTML = `
                 ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
                 ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}

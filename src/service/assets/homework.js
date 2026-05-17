@@ -392,6 +392,24 @@ export function wordOptionListHtml(options) {
     return `<div class="option-list" role="radiogroup">${items.join("")}</div>`;
 }
 
+/**
+ * Build a disabled option-list for the review/answer state. Each option
+ * should have a `.label` property for display. `isCorrectFn` and
+ * `isGivenFn` receive the option object and return booleans:
+ *   - correct → green `.review-correct` highlight
+ *   - given (and wrong) → red `.review-wrong` highlight
+ *   - otherwise → dimmed `.review-dim`
+ */
+export function buildReviewOptionList(options, isCorrectFn, isGivenFn) {
+    const btns = options.map((o) => {
+        const correct = isCorrectFn(o);
+        const given = !correct && isGivenFn(o);
+        const cls = correct ? "review-correct" : given ? "review-wrong" : "review-dim";
+        return `<button type="button" class="default-button option ${cls}" disabled>${escapeHtml(o.label)}</button>`;
+    });
+    return `<div class="option-list">${btns.join("")}</div>`;
+}
+
 // Peek button toggles the adjacent option button's `.flipped` state so the
 // alt label crossfades into view. Lives in the shared lib so any exercise
 // rendering `wordOptionListHtml` gets the behaviour for free.
@@ -1208,7 +1226,7 @@ export function runExercise(spec) {
         if (skipBtn) skipBtn.hidden = true;
 
         // Clean up any lock/animation state left over from a previous question.
-        contentEl.classList.remove("locked", "is-wrong", "question-enter");
+        contentEl.classList.remove("locked", "is-wrong", "question-enter", "review-enter");
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = false;
         document.getElementById("button-next")?.remove();
@@ -1279,6 +1297,8 @@ export function runExercise(spec) {
             correct,
         });
         contentEl.classList.add("locked");
+        void contentEl.offsetWidth;
+        contentEl.classList.add("review-enter");
         feedbackEl.textContent = feedback || "Bekijk het juiste antwoord.";
         feedbackEl.classList.toggle("is-bad", bad);
 

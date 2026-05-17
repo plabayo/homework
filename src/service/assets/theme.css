@@ -974,6 +974,12 @@
             animation: question-in 180ms ease-out both;
         }
 
+        /* Answer reveal: content scales slightly in so the transition reads as
+           a deliberate state change rather than a snap-replace. */
+        #exercise-content.review-enter {
+            animation: review-reveal 240ms ease-out both;
+        }
+
         /* Correct answer: brief green glow around the exercise card.
        Target is #exercise (.box) so the rounded corners shape the glow. */
         #exercise.is-correct {
@@ -1054,6 +1060,16 @@
             to {
                 opacity: 1;
                 transform: translateY(0);
+            }
+        }
+        @keyframes review-reveal {
+            from {
+                opacity: 0.2;
+                transform: scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
             }
         }
         @keyframes pop-in {
@@ -1308,6 +1324,22 @@
         background: var(--accent);
         color: var(--accent-fg);
         border-color: var(--accent);
+    }
+    .option-list .default-button.review-correct {
+        background: var(--good-tint);
+        border-color: var(--good);
+        color: var(--good);
+        cursor: default;
+    }
+    .option-list .default-button.review-wrong {
+        background: var(--bad-tint);
+        border-color: var(--bad);
+        color: var(--bad);
+        cursor: default;
+    }
+    .option-list .default-button.review-dim {
+        opacity: 0.4;
+        cursor: default;
     }
 
     /* `.kinds`: stacks checkboxes/radios in 1 column on mobile, 2 on tablet+.
