@@ -7,7 +7,7 @@ use super::{BrowserHarness, Duration, TestApp, TestResult, WebDriver};
 
 /// Wait until an element matching `selector` is absent from the DOM.
 async fn wait_for_absent(driver: &WebDriver, selector: &str, timeout: Duration) -> TestResult<()> {
-    use super::{By, Instant, sleep};
+    use super::{By, Instant};
     let deadline = Instant::now() + timeout;
     loop {
         let count = driver.find_all(By::Css(selector)).await?.len();
@@ -17,7 +17,7 @@ async fn wait_for_absent(driver: &WebDriver, selector: &str, timeout: Duration) 
         if Instant::now() >= deadline {
             return Err(format!("element {selector:?} still present after {timeout:?}").into());
         }
-        sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 

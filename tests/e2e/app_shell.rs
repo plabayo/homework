@@ -5,9 +5,7 @@
 use super::helpers::{
     click, collect_hrefs, set_checkbox, set_input_value, wait_for_css, wait_for_text,
 };
-use super::{
-    BrowserHarness, By, Duration, Instant, TestApp, TestResult, WebDriver, check_a11y, sleep,
-};
+use super::{BrowserHarness, By, Duration, Instant, TestApp, TestResult, WebDriver, check_a11y};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
@@ -36,7 +34,7 @@ async fn accessibility_on_key_pages() -> TestResult<()> {
     set_checkbox(driver, "#table-2", true).await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
-    sleep(Duration::from_millis(300));
+    tokio::time::sleep(Duration::from_millis(300)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -99,7 +97,7 @@ async fn wait_for_service_worker(driver: &WebDriver, timeout: Duration) -> TestR
         if Instant::now() >= deadline {
             return Err("timed out waiting for service worker to become active".into());
         }
-        sleep(Duration::from_millis(200));
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
 
@@ -113,10 +111,10 @@ async fn cached_exercise_page_survives_server_shutdown() -> TestResult<()> {
     driver.goto(app.url("/1/multiplications")).await?;
     wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
 
-    sleep(Duration::from_secs(1));
+    tokio::time::sleep(Duration::from_secs(1)).await;
     driver.refresh().await?;
     wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
-    sleep(Duration::from_secs(1));
+    tokio::time::sleep(Duration::from_secs(1)).await;
 
     app.stop();
 
@@ -142,7 +140,7 @@ async fn home_page_survives_server_shutdown() -> TestResult<()> {
     // One more refresh so the SW-controlled response is in PAGES_CACHE too.
     driver.refresh().await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
-    sleep(Duration::from_millis(500));
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     app.stop();
 
@@ -168,7 +166,7 @@ async fn precached_pages_available_without_prior_visit() -> TestResult<()> {
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
     wait_for_service_worker(driver, Duration::from_secs(10)).await?;
     // Give the SW install handler time to finish fetching all PRECACHE entries.
-    sleep(Duration::from_secs(3));
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     app.stop();
 

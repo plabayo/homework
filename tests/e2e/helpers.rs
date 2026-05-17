@@ -2,7 +2,7 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-use super::{By, Duration, Instant, TestResult, WebDriver, WebElement, sleep};
+use super::{By, Duration, Instant, TestResult, WebDriver, WebElement};
 
 pub(crate) async fn inject_deck(
     driver: &WebDriver,
@@ -211,7 +211,7 @@ pub(crate) async fn wait_for_nonempty_text(
         if Instant::now() >= deadline {
             return Err(format!("no visible text in {selector:?} within {timeout:?}").into());
         }
-        sleep(Duration::from_millis(30));
+        tokio::time::sleep(Duration::from_millis(30)).await;
     }
 }
 
@@ -237,7 +237,7 @@ pub(crate) async fn wait_for_enabled(
         if Instant::now() >= deadline {
             return Err(format!("{selector:?} not enabled within {timeout:?}").into());
         }
-        sleep(Duration::from_millis(30));
+        tokio::time::sleep(Duration::from_millis(30)).await;
     }
 }
 
@@ -254,7 +254,7 @@ where
         if Instant::now() >= deadline {
             return Err(format!("condition not met within {timeout:?}").into());
         }
-        sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 

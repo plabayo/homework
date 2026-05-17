@@ -26,7 +26,7 @@
 use super::helpers::{
     click, collect_hrefs, inject_deck, set_checkbox, set_input_value, wait_for_css,
 };
-use super::{BrowserHarness, By, Duration, TestApp, TestResult, check_a11y, sleep};
+use super::{BrowserHarness, By, Duration, TestApp, TestResult, check_a11y};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -79,7 +79,7 @@ async fn a11y_clock_lees_active() -> TestResult<()> {
     // Both digit-choice (optionListHtml) and word-choice (wordOptionListHtml)
     // render an .option-list, so this wait covers both variants.
     wait_for_css(driver, ".option-list", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -102,7 +102,7 @@ async fn a11y_clock_zet_active() -> TestResult<()> {
     set_checkbox(driver, "input[name='ck'][value='zet-woorden']", false).await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, ".clock.interactive", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -124,7 +124,7 @@ async fn a11y_thermometer_active() -> TestResult<()> {
     set_checkbox(driver, "input[name='tk'][value='schrijf']", false).await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, ".thermo-svg-host.interactive", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -147,7 +147,7 @@ async fn a11y_fractions_active() -> TestResult<()> {
     set_checkbox(driver, "input[value='aftrekken']", false).await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content #answer", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -180,7 +180,7 @@ async fn a11y_flashcard_active() -> TestResult<()> {
     .await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;
@@ -234,7 +234,7 @@ async fn a11y_clock_word_choice_selected_and_flipped() -> TestResult<()> {
 
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, ".option-list", TIMEOUT).await?;
-    sleep(Duration::from_millis(200));
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     // Deck is built and question is rendered — restore Math.random.
     driver
@@ -246,7 +246,7 @@ async fn a11y_clock_word_choice_selected_and_flipped() -> TestResult<()> {
 
     // Snapshot 2: select one option → .selected with accent background.
     click(driver, ".option-list .option").await?;
-    sleep(Duration::from_millis(150));
+    tokio::time::sleep(Duration::from_millis(150)).await;
     check_a11y(driver).await?;
 
     // Snapshot 3: flip a dual-variant option → back face with accent text.
@@ -260,7 +260,7 @@ async fn a11y_clock_word_choice_selected_and_flipped() -> TestResult<()> {
          correct question"
     );
     click(driver, ".word-variant-peek").await?;
-    sleep(Duration::from_millis(400)); // wait for 3-D flip animation
+    tokio::time::sleep(Duration::from_millis(400)).await; // wait for 3-D flip animation
     check_a11y(driver).await?;
 
     driver.clone().quit().await?;

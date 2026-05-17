@@ -2,7 +2,6 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-pub(crate) use std::thread::sleep;
 pub(crate) use std::time::{Duration, Instant};
 
 pub(crate) use crate::support::a11y::check_a11y;
