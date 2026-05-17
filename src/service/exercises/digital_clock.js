@@ -117,6 +117,82 @@ function buildDistractors(q, n) {
     return out;
 }
 
+function renderDigitalClockReview(q, root, mode) {
+    const dt = digitalLabel(q.h, q.m, q.use24h);
+    const phrase = dutchTimePhrase(q.h, q.m) || dt;
+    if (q.dir === "digital-to-words") {
+        let answerHtml;
+        if (q._reviewOpts) {
+            const givenPhrase = mode.given;
+            answerHtml = buildReviewOptionList(
+                q._reviewOpts,
+                (o) => normalizePhrase(o.value) === normalizePhrase(phrase),
+                (o) => !!givenPhrase && normalizePhrase(o.value) === normalizePhrase(givenPhrase),
+            );
+        } else {
+            answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${escapeHtml(phrase)}</p>`;
+        }
+        root.innerHTML = `
+            <div class="dclock">${dt}</div>
+            <p class="dclock-label">welke zin past bij deze tijd?</p>
+            ${answerHtml}
+        `;
+        return;
+    }
+    const correctPhrase = q.phraseVariant || dutchTimePhrase(q.h, q.m);
+    if (q.answerMode === "fill") {
+        root.innerHTML = `
+            <p class="dclock-label">${correctPhrase}</p>
+            <p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>
+        `;
+        return;
+    }
+    let answerHtml;
+    if (q._reviewOpts) {
+        let givenH = null,
+            givenM = null;
+        try {
+            const g = JSON.parse(mode.given);
+            givenH = g.h;
+            givenM = g.m;
+        } catch {}
+        answerHtml = buildReviewOptionList(
+            q._reviewOpts,
+            (o) => o.h === q.h && o.m === q.m,
+            (o) => givenH !== null && o.h === givenH && o.m === givenM,
+        );
+    } else {
+        answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>`;
+    }
+    root.innerHTML = `
+        <p class="dclock-label">${correctPhrase}</p>
+        ${answerHtml}
+    `;
+}
+
+function makeClockFillGetter(hh, mm, q) {
+    return () => {
+        hh.classList.remove("is-invalid");
+        mm.classList.remove("is-invalid");
+        if (!hh.value || mm.value === "") return null;
+        const rawH = Number(hh.value);
+        const rawM = Number(mm.value);
+        const maxHour = q.use24h ? 23 : 12;
+        const minHour = q.use24h ? 0 : 1;
+        let invalid = false;
+        if (!Number.isInteger(rawH) || rawH < minHour || rawH > maxHour) {
+            hh.classList.add("is-invalid");
+            invalid = true;
+        }
+        if (!Number.isInteger(rawM) || rawM < 0 || rawM > 59) {
+            mm.classList.add("is-invalid");
+            invalid = true;
+        }
+        if (invalid) return null;
+        return JSON.stringify({ h: q.use24h ? rawH : rawH % 12, m: rawM });
+    };
+}
+
 const FIELDS = [
     { field: "num-exercises", type: "number", key: "numExercises" },
     { field: "granularity", type: "radio", key: "granularity", default: "kwart" },
@@ -142,56 +218,7 @@ runExercise({
     buildDeck,
     renderQuestion(q, root, mode) {
         if (mode.kind === "review") {
-            const dt = digitalLabel(q.h, q.m, q.use24h);
-            const phrase = dutchTimePhrase(q.h, q.m) || dt;
-            if (q.dir === "digital-to-words") {
-                let answerHtml;
-                if (q._reviewOpts) {
-                    const givenPhrase = mode.given;
-                    answerHtml = buildReviewOptionList(
-                        q._reviewOpts,
-                        (o) => normalizePhrase(o.value) === normalizePhrase(phrase),
-                        (o) => !!givenPhrase && normalizePhrase(o.value) === normalizePhrase(givenPhrase),
-                    );
-                } else {
-                    answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${escapeHtml(phrase)}</p>`;
-                }
-                root.innerHTML = `
-                    <div class="dclock">${dt}</div>
-                    <p class="dclock-label">welke zin past bij deze tijd?</p>
-                    ${answerHtml}
-                `;
-            } else {
-                const correctPhrase = q.phraseVariant || dutchTimePhrase(q.h, q.m);
-                if (q.answerMode === "fill") {
-                    root.innerHTML = `
-                        <p class="dclock-label">${correctPhrase}</p>
-                        <p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>
-                    `;
-                } else {
-                    let answerHtml;
-                    if (q._reviewOpts) {
-                        let givenH = null,
-                            givenM = null;
-                        try {
-                            const g = JSON.parse(mode.given);
-                            givenH = g.h;
-                            givenM = g.m;
-                        } catch {}
-                        answerHtml = buildReviewOptionList(
-                            q._reviewOpts,
-                            (o) => o.h === q.h && o.m === q.m,
-                            (o) => givenH !== null && o.h === givenH && o.m === givenM,
-                        );
-                    } else {
-                        answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>`;
-                    }
-                    root.innerHTML = `
-                        <p class="dclock-label">${correctPhrase}</p>
-                        ${answerHtml}
-                    `;
-                }
-            }
+            renderDigitalClockReview(q, root, mode);
             return;
         }
         const dt = digitalLabel(q.h, q.m, q.use24h);
@@ -261,29 +288,7 @@ runExercise({
                     if (hh.value.length >= 2) mm.focus();
                 });
                 mm.addEventListener("input", () => mm.classList.remove("is-invalid"));
-                return () => {
-                    hh.classList.remove("is-invalid");
-                    mm.classList.remove("is-invalid");
-                    if (!hh.value || mm.value === "") return null;
-                    const rawH = Number(hh.value);
-                    const rawM = Number(mm.value);
-                    const maxHour = q.use24h ? 23 : 12;
-                    const minHour = q.use24h ? 0 : 1;
-                    let invalid = false;
-                    if (!Number.isInteger(rawH) || rawH < minHour || rawH > maxHour) {
-                        hh.classList.add("is-invalid");
-                        invalid = true;
-                    }
-                    if (!Number.isInteger(rawM) || rawM < 0 || rawM > 59) {
-                        mm.classList.add("is-invalid");
-                        invalid = true;
-                    }
-                    if (invalid) return null;
-                    return JSON.stringify({
-                        h: q.use24h ? rawH : rawH % 12,
-                        m: rawM,
-                    });
-                };
+                return makeClockFillGetter(hh, mm, q);
             }
             const distractors = buildDistractors(q, 3);
             const options = shuffle([{ h: q.h, m: q.m }, ...distractors.slice(0, 3)]);
