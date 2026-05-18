@@ -1243,15 +1243,20 @@ export function runExercise(spec) {
         contentEl.querySelectorAll("input:not([aria-label]):not([aria-labelledby])").forEach((input) => {
             input.setAttribute("aria-label", "jouw antwoord");
         });
+        // Focus the first input before the entrance animation starts so the
+        // browser sees a fully-visible element (opacity: 1) at focus time.
+        // Adding question-enter immediately after would set opacity to 0 via
+        // the animation's fill-mode:both, which causes some browsers to silently
+        // skip the focus call.
+        const firstInput = contentEl.querySelector("input, [tabindex]");
+        if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
+
         // Trigger entrance animation after content is in the DOM.
         void contentEl.offsetWidth;
         contentEl.classList.add("question-enter");
 
         startDeadline();
         updateClock();
-
-        const firstInput = contentEl.querySelector("input, [tabindex]");
-        if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
     }
 
     function recordOutcome(correct, given, skipped, opts = {}) {

@@ -971,13 +971,13 @@
 
         /* Each new question fades up into view */
         #exercise-content.question-enter {
-            animation: question-in 180ms ease-out both;
+            animation: question-in 120ms ease-out both;
         }
 
         /* Answer reveal: content scales slightly in so the transition reads as
            a deliberate state change rather than a snap-replace. */
         #exercise-content.review-enter {
-            animation: review-reveal 240ms ease-out both;
+            animation: review-reveal 160ms ease-out both;
         }
 
         /* Correct answer: brief green glow around the exercise card.
