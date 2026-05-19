@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { buildDeck, isCorrectAnswer } from "./percentages-harness.mjs";
+import { buildDeck, isCorrectAnswer, renderReview } from "./percentages-harness.mjs";
 
 function gcd(a, b) {
     return b === 0 ? a : gcd(b, a % b);
@@ -244,4 +244,24 @@ test("isCorrectAnswer: wat-procent exact match", () => {
     assert.ok(isCorrectAnswer(q, "25"));
     assert.ok(!isCorrectAnswer(q, "20"));
     assert.ok(!isCorrectAnswer(q, "30"));
+});
+
+// ---------------------------------------------------------------------------
+// renderReview — must communicate that the unknown is a percentage
+// ---------------------------------------------------------------------------
+
+test("renderReview: wat-procent echoes 'is ?% van' so the unknown is clearly a %", () => {
+    const q = { kind: "wat-procent", num: 1, den: 4, part: 20, whole: 80, answer: 25 };
+    const html = renderReview(q);
+    // Regression: previously rendered "20 van 80 → …" which read as a bare
+    // division and obscured that the missing quantity is a percentage. The
+    // play form already shows "X is ?% van Y" — the review must match.
+    assert.ok(html.includes("20 is ?% van 80"), `expected "20 is ?% van 80" in: ${html}`);
+    assert.ok(html.includes("25%"), `expected answer "25%" in: ${html}`);
+});
+
+test("renderReview: procent-van-getal still labels the percentage with %", () => {
+    const q = { kind: "procent-van-getal", pct: 25, num: 1, den: 4, whole: 80, answer: 20 };
+    const html = renderReview(q);
+    assert.ok(html.includes("25% van 80"), `expected "25% van 80" in: ${html}`);
 });

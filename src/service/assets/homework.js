@@ -1118,7 +1118,7 @@ export function runExercise(spec) {
                 getDialog() {
                     return {
                         title: "Oefening stoppen?",
-                        message: "Je verliest je voortgang als je weggaat.",
+                        message: "De voltooide oefeningen worden opgeslagen, de rest wordt weggelaten.",
                         buttons: [
                             {
                                 value: "stay",
@@ -1130,6 +1130,9 @@ export function runExercise(spec) {
                             { value: "leave", label: "Stop oefening", id: "leave-leave" },
                         ],
                     };
+                },
+                async onChoice(choice) {
+                    if (choice === "leave") await persistCurrentSessionForLeave();
                 },
             });
         } else {
@@ -1451,16 +1454,12 @@ export function runExercise(spec) {
         finish();
     }
 
-    function finish() {
-        stopSessionTimer();
+    function buildCurrentSession() {
         const total = state.questions.length;
-        if (total === 0) {
-            show("setup");
-            return;
-        }
+        if (total === 0) return null;
         const correct = state.questions.filter((q) => q.correct).length;
         const finishedAt = Date.now();
-        const session = {
+        return {
             id: state.sessionId,
             exerciseId: spec.id,
             exerciseLabel: spec.label,
@@ -1474,6 +1473,26 @@ export function runExercise(spec) {
             timeMode: !!state.config?.timeMode,
             durationMs: finishedAt - state.startedAt,
         };
+    }
+
+    // Persist the current run when the student abandons via home/back
+    // navigation. Without this, choosing "Stop oefening" on the leave-guard
+    // dialog drops the answered questions on the floor — they never reach
+    // IndexedDB, so the history block is empty when the student returns.
+    async function persistCurrentSessionForLeave() {
+        const session = buildCurrentSession();
+        if (!session) return;
+        await saveSession(session);
+        await setupHistoryView();
+    }
+
+    function finish() {
+        stopSessionTimer();
+        const session = buildCurrentSession();
+        if (!session) {
+            show("setup");
+            return;
+        }
         state.cycles.push(session);
         saveSession(session).then(() => {
             // Re-evaluate the parent history block (mistakes/clear buttons,

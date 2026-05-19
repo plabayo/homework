@@ -168,7 +168,7 @@ async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
     wait_for_text(
         driver,
         "dialog.leave-guard-dialog .muted",
-        "Je verliest je voortgang als je weggaat.",
+        "De voltooide oefeningen worden opgeslagen, de rest wordt weggelaten.",
         Duration::from_secs(10),
     )
     .await?;
@@ -185,6 +185,13 @@ async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
     .await?;
     click(driver, "#leave-leave").await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    // Regression: choosing "Stop oefening" via the home link must save the
+    // partial session, not silently drop it. Re-visit the exercise and confirm
+    // the answered question shows up in the history block.
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    wait_for_css(driver, ".history-session", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -224,6 +231,53 @@ async fn exercise_browser_back_warns_before_losing_progress() -> TestResult<()> 
     .await?;
     click(driver, "#leave-stay").await?;
     wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+// Separate test (not chained off a prior "Blijf hier") so the popstate
+// sentinel is freshly armed when we click back — chaining two driver.back()
+// calls is racy because the sentinel re-push after "stay" happens inside
+// an async block.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn exercise_browser_back_stop_saves_partial_session() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-5", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
+    driver.back().await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, "#leave-leave").await?;
+
+    // Regression: choosing "Stop oefening" via browser-back must persist the
+    // partial session, not silently discard it.
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    wait_for_css(driver, ".history-session", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

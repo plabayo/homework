@@ -185,8 +185,9 @@ function renderReview(q) {
             return `<p class="pct-expr">${q.pct}% van ${q.whole} ${STEP_ARROW} <span class="pct-step">${step}</span> = <span class="box bad pct-step">${q.answer}</span></p>`;
         }
         case "wat-procent":
-            // Show: part van whole → part ÷ whole × 100 = answer%
-            return `<p class="pct-expr">${q.part} van ${q.whole} ${STEP_ARROW} <span class="pct-step">${q.part} ÷ ${q.whole} × 100</span> = <span class="box bad pct-step">${q.answer}%</span></p>`;
+            // Echo the play form ("X is ?% van Y") so it's obvious the unknown
+            // is a percentage — "X van Y" alone reads as plain division.
+            return `<p class="pct-expr">${q.part} is ?% van ${q.whole} ${STEP_ARROW} <span class="pct-step">${q.part} ÷ ${q.whole} × 100</span> = <span class="box bad pct-step">${q.answer}%</span></p>`;
     }
 }
 
