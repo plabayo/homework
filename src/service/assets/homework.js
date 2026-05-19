@@ -751,19 +751,23 @@ function showLeaveGuardDialog(spec) {
             dlg.showModal();
             return;
         }
-        // Older browsers (iOS < 15.4) don't support <dialog>. Rather than
-        // silently swallowing the prompt, fall back to a native confirm() —
-        // ugly but functional. The "leave" choice is the most destructive
-        // option in current call sites; treat OK as that.
+        // Older browsers (iOS < 15.4) don't support <dialog>. Fall back to a
+        // sequence of native confirm() prompts — one per non-stay choice in
+        // order — so multi-option dialogs (e.g. flashcards' "stay / save /
+        // discard") stay reachable. Cancel on every prompt resolves as
+        // "stay". OK on the *first* matching prompt wins.
         dlg.remove();
-        const leaveBtn = (spec.buttons || []).find((b) => b.value && b.value !== "stay");
-        const stayBtn = (spec.buttons || []).find((b) => b.value === "stay");
+        const fallbackChoices = (spec.buttons || []).filter((b) => b.value && b.value !== "stay");
         const msg = [spec.title, spec.message].filter(Boolean).join("\n\n");
-        const ok = window.confirm(
-            `${msg}\n\nOK = ${leaveBtn?.label || "ja"}\nCancel = ${stayBtn?.label || "blijf hier"}`,
-        );
+        let picked = "stay";
+        for (const btn of fallbackChoices) {
+            if (window.confirm(`${msg}\n\n${btn.label} ?`)) {
+                picked = btn.value;
+                break;
+            }
+        }
         leaveGuardDialogOpen = false;
-        resolve(ok ? leaveBtn?.value || "leave" : "stay");
+        resolve(picked);
     });
 }
 

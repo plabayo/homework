@@ -169,10 +169,10 @@ async fn main() -> Result<(), BoxError> {
 
     let cli = Cli::parse();
 
-    // Return the error rather than std::process::exit() so destructors —
-    // including spawned-task cleanup inside the graceful guard — get a
-    // chance to run before the process unwinds.
-    run_server(cli).await.inspect_err(|err| {
-        eprintln!("exit with error: {err}");
-    })
+    // Return the error from main rather than std::process::exit() so
+    // destructors — including the graceful guard's spawned-task cleanup —
+    // get a chance to run. Rust's `Termination` impl prints the error and
+    // exits with code 1 on its own; no extra eprintln necessary (and a
+    // duplicate print clutters log collectors).
+    run_server(cli).await
 }

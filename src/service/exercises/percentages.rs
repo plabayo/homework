@@ -82,7 +82,8 @@ fn config_fields() -> impl IntoHtml {
             legend!("Moeilijkheidsgraad"),
             div!(
                 class = "kinds",
-                difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%…)", true),
+                difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%)", true),
+                difficulty_radio("gemiddeld", "gemiddeld (ook 30%, 60%, 75%, 90%…)", false),
                 difficulty_radio("moeilijk", "moeilijk (ook 5%, 15%, 35%…)", false),
             ),
         ),
@@ -111,15 +112,38 @@ fn config_fields() -> impl IntoHtml {
             ),
         ),
         fieldset!(
-            id = "simplified-section",
             legend!("Extra opties"),
-            label!(
-                input!(
-                    r#type = "checkbox",
-                    id = "require-simplified",
-                    name = "require-simplified",
+            // Cap on the "whole" used by procent-van-getal and hoeveel
+            // procent. Leave blank to let the difficulty level pick a
+            // sensible default (50 / 100 / 100).
+            div!(
+                class = "field",
+                label!(
+                    r#for = "max-whole",
+                    "Grootste getal (laat leeg voor automatisch)",
                 ),
-                " geef breuk altijd in vereenvoudigde vorm",
+                input!(
+                    inputmode = "numeric",
+                    pattern = "[0-9]*",
+                    id = "max-whole",
+                    name = "max-whole",
+                    min = "10",
+                    max = "1000",
+                    placeholder = "automatisch",
+                ),
+            ),
+            // The simplify-form checkbox is only relevant for the
+            // procent-naar-breuk kind; its visibility is toggled by JS.
+            div!(
+                id = "simplified-section",
+                label!(
+                    input!(
+                        r#type = "checkbox",
+                        id = "require-simplified",
+                        name = "require-simplified",
+                    ),
+                    " geef breuk altijd in vereenvoudigde vorm",
+                ),
             ),
         ),
         time_mode_fieldset(),

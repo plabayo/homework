@@ -209,3 +209,63 @@ async fn percentages_wat_procent_happy_path() -> TestResult<()> {
     driver.clone().quit().await?;
     Ok(())
 }
+
+// Regression: the procent-naar-breuk getter previously called `Number()`
+// on the input values before isCorrectAnswer's `parseStrictInt` ever saw
+// them, so "0x10" would silently arrive as 16 and "1e0" as 1. The live
+// `input` event filter on numeric fields would normally strip these
+// characters as the kid types — but a paste/programmatic value-set
+// before the filter runs (e.g. autofill, password manager) bypasses it.
+// This test simulates that by setting `.value` directly via JS.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn percentages_procent_naar_breuk_rejects_hex_input() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_percentages(driver, &app, "procent-naar-breuk").await?;
+    wait_for_css(
+        driver,
+        "#exercise-content .pct-display",
+        Duration::from_secs(10),
+    )
+    .await?;
+
+    // Read the displayed percentage and craft a hex numerator that *would*
+    // numerically match it (e.g. for 16% the simplified fraction is 4/25;
+    // here we deliberately submit "0x10" / "25" = 16/25, which equals 64%,
+    // not 16%, so it should reject; AND we also submit a case crafted to
+    // numerically equal the real answer when coerced — for 25% the answer
+    // is 1/4, and "0x1" coerces to 1, "0x4" to 4, which would falsely pass
+    // under a Number() coercion).
+    let (real_num, real_den) = parse_procent_naar_breuk(driver).await?;
+    let hex_num = format!("0x{:x}", real_num);
+    let hex_den = format!("0x{:x}", real_den);
+
+    // Set the values directly via JS, bypassing the on-input filter that
+    // would otherwise strip the non-digits. Use dispatchEvent('submit') so
+    // we also bypass HTML5 pattern validation, which would normally block
+    // `requestSubmit` on a non-numeric input.
+    let script = format!(
+        "document.getElementById('answer-num').value = '{hex_num}'; \
+         document.getElementById('answer-den').value = '{hex_den}'; \
+         document.getElementById('form-exercise').dispatchEvent(new Event('submit', {{ bubbles: true, cancelable: true }}));"
+    );
+    driver.execute(&script, vec![]).await?;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // A strict parser rejects "0x..." even though Number() would coerce
+    // it to a matching integer. Verify by reading the feedback text
+    // directly — the wrong-attempt path renders "<emoji> probeer het
+    // nog eens" into #exercise-feedback while leaving the play page up.
+    let feedback = driver.find(super::By::Id("exercise-feedback")).await?;
+    let text = feedback.text().await?;
+    assert!(
+        text.contains("probeer het nog eens"),
+        "expected wrong-attempt feedback for hex input {hex_num}/{hex_den}, got: {text:?}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}

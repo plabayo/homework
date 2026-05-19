@@ -4,7 +4,9 @@
 //
 // Regression tests for the security + PWA fixes documented in the
 // audit: PWA icons present, iOS standalone meta tags, no permissive CORS,
-// request-body limit enforced, leave-guard dialog has aria-labelledby.
+// digital-clock validation a11y, and leave-guard dialog ARIA + iOS
+// <dialog>-fallback behaviour. See the NOTE further down for why the
+// 64 KiB body limit isn't e2e-tested.
 
 use super::helpers::{click, set_checkbox, set_input_value, wait_for_css};
 use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
@@ -115,6 +117,16 @@ async fn no_permissive_cors_on_assets_or_pages() -> TestResult<()> {
     Ok(())
 }
 
+// NOTE on the request-body limit (audit H2): `BodyLimitLayer` in rama
+// communicates the limit to inner services via Extensions; it only
+// rejects when something downstream actually reads the body. Every
+// route in this app is GET-only and ignores the body, so the limit is
+// genuinely defence-in-depth — there's no observable path to e2e-test
+// it without adding a body-reading handler purely for the test (which
+// would itself be the kind of attack surface the limit defends against).
+// Verification: the layer is mounted in main.rs:spawn_service_http and
+// spawn_service_https; presence is enforced by code review.
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn digital_clock_invalid_time_sets_aria_invalid() -> TestResult<()> {
@@ -159,6 +171,64 @@ async fn digital_clock_invalid_time_sets_aria_invalid() -> TestResult<()> {
             .split_whitespace()
             .any(|t| t == "exercise-feedback"),
         "expected aria-describedby to reference exercise-feedback, was {describedby:?}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn leave_guard_falls_back_to_confirm_when_dialog_unsupported() -> TestResult<()> {
+    // Regression for iOS <15.4: browsers without <dialog>.showModal must
+    // fall back to window.confirm rather than silently swallowing the
+    // prompt. We simulate the missing API by deleting showModal from the
+    // HTMLDialogElement prototype before the leave guard fires.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    // Stub out showModal and record every window.confirm() invocation.
+    driver
+        .execute(
+            "delete HTMLDialogElement.prototype.showModal; \
+             window.__confirmCalls = []; \
+             window.confirm = function(msg) { window.__confirmCalls.push(msg); return false; };",
+            vec![],
+        )
+        .await?;
+
+    // Make some progress so the leave guard becomes active.
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
+    // Trigger the leave guard via the home link.
+    click(driver, ".home-link").await?;
+
+    // Give the fallback a moment to run, then read back the recorded calls.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let calls = driver
+        .execute(
+            "return JSON.stringify(window.__confirmCalls || []);",
+            vec![],
+        )
+        .await?;
+    let json: String = calls.json().as_str().unwrap_or("[]").to_owned();
+    assert!(
+        json.contains("Stop oefening"),
+        "expected window.confirm() to be called with the leave label, got {json:?}"
     );
 
     driver.clone().quit().await?;

@@ -32,7 +32,10 @@ function cfg(overrides) {
 }
 
 test("buildDeck: returns exactly numExercises questions", () => {
-    assert.equal(buildDeck(cfg({ numExercises: 8 })).length, 8);
+    // Easy pool is small (4 num=1 fractions), so 8 procent-naar-breuk
+    // exercises require the stale-reset path — switch to gemiddeld for a
+    // bigger pool here.
+    assert.equal(buildDeck(cfg({ difficulty: "gemiddeld", numExercises: 8 })).length, 8);
 });
 
 test("buildDeck: returns empty deck when no kinds selected", () => {
@@ -53,8 +56,19 @@ test("buildDeck: breuk-naar-procent has integer percentage answer in 1–100", (
 });
 
 test("buildDeck: no duplicates within easy pool when well within pool size", () => {
-    // 8 exercises from 11-item easy pool — stale-reset cannot trigger, so all 8 must be unique.
-    const deck = buildDeck(cfg({ kinds: ["breuk-naar-procent"], numExercises: 8 }));
+    // Easy (makkelijk) pool has 4 num=1 fractions, so 4 exercises is the
+    // limit before stale-reset kicks in.
+    const deck = buildDeck(cfg({ kinds: ["breuk-naar-procent"], numExercises: 4 }));
+    assert.equal(deck.length, 4);
+    const keys = deck.map((q) => `${q.num}/${q.den}`);
+    assert.equal(new Set(keys).size, 4, `expected all unique, got: ${JSON.stringify(keys)}`);
+});
+
+test("buildDeck: no duplicates within gemiddeld pool when well within pool size", () => {
+    // gemiddeld pool has 11 fractions — 8 unique entries leave headroom.
+    const deck = buildDeck(
+        cfg({ difficulty: "gemiddeld", kinds: ["breuk-naar-procent"], numExercises: 8 }),
+    );
     assert.equal(deck.length, 8);
     const keys = deck.map((q) => `${q.num}/${q.den}`);
     assert.equal(new Set(keys).size, 8, `expected all unique, got: ${JSON.stringify(keys)}`);
@@ -298,6 +312,52 @@ test("isCorrectAnswer: rejects hex matching the numeric answer", () => {
     const q = { kind: "procent-van-getal", pct: 25, num: 1, den: 4, whole: 64, answer: 16 };
     assert.ok(isCorrectAnswer(q, "16"));
     assert.ok(!isCorrectAnswer(q, "0x10"));
+});
+
+// ---------------------------------------------------------------------------
+// difficulty: makkelijk caps the whole and uses only num=1 fractions
+// ---------------------------------------------------------------------------
+
+test("buildDeck: makkelijk procent-van-getal uses only num=1 fractions", () => {
+    const deck = buildDeck(
+        cfg({ kinds: ["procent-van-getal"], numExercises: 20, difficulty: "makkelijk" }),
+    );
+    for (const q of deck) {
+        assert.equal(q.num, 1, `makkelijk should only emit num=1, got ${q.num}/${q.den}`);
+    }
+});
+
+test("buildDeck: makkelijk caps the whole at 50 for procent-van-getal", () => {
+    const deck = buildDeck(
+        cfg({ kinds: ["procent-van-getal"], numExercises: 30, difficulty: "makkelijk" }),
+    );
+    for (const q of deck) {
+        assert.ok(q.whole <= 50, `whole ${q.whole} exceeds the makkelijk cap of 50`);
+    }
+});
+
+test("buildDeck: maxWhole config override is respected", () => {
+    const deck = buildDeck(
+        cfg({
+            kinds: ["procent-van-getal"],
+            numExercises: 30,
+            difficulty: "gemiddeld",
+            maxWhole: 30,
+        }),
+    );
+    for (const q of deck) {
+        assert.ok(q.whole <= 30, `whole ${q.whole} exceeds the explicit maxWhole of 30`);
+    }
+});
+
+test("buildDeck: gemiddeld adds num>1 fractions to the pool", () => {
+    const deck = buildDeck(
+        cfg({ kinds: ["procent-van-getal"], numExercises: 30, difficulty: "gemiddeld" }),
+    );
+    assert.ok(
+        deck.some((q) => q.num > 1),
+        "gemiddeld should include some num>1 fractions",
+    );
 });
 
 test("isCorrectAnswer: procent-naar-breuk rejects malformed numerator/denominator strings", () => {

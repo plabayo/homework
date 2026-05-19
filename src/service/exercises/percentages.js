@@ -9,23 +9,31 @@ import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from 
 // All (num, den) pairs in simplified form where num × 100 is divisible by den
 // (so the percentage is always a whole number). Matches Belgian/Dutch primary
 // school curriculum for percentages.
-const EASY_FRACS = [
-    [1, 10],
-    [3, 10],
-    [7, 10],
-    [9, 10], // 10%, 30%, 70%, 90%
-    [1, 5],
-    [2, 5],
-    [3, 5],
-    [4, 5], // 20%, 40%, 60%, 80%
-    [1, 4],
-    [3, 4], // 25%, 75%
+//
+// `makkelijk` keeps to num=1 fractions, where "procent van een getal" is a
+// single divide step: 10% / 20% / 25% / 50%. `gemiddeld` adds the rest of
+// the round-percentage pairs (30/40/60/70/75/80/90). `moeilijk` adds the
+// 5%-step fractions that need denominator 20.
+const MAKKELIJK_FRACS = [
+    [1, 10], // 10%
+    [1, 5], // 20%
+    [1, 4], // 25%
     [1, 2], // 50%
 ];
 
-// Adds 5%-step fractions that need denominator 20.
-const HARD_FRACS = [
-    ...EASY_FRACS,
+const GEMIDDELD_FRACS = [
+    ...MAKKELIJK_FRACS,
+    [3, 10],
+    [7, 10],
+    [9, 10], // 30%, 70%, 90%
+    [2, 5],
+    [3, 5],
+    [4, 5], // 40%, 60%, 80%
+    [3, 4], // 75%
+];
+
+const MOEILIJK_FRACS = [
+    ...GEMIDDELD_FRACS,
     [1, 20],
     [3, 20],
     [7, 20],
@@ -37,7 +45,19 @@ const HARD_FRACS = [
 ];
 
 function fracPool(difficulty) {
-    return difficulty === "moeilijk" ? HARD_FRACS : EASY_FRACS;
+    if (difficulty === "moeilijk") return MOEILIJK_FRACS;
+    if (difficulty === "gemiddeld") return GEMIDDELD_FRACS;
+    return MAKKELIJK_FRACS;
+}
+
+// Cap the largest "whole" for "procent van een getal" by difficulty. Even
+// with the simplest fractions, 90% of 90 = 81 is mental-math-heavy for an
+// 8-year-old; capping to 50 on `makkelijk` keeps the numbers in pen-and-
+// paper range, while `gemiddeld` / `moeilijk` open up to 100.
+function maxWholeForDifficulty(difficulty) {
+    if (difficulty === "moeilijk") return 100;
+    if (difficulty === "gemiddeld") return 100;
+    return 50;
 }
 
 // ---------- HTML helpers ----------
@@ -67,13 +87,21 @@ function genProcentNaarBreuk(pool, requireSimplified) {
     };
 }
 
-function genProcentVanGetal(pool) {
+// Pick a k for whole = den * k that keeps whole within [10, maxWhole] when
+// possible. If maxWhole is too tight to allow whole ≥ 10, return minK so
+// the smallest valid whole comes out (the deck builder will skip duplicate
+// keys but the result is still a valid question).
+function pickWholeMultiplier(den, maxWhole) {
+    const minK = Math.max(1, Math.ceil(10 / den));
+    const capK = Math.floor(maxWhole / den);
+    const maxK = capK < minK ? minK : capK;
+    return minK + Math.floor(Math.random() * (maxK - minK + 1));
+}
+
+function genProcentVanGetal(pool, maxWhole) {
     const [num, den] = pickRandom(pool);
     const pct = (num * 100) / den;
-    // Ensure whole is at least 10 to avoid trivially small numbers.
-    const minK = Math.max(1, Math.ceil(10 / den));
-    const maxK = Math.max(minK + 4, Math.floor(100 / den));
-    const k = minK + Math.floor(Math.random() * (maxK - minK + 1));
+    const k = pickWholeMultiplier(den, maxWhole);
     const whole = den * k;
     const answer = num * k;
     return {
@@ -82,12 +110,10 @@ function genProcentVanGetal(pool) {
     };
 }
 
-function genWatProcent(pool) {
+function genWatProcent(pool, maxWhole) {
     const [num, den] = pickRandom(pool);
     const pct = (num * 100) / den;
-    const minK = Math.max(1, Math.ceil(10 / den));
-    const maxK = Math.max(minK + 4, Math.floor(100 / den));
-    const k = minK + Math.floor(Math.random() * (maxK - minK + 1));
+    const k = pickWholeMultiplier(den, maxWhole);
     const part = num * k;
     const whole = den * k;
     return {
@@ -99,8 +125,8 @@ function genWatProcent(pool) {
 function pickQuestion(kind, pool, cfg) {
     if (kind === "breuk-naar-procent") return genBreukNaarProcent(pool);
     if (kind === "procent-naar-breuk") return genProcentNaarBreuk(pool, cfg.requireSimplified);
-    if (kind === "procent-van-getal") return genProcentVanGetal(pool);
-    if (kind === "wat-procent") return genWatProcent(pool);
+    if (kind === "procent-van-getal") return genProcentVanGetal(pool, cfg.maxWhole);
+    if (kind === "wat-procent") return genWatProcent(pool, cfg.maxWhole);
     return null;
 }
 
@@ -112,6 +138,9 @@ function buildDeck(cfg) {
     const pool = fracPool(cfg.difficulty);
     const kinds = cfg.kinds || [];
     if (kinds.length === 0 || pool.length === 0) return deck;
+    // Default maxWhole to the difficulty's cap; explicit cfg.maxWhole
+    // (from the optional "max getal" field) overrides if set.
+    const buildCfg = { ...cfg, maxWhole: cfg.maxWhole || maxWholeForDifficulty(cfg.difficulty) };
 
     const seen = new Set();
     let staleTries = 0;
@@ -124,7 +153,7 @@ function buildDeck(cfg) {
             staleTries = 0;
         }
         const kind = pickRandom(kinds);
-        const result = pickQuestion(kind, pool, cfg);
+        const result = pickQuestion(kind, pool, buildCfg);
         if (!result) continue;
         const { q, key } = result;
         if (seen.has(key)) {
@@ -225,6 +254,7 @@ const FIELDS = [
     { field: "difficulty", type: "radio", key: "difficulty", default: "makkelijk" },
     { field: "require-simplified", type: "checkbox", key: "requireSimplified" },
     { field: "num-exercises", type: "number", key: "numExercises" },
+    { field: "max-whole", type: "number", key: "maxWhole" },
     { field: "practice", type: "checkboxes", key: "kinds" },
 ];
 
@@ -268,7 +298,10 @@ runExercise({
         if (q.kind === "procent-naar-breuk") {
             const numInput = root.querySelector("#answer-num");
             const denInput = root.querySelector("#answer-den");
-            return () => ({ num: Number(numInput.value), den: Number(denInput.value) });
+            // Return the raw strings so isCorrectAnswer's parseStrictInt sees
+            // the original input — Number() here would silently swallow
+            // "0x10", "1e0", " 25", "+25" etc. before the strict check ran.
+            return () => ({ num: numInput.value, den: denInput.value });
         }
         const input = root.querySelector("#answer");
         return () => input.value;
