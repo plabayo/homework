@@ -188,13 +188,22 @@ export function pad(n) {
 
 /**
  * Read typed values out of a form.
- *   read.number(form, 'num-exercises')          → Number
- *   read.radio(form, 'granularity', 'five')     → string (fallback when nothing checked)
- *   read.checkboxes(form, 'kinds')              → string[]
- *   read.checkbox(form, 'use-24h')              → boolean
+ *   read.number(form, 'num-exercises')                  → Number
+ *   read['optional-number'](form, 'max-whole')          → Number | null (null when blank)
+ *   read.radio(form, 'granularity', 'five')             → string (fallback when nothing checked)
+ *   read.checkboxes(form, 'kinds')                      → string[]
+ *   read.checkbox(form, 'use-24h')                      → boolean
  */
 export const read = {
     number: (form, name) => Number(form.elements[name]?.value),
+    "optional-number": (form, name) => {
+        const v = form.elements[name]?.value;
+        // Empty / whitespace-only → null so callers know the user left the
+        // field blank, rather than handing them a spurious 0.
+        if (v == null || String(v).trim() === "") return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    },
     radio: (form, name, fallback = "") => form.querySelector(`input[name="${name}"]:checked`)?.value ?? fallback,
     checkboxes: (form, name) => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map((cb) => cb.value),
     checkbox: (form, name) => !!form.elements[name]?.checked,
@@ -211,6 +220,18 @@ export const read = {
 export const load = {
     number(form, name, val) {
         if (val != null) form.elements[name].value = val;
+    },
+    "optional-number"(form, name, val) {
+        // Distinguish "user left it blank" from "user typed 0". Saved 0
+        // (and null/undefined) restores as an empty field; any positive
+        // number restores literally.
+        const el = form.elements[name];
+        if (!el) return;
+        if (val == null || val === 0 || val === "") {
+            el.value = "";
+            return;
+        }
+        el.value = val;
     },
     radio(form, name, val) {
         if (val == null) return;

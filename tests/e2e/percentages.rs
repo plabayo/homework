@@ -210,6 +210,48 @@ async fn percentages_wat_procent_happy_path() -> TestResult<()> {
     Ok(())
 }
 
+// Regression: the optional "Grootste getal" / max-whole field must
+// round-trip a blank value through localStorage. The old generic
+// number-field helpers coerced an empty input to 0, persisted that 0,
+// and then wrote it back to the form on next load — so the kid saw "0"
+// instead of the placeholder "automatisch" the second time around.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn percentages_max_whole_blank_roundtrips() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Visit, leave max-whole blank, start a session — this triggers
+    // persistConfig with maxWhole = null on the cfg object.
+    setup_percentages(driver, &app, "procent-van-getal").await?;
+    wait_for_css(
+        driver,
+        "#exercise-content .pct-display",
+        Duration::from_secs(10),
+    )
+    .await?;
+
+    // Navigate away and back to force loadSavedConfig to run cold from
+    // localStorage. The refresh re-mounts the page from scratch.
+    driver.goto(app.url("/2/percentages")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    // The field must still read as blank — the saved cfg.maxWhole=null
+    // (or 0) should not be written back as the string "0".
+    let value = driver
+        .execute("return document.getElementById('max-whole').value;", vec![])
+        .await?;
+    let s: String = value.json().as_str().unwrap_or("").to_owned();
+    assert_eq!(
+        s, "",
+        "expected max-whole to round-trip as blank, got {s:?}",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 // Regression: the procent-naar-breuk getter previously called `Number()`
 // on the input values before isCorrectAnswer's `parseStrictInt` ever saw
 // them, so "0x10" would silently arrive as 16 and "1e0" as 1. The live

@@ -254,7 +254,7 @@ const FIELDS = [
     { field: "difficulty", type: "radio", key: "difficulty", default: "makkelijk" },
     { field: "require-simplified", type: "checkbox", key: "requireSimplified" },
     { field: "num-exercises", type: "number", key: "numExercises" },
-    { field: "max-whole", type: "number", key: "maxWhole" },
+    { field: "max-whole", type: "optional-number", key: "maxWhole" },
     { field: "practice", type: "checkboxes", key: "kinds" },
 ];
 
