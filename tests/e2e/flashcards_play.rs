@@ -1182,8 +1182,18 @@ async fn flashcards_stop_mid_session_shows_partial_results() -> TestResult<()> {
     driver.refresh().await?;
     select_deck_and_start(driver, "test-stop-partial").await?;
 
-    // Wait for the first question then immediately click "terug naar menu".
-    // A confirm dialog appears; accept it to stop and show partial results.
+    // Record progress on the first card (wrong answer then skip) so the stop
+    // dialog actually appears.  Without any answered questions no dialog is
+    // shown and the user is taken back to setup directly.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+
+    // On the second card — stop mid-session.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, ".exercise-meta .button-reset").await?;
     wait_for_css(
@@ -1194,8 +1204,8 @@ async fn flashcards_stop_mid_session_shows_partial_results() -> TestResult<()> {
     .await?;
     click(driver, "#stop-confirm").await?;
 
-    // No cards answered before stop → only done cards recorded → 0 / 0.
-    wait_for_text(driver, "#result h3", "0 / 0", Duration::from_secs(10)).await?;
+    // First card was skipped (wrong), second was not answered → 0 / 1.
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -1494,7 +1504,18 @@ async fn flashcards_stop_dialog_can_be_cancelled() -> TestResult<()> {
     driver.refresh().await?;
     select_deck_and_start(driver, "test-stop-cancel").await?;
 
-    // Click "terug naar menu" to trigger the stop dialog.
+    // Record progress on the first card (wrong then skip) so the stop dialog
+    // actually appears — without answered questions the button goes straight
+    // to setup with no confirmation.
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+
+    // On the second card — click "terug naar menu" to trigger the stop dialog.
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
     click(driver, ".exercise-meta .button-reset").await?;
     wait_for_css(
@@ -1504,7 +1525,7 @@ async fn flashcards_stop_dialog_can_be_cancelled() -> TestResult<()> {
     )
     .await?;
 
-    // Click "Blijf hier" to cancel — exercise must still be visible.
+    // Click "Blijf hier" to cancel — must still be on the second card.
     click(driver, "#stop-stay").await?;
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
 

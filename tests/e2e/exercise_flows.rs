@@ -150,6 +150,14 @@ async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
+    // Record progress (wrong answer then skip) so the guard activates.
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    // Skip shows the correct answer; we are still on the play page with progress recorded.
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
     click(driver, ".home-link").await?;
     wait_for_css(
         driver,
@@ -166,7 +174,7 @@ async fn exercise_home_link_warns_before_losing_progress() -> TestResult<()> {
     .await?;
 
     click(driver, "#leave-stay").await?;
-    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
 
     click(driver, ".home-link").await?;
     wait_for_css(
@@ -199,6 +207,14 @@ async fn exercise_browser_back_warns_before_losing_progress() -> TestResult<()> 
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
+    // Record progress (wrong answer then skip) so the guard and its back-button
+    // sentinel both activate before we try to navigate away.
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
     driver.back().await?;
     wait_for_css(
         driver,
@@ -207,7 +223,111 @@ async fn exercise_browser_back_warns_before_losing_progress() -> TestResult<()> 
     )
     .await?;
     click(driver, "#leave-stay").await?;
-    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn no_leave_guard_before_any_answer_home_link() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    // Click home without answering anything — no dialog should appear.
+    click(driver, ".home-link").await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    let dialogs = driver
+        .find_all(By::Css("dialog.leave-guard-dialog"))
+        .await?;
+    assert!(
+        dialogs.is_empty(),
+        "expected no leave-guard dialog when no answers have been given"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn no_leave_guard_before_any_answer_back_button() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Navigate from home so there is a real back-destination in history.
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='multiplications']").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    // Navigate back without answering anything — no sentinel was pushed, so
+    // the browser back button should work without any dialog.
+    driver.back().await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    let dialogs = driver
+        .find_all(By::Css("dialog.leave-guard-dialog"))
+        .await?;
+    assert!(
+        dialogs.is_empty(),
+        "expected no leave-guard dialog when no answers have been given"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn stop_with_no_answers_goes_to_setup_not_result() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-4", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    // Click "terug naar menu" before answering anything.  No stop-dialog should
+    // appear, and the result screen (with a nonsensical 0 / 0 score) must not
+    // be shown — we should land directly back on the setup form.
+    click(driver, "#page-exercises .button-reset").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    let result_headings = driver.find_all(By::Css("#result h3")).await?;
+    assert!(
+        result_headings.is_empty(),
+        "expected no result screen when no answers have been given"
+    );
+    let dialogs = driver
+        .find_all(By::Css("dialog.leave-guard-dialog"))
+        .await?;
+    assert!(
+        dialogs.is_empty(),
+        "expected no stop-dialog when no answers have been given"
+    );
 
     driver.clone().quit().await?;
     Ok(())

@@ -1109,6 +1109,11 @@ export function runExercise(spec) {
         if (which === "play") {
             setLeaveGuard(leaveGuardId, {
                 beforeUnloadMessage: "Je oefening is nog niet klaar.",
+                // Only activate once the student has answered at least one question —
+                // there is nothing to lose before that point.
+                isActive() {
+                    return state.questions.length > 0;
+                },
                 getDialog() {
                     return {
                         title: "Oefening stoppen?",
@@ -1272,6 +1277,9 @@ export function runExercise(spec) {
             practiceAgain: !!opts.practiceAgain,
             label: spec.describe ? spec.describe(state.currentQuestion) : null,
         });
+        // Arm the browser-back sentinel the moment the first answer is recorded
+        // so the popstate guard works for the rest of the session.
+        if (state.questions.length === 1) refreshLeaveGuards();
     }
 
     function showAdvanceButton() {
@@ -1445,6 +1453,10 @@ export function runExercise(spec) {
     function finish() {
         stopSessionTimer();
         const total = state.questions.length;
+        if (total === 0) {
+            show("setup");
+            return;
+        }
         const correct = state.questions.filter((q) => q.correct).length;
         const finishedAt = Date.now();
         const session = {
@@ -1592,7 +1604,7 @@ export function runExercise(spec) {
     document.querySelectorAll(".button-reset").forEach((btn) => {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
-            if (!play.hidden && state.currentIndex >= 0) {
+            if (!play.hidden && state.questions.length > 0) {
                 void showLeaveGuardDialog({
                     title: "Oefening stoppen?",
                     message: "De voltooide oefeningen worden opgeslagen, de rest wordt weggelaten.",
