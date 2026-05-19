@@ -170,7 +170,21 @@ function renderDigitalClockReview(q, root, mode) {
     `;
 }
 
-function makeClockFillGetter(hh, mm, q) {
+function makeClockFillGetter(hh, mm, q, feedbackEl) {
+    const showInvalidFeedback = () => {
+        if (!feedbackEl) return;
+        // Stash the assignment text on first switch into the bad state so the
+        // input-listeners can restore it when the child fixes their typing.
+        // Use a dedicated flag to avoid stomping on wrong-attempt feedback
+        // (which also uses is-bad + dataset.assignment).
+        if (feedbackEl.dataset.invalidInput !== "1") {
+            feedbackEl.dataset.assignment = feedbackEl.textContent;
+            feedbackEl.dataset.invalidInput = "1";
+        }
+        const hourRange = q.use24h ? "0–23" : "1–12";
+        feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59).`;
+        feedbackEl.classList.add("is-bad");
+    };
     return () => {
         hh.classList.remove("is-invalid");
         mm.classList.remove("is-invalid");
@@ -188,7 +202,10 @@ function makeClockFillGetter(hh, mm, q) {
             mm.classList.add("is-invalid");
             invalid = true;
         }
-        if (invalid) return null;
+        if (invalid) {
+            showInvalidFeedback();
+            return null;
+        }
         return JSON.stringify({ h: q.use24h ? rawH : rawH % 12, m: rawM });
     };
 }
@@ -283,12 +300,27 @@ runExercise({
                 sizeQuestionFlip(root);
                 const hh = root.querySelector("#answer-h");
                 const mm = root.querySelector("#answer-m");
+                const feedbackEl = document.getElementById("exercise-feedback");
+                // Only clear the validation message, not wrong-attempt feedback —
+                // the latter is its own user-visible signal and shouldn't vanish
+                // the moment the child starts retyping.
+                const clearInvalidFeedback = () => {
+                    if (!feedbackEl || feedbackEl.dataset.invalidInput !== "1") return;
+                    feedbackEl.dataset.invalidInput = "";
+                    const assignment = feedbackEl.dataset.assignment;
+                    if (assignment) feedbackEl.textContent = assignment;
+                    feedbackEl.classList.remove("is-bad");
+                };
                 hh.addEventListener("input", () => {
                     hh.classList.remove("is-invalid");
+                    clearInvalidFeedback();
                     if (hh.value.length >= 2) mm.focus();
                 });
-                mm.addEventListener("input", () => mm.classList.remove("is-invalid"));
-                return makeClockFillGetter(hh, mm, q);
+                mm.addEventListener("input", () => {
+                    mm.classList.remove("is-invalid");
+                    clearInvalidFeedback();
+                });
+                return makeClockFillGetter(hh, mm, q, feedbackEl);
             }
             const distractors = buildDistractors(q, 3);
             const options = shuffle([{ h: q.h, m: q.m }, ...distractors.slice(0, 3)]);
