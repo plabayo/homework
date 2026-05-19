@@ -42,6 +42,7 @@ const PRECACHE = [
     "/2/clock",
     "/2/digital-clock",
     "/2/fractions",
+    "/2/percentages",
 ];
 
 self.addEventListener("install", (event) => {

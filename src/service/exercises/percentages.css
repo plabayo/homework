@@ -1,0 +1,95 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+/* Fraction display: vertically stacked numerator / bar / denominator.
+   Duplicated from fractions.css — each exercise page is self-contained. */
+.fraction {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    text-align: center;
+    line-height: 1.3;
+    gap: 1px;
+}
+.fraction .frac-num,
+.fraction .frac-den {
+    padding: 0 6px;
+    min-width: 1.5em;
+}
+.fraction .frac-bar {
+    width: 100%;
+    min-width: 1.5em;
+    height: 2px;
+    background: currentColor;
+    display: block;
+}
+
+/* Fraction input: same layout but with text fields */
+.fraction-input {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    gap: 2px;
+}
+.fraction-input input {
+    width: 3em;
+    text-align: center;
+    padding: 2px 4px;
+}
+.fraction-input .frac-bar {
+    width: 100%;
+    min-width: 3em;
+    height: 2px;
+    background: currentColor;
+    display: block;
+}
+
+/* Expression row: question operands + answer input */
+.pct-expr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    font-size: 1.3em;
+    padding-block: 0.5em;
+}
+
+/* % sign next to an input or display value */
+.pct-suffix {
+    font-weight: 600;
+}
+
+/* Named value spans used in question text and read by e2e tests */
+.pct-display,
+.pct-whole,
+.pct-part {
+    font-weight: 600;
+}
+
+/* Hint shown below the input when simplified form is required */
+.pct-hint {
+    text-align: center;
+    font-size: 0.88em;
+    color: var(--muted);
+    margin-top: 0.2em;
+}
+
+/* Review-only: quiet arrow between expression stages */
+.pct-step-arrow {
+    color: var(--muted);
+    font-size: 0.9em;
+}
+
+/* ---------- micro-animations ---------- */
+@media (prefers-reduced-motion: no-preference) {
+    /* Review step elements fade in after the base expression renders,
+       guiding the eye through the worked solution left-to-right. */
+    .pct-step,
+    .pct-step-arrow {
+        animation: pop-in 220ms ease-out 180ms both;
+    }
+}

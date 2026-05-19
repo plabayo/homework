@@ -10,6 +10,7 @@ pub mod flashcards;
 pub mod fractions;
 pub mod mathbox;
 pub mod multiplications;
+pub mod percentages;
 pub mod thermometer;
 
 #[derive(Debug, Clone, Copy)]
@@ -71,6 +72,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
         level: 2,
     },
     fractions::INFO,
+    percentages::INFO,
     flashcards::INFO,
 ];
 

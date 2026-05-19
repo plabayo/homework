@@ -1,0 +1,127 @@
+// Copyright (C) 2024-2026 Plabayo
+// See LICENSE in the repository root for details.
+// Source-available; non-commercial use only.
+
+use rama::http::Request;
+use rama::http::html::{IntoHtml, div, fieldset, input, label, legend};
+use rama::http::service::web::response::IntoResponse;
+
+use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
+use crate::service::language_banner::lang_banner;
+use crate::service::layout::{PageMeta, page, page_header};
+
+pub const INFO: ExerciseInfo = ExerciseInfo {
+    id: "percentages",
+    path: "/2/percentages",
+    label: "procenten",
+    icon: "💯",
+    code_label: "💯",
+    level: 2,
+};
+
+const STYLE: &str = include_str!("percentages.css");
+const SCRIPT: &str = include_str!("percentages.js");
+
+pub async fn handler(req: Request) -> impl IntoResponse {
+    let banner = lang_banner(req.headers());
+    let body = (
+        page_header("procenten 💯"),
+        exercise_scaffold(
+            INFO,
+            "Oefen met procenten: breuk naar procent, procent naar breuk, procent van een getal, en hoeveel procent.",
+            config_fields(),
+            (),
+        ),
+    );
+
+    page(
+        PageMeta {
+            title: "procenten — Oefeningen Basisschool",
+            description: "Oefen met procenten: breuk naar procent, procent naar breuk, procent van een getal, en hoeveel procent.",
+            og_path: "/2/percentages".into(),
+            favicon_emoji: "💯",
+        },
+        STYLE,
+        body,
+        SCRIPT,
+        banner,
+    )
+}
+
+fn difficulty_radio(value: &'static str, text: &'static str, default_on: bool) -> impl IntoHtml {
+    let checked: Option<&'static str> = if default_on { Some("") } else { None };
+    label!(
+        input!(
+            r#type = "radio",
+            name = "difficulty",
+            value = value,
+            checked? = checked,
+        ),
+        " ",
+        text,
+    )
+}
+
+fn kind_checkbox(value: &'static str, text: &'static str, default_on: bool) -> impl IntoHtml {
+    let checked: Option<&'static str> = if default_on { Some("") } else { None };
+    label!(
+        input!(
+            r#type = "checkbox",
+            name = "practice",
+            value = value,
+            checked? = checked,
+        ),
+        " ",
+        text,
+    )
+}
+
+fn config_fields() -> impl IntoHtml {
+    (
+        fieldset!(
+            legend!("Moeilijkheidsgraad"),
+            div!(
+                class = "kinds",
+                difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%…)", true),
+                difficulty_radio("moeilijk", "moeilijk (ook 5%, 15%, 35%…)", false),
+            ),
+        ),
+        div!(
+            class = "field",
+            label!(r#for = "num-exercises", "Hoeveel oefeningen?"),
+            input!(
+                inputmode = "numeric",
+                pattern = "[0-9]+",
+                id = "num-exercises",
+                name = "num-exercises",
+                min = "1",
+                max = "200",
+                value = "10",
+                required? = true,
+            ),
+        ),
+        fieldset!(
+            legend!("Wat wil je oefenen?"),
+            div!(
+                class = "kinds",
+                kind_checkbox("breuk-naar-procent", "breuk → procent 📊", true),
+                kind_checkbox("procent-naar-breuk", "procent → breuk 🔣", true),
+                kind_checkbox("procent-van-getal", "procent van een getal 🔢", true),
+                kind_checkbox("wat-procent", "hoeveel procent? ❓", false),
+            ),
+        ),
+        fieldset!(
+            id = "simplified-section",
+            legend!("Extra opties"),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    id = "require-simplified",
+                    name = "require-simplified",
+                ),
+                " geef breuk altijd in vereenvoudigde vorm",
+            ),
+        ),
+        time_mode_fieldset(),
+    )
+}
