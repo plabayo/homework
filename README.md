@@ -48,36 +48,6 @@ is a real didactic need, not because the framework can support them.
 
 ---
 
-## Exercises today
-
-**Niveau 1️⃣**
-
-- **rekendoos** — som / verschil / splitsen / vermenigvuldigen / delen
-- **maaltafels** — pick which tables (1–10), drill them
-- **thermometer** — read the temperature or colour the bar in;
-  optional negative range with a blue liquid below 0 °C
-
-**Niveau 2️⃣**
-
-- **analoge klok** — read the clock or set the hands; supports
-  multiple-choice or free-input answers, and a special _"set the clock
-  from a Dutch phrase"_ mode (`kwart voor vier`)
-- **digitale klok** — translate between digital times and Dutch time
-  expressions (`half drie`, `kwart over vijf`, …); multiple-choice in
-  one direction, fill-in on a big LED clock face in the other
-
-**Extra ✨**
-
-- **flitskaarten** — make your own one-sided or two-sided decks, with
-  optional bidirectional practice, hints, multi-part answers, and
-  share/import links
-
-Per-exercise, parents can review past sessions, see which questions
-were skipped or needed multiple attempts, and click _"oefen recente
-fouten"_ to drill exactly those again.
-
----
-
 ## Project layout
 
 The code lives under `src/service/`: a small Rama router with a shared
