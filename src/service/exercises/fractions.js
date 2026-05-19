@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, pickRandom, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
 
 function gcd(a, b) {
     let x = Math.abs(a);
@@ -289,14 +289,16 @@ runExercise({
         }
         const numInput = root.querySelector("#answer-num");
         const denInput = root.querySelector("#answer-den");
-        return () => ({ num: Number(numInput.value), den: Number(denInput.value) });
+        return () => ({ num: numInput.value, den: denInput.value });
     },
     isCorrect(q, given) {
         if (q.kind === "breuk-van-getal") {
-            return Number(given) === q.answer;
+            const n = parseStrictInt(given);
+            return n !== null && n === q.answer;
         }
-        const { num: gNum, den: gDen } = given;
-        if (!gDen || gDen <= 0) return false;
+        const gNum = parseStrictInt(given?.num);
+        const gDen = parseStrictInt(given?.den);
+        if (gNum === null || gDen === null || gDen <= 0) return false;
         // Accept any equivalent fraction via cross-multiplication.
         return gNum * q.answer.den === q.answer.num * gDen;
     },

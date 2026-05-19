@@ -80,66 +80,33 @@ fouten"_ to drill exactly those again.
 
 ## Project layout
 
-```
-src/
-  main.rs                      — CLI + HTTP/HTTPS bootstrap (Rama)
-  service/
-    mod.rs                     — router, middleware
-    layout.rs                  — page() shell helper (head, body chrome)
-    assets.rs                  — embeds + serves theme.css, homework.js, sw.js, manifest, favicon
-    assets/
-      theme.css                — global design tokens, layout, components
-      homework.js              — runExercise framework, IndexedDB, service-worker reg, offline UI
-      service-worker.js        — offline-first caching strategy
-      manifest.webmanifest     — PWA manifest
-      favicon.svg
-    pages/
-      home.rs                  — exercise catalogue grouped by Niveau
-      offline.rs               — fallback page when offline + uncached
-    exercises/
-      mod.rs                   — ExerciseInfo registry, exercise_scaffold(), niveau_label()
-      multiplications.rs/.css/.js
-      mathbox.rs/.css/.js
-      thermometer.rs/.css/.js
-      clock.rs/.css/.js
-      digital_clock.rs/.css/.js
-      flashcards.rs/.css/.js
-```
-
-Every exercise file is small (~100 LOC of Rust for handler + form,
-plus a `.css` and a `.js` sibling that drive the play loop). The shared
-runner in `homework.js` handles configure → play → review → finish, the
-mistake-history database, and the offline service worker.
+The code lives under `src/service/`: a small Rama router with a shared
+page layout, a per-page chrome (`assets/theme.css`, `assets/homework.js`,
+`assets/service-worker.js`), and one folder per exercise. Exercise files
+come in trios — a Rust handler (route + setup form), a CSS sibling, and a
+JS sibling — and the shared `homework.js` framework drives the
+configure → play → review → finish loop, IndexedDB history, mistake
+mode, and offline support.
 
 ---
 
 ## How an exercise is built
 
-1. **Define a Rust handler** (`src/service/exercises/foo.rs`):
-   - one `ExerciseInfo` const (id, path, label, icon, level)
-   - one `pub async fn handler() -> impl IntoResponse` that calls
-     `page(meta, STYLE, body, SCRIPT)`
-   - a `config_fields()` returning `impl IntoHtml` with the form fields
-     specific to this exercise
+Each exercise is a small trio:
 
-2. **Write its CSS** (`foo.css`) — minimal, scoped to the exercise.
+1. A **Rust handler** that registers an `ExerciseInfo`, builds the setup
+   form, and serves the page.
+2. A **CSS file** scoped to the exercise.
+3. A **JS file** that calls `runExercise({...})` from the shared client
+   framework — providing the deck builder, the per-question renderer,
+   and the answer checker. The framework handles configure / play /
+   review / result, persistence, history, mistake-mode, and the offline
+   indicator.
 
-3. **Write its JS** (`foo.js`) — calls `runExercise({ id, label,
-   buildDeck, renderQuestion, isCorrect, ... })` from `/homework.js`.
-   The framework handles everything else: form submit, persistence,
-   history, mistake-mode, result page, offline indicator.
-
-4. **Register the route** in `src/service/mod.rs` and add an entry to
-   `all_exercises()` in `src/service/exercises/mod.rs`.
-
-The Rust file then includes its sibling files via `include_str!`, which
-keeps the binary self-contained while letting your editor give you
-proper CSS/JS syntax highlighting and tooling:
-
-```rust
-const STYLE: &str = include_str!("foo.css");
-const SCRIPT: &str = include_str!("foo.js");
-```
+The Rust file embeds its sibling `.css` and `.js` via `include_str!`, so
+the binary stays self-contained while your editor gives you proper
+syntax highlighting per file. See `CONTRIBUTING.md` for the full
+checklist of files to touch when adding a new exercise.
 
 ---
 
@@ -157,36 +124,27 @@ just run
 # auto-reload on file changes (requires `cargo install cargo-watch`)
 just watch-run
 
-# run the fast local QA path: fmt, sort, check, clippy, doc, test
+# quick local QA — formatting, sorting, lint, doc, unit tests
 just qa
 
-# run the full local QA path, including ignored browser smoke tests
+# full local QA including the browser smoke tests
 just qa-full
 
-# run only the ignored browser smoke suite (requires Chrome/Chromium)
+# only the browser smoke tests (Chrome/Chromium required)
 just test-e2e
 ```
 
-The browser smoke tests use `thirtyfour`'s managed driver mode. With Chrome or
-Chromium installed, the crate auto-downloads a compatible driver on demand.
-If the browser is not in the default location for your OS, set
-`CHROME_BIN=/path/to/chrome`. `CHROMEDRIVER=/path/to/chromedriver` remains
-supported as an override for offline or pinned-driver environments.
+The browser smoke tests auto-download a compatible WebDriver when Chrome
+or Chromium is installed; set `CHROME_BIN` (or `CHROMEDRIVER`) if you
+need to point at a non-default install.
 
-The dev server has no HTTPS by default. To run with TLS locally pass
-`--https <addr>` (it expects a `CertIssuer` configured via env
-variables — see `src/main.rs`).
+The dev server runs plain HTTP by default. Pass `--https <addr>` (with
+the cert-issuer env vars wired up) to enable TLS locally.
 
 ### Other useful tasks
 
-```bash
-just lint            # fmt + cargo-sort
-just clippy          # cargo clippy --all-targets --all-features
-just doc             # cargo doc
-just docker          # build + run the production Dockerfile
-just deploy          # fly.io deploy (production)
-just update-deps     # cargo upgrades + cargo update
-```
+Run `just --list` to see everything (lint, clippy, doc, docker build,
+deploy, dependency updates, …).
 
 ### Adding or editing an exercise
 
@@ -205,21 +163,25 @@ browser tab (Shift+Reload) to bypass the service worker cache.
 
 ## Architecture notes
 
-- **Server**: [Rama](https://ramaproxy.org). One `Router`, a few
-  middleware layers (CORS, HSTS, tracing, header normalization).
-  Pages are built with Rama's type-safe `html!` macro.
-- **Static assets**: `Css(&'static str)` and `Script(&'static str)`
-  response wrappers from Rama auto-set the right `Content-Type`.
-- **Client**: vanilla ES modules. No bundler, no framework. The shared
-  client framework is a single `homework.js` file (≈ 1,350 lines).
-- **Storage**: `localStorage` for the per-exercise config, `IndexedDB`
-  (object store `sessions`, indexed by `exerciseId`) for the practice
-  history. Nothing leaves the device.
+- **Server**: [Rama](https://ramaproxy.org). One router, a small set of
+  middleware (HSTS, CSP, tracing, header normalisation, request-body
+  size limit). Same-origin only — no permissive CORS. Pages are built
+  with Rama's type-safe HTML macros.
+- **Client**: vanilla ES modules. No bundler, no framework, no
+  client-side runtime. A single shared `homework.js` drives the
+  configure / play / review / result loop.
+- **Browser baseline**: roughly Chrome / Edge / Safari / Firefox /
+  iOS Safari from 2024-onwards. Uses modern CSS (`light-dark()`,
+  `color-mix()`), `<dialog>`, and IndexedDB without polyfills. Older
+  browsers degrade gracefully (e.g. the leave-guard prompt falls back
+  to `window.confirm`).
+- **Storage**: `localStorage` for per-exercise config; `IndexedDB` for
+  the practice history. Nothing leaves the device.
 - **Offline**: a service worker precaches the app shell on install,
-  serves static assets stale-while-revalidate, and serves HTML with
-  network-first + 2.5 s timeout, falling back to the last cached copy
-  and ultimately to `/offline`. Build-versioned asset URLs ensure a new
-  deployment pulls fresh JS/CSS when online while keeping old builds
+  serves static assets stale-while-revalidate, and serves HTML
+  network-first with a short timeout — falling back to the last cached
+  copy and ultimately to `/offline`. Build-versioned asset URLs ensure a
+  new deployment pulls fresh JS/CSS when online while keeping old builds
   available offline.
 - **Accessibility / theming**: design tokens in `theme.css`, dark mode
   via `prefers-color-scheme`, contrast verified ≥ AA in both schemes.

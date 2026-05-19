@@ -58,8 +58,12 @@ const ctx = createContext({
         querySelectorAll: () => [],
         body: { appendChild: () => {} },
         createElement: () => null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
     },
-    window: null,
+    // Stubbed window with no-op event-listener: flashcards.js registers a
+    // `pagehide` handler at module init for blob-URL cleanup.
+    window: { addEventListener: () => {}, removeEventListener: () => {} },
     localStorage: null,
     indexedDB: null,
     MutationObserver: class {

@@ -8,8 +8,8 @@
     display: flex;
     gap: 0.75rem;
     font-size: 0.8rem;
-    margin-bottom: 0.15rem;
-    padding-left: 0.1rem;
+    margin-block-end: 0.15rem;
+    padding-inline-start: 0.1rem;
 }
 
 .fc-type-label {
@@ -67,8 +67,8 @@
 }
 
 .card-image-search {
-    font-size: 0.85rem !important;
-    padding: 0.3rem 0.5rem !important;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.5rem;
 }
 
 .card-image-results {
@@ -170,19 +170,19 @@
 #page-setup[data-editing] #form-setup > .button-row,
 #page-setup[data-editing] #config-error,
 #page-setup[data-editing] #history {
-    display: none !important;
+    display: none;
 }
 
 /* ---- Deck manager (setup/config phase) ---- */
 
 #deck-manager {
-    margin-bottom: 1rem;
+    margin-block-end: 1rem;
 }
 
 .deck-list-header {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: 0.75rem;
+    margin-block-end: 0.75rem;
 }
 
 .fc-btn-new {
@@ -275,7 +275,7 @@
 .deck-actions {
     display: flex;
     gap: 0.1rem;
-    padding-right: 0.4rem;
+    padding-inline-end: 0.4rem;
     flex-shrink: 0;
 }
 
@@ -283,7 +283,14 @@
     background: none;
     border: none;
     cursor: pointer;
+    /* WCAG 2.5.5 — minimum tap target 44×44. Visual padding stays compact;
+       the min-inline/block-size reserves the hit area. */
     padding: 0.35rem 0.4rem;
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 6px;
     font-size: 1rem;
     line-height: 1;
@@ -331,17 +338,19 @@
     gap: 0.5rem;
 }
 
+/* Mobile-first: single column on phones, two columns on larger screens.
+   The wide-back override still wins because it's a more specific class. */
 .card-fields {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.5rem;
     min-width: 0;
 }
 
-@media (max-width: 500px) {
+@media (min-width: 501px) {
     .card-fields {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
     }
 }
 
@@ -357,7 +366,7 @@
     border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
     border-radius: 8px;
     padding: 0.6rem 0.9rem;
-    margin-bottom: 0.25rem;
+    margin-block-end: 0.25rem;
 }
 
 .fc-deck-type-fieldset legend {
@@ -407,15 +416,15 @@
 }
 
 .editor-actions {
-    margin-top: 0.25rem;
+    margin-block-start: 0.25rem;
 }
 
 /* Bidirectional sub-option inside deck-type fieldset */
 
 .fc-bidir-option {
-    margin-top: 0.35rem;
-    padding-left: 1.4rem;
-    border-left: 2px solid color-mix(in srgb, currentColor 15%, transparent);
+    margin-block-start: 0.35rem;
+    padding-inline-start: 1.4rem;
+    border-inline-start: 2px solid color-mix(in srgb, currentColor 15%, transparent);
 }
 
 .fc-bidir-option.hidden {
@@ -425,7 +434,7 @@
 /* Card hint rows in editor */
 
 .card-hints {
-    padding-left: 0.5rem;
+    padding-inline-start: 0.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
@@ -455,8 +464,8 @@
 .card-hint-input {
     flex: 1;
     min-width: 7rem;
-    font-size: 0.85rem !important;
-    padding: 0.2rem 0.4rem !important;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
 }
 
 /* Import confirmation */
@@ -537,14 +546,14 @@
     overflow: hidden;
     white-space: nowrap;
     font-style: italic;
-    padding-left: 0;
-    padding-right: 0;
+    padding-inline-start: 0;
+    padding-inline-end: 0;
 }
 .fc-hint-chip.open .fc-hint-body {
     max-width: 28ch;
     opacity: 0.82;
-    padding-left: 0.25em;
-    padding-right: 1em;
+    padding-inline-start: 0.25em;
+    padding-inline-end: 1em;
 }
 .fc-hint-chip.open .fc-hint-q {
     opacity: 0.75;
@@ -569,11 +578,6 @@
     flex-direction: column;
     align-items: center;
     gap: 0.75rem;
-}
-
-.fc-mp-progress {
-    font-size: 0.88rem;
-    opacity: 0.7;
 }
 
 /* ---- Review / rehearsal mode ---- */
@@ -736,7 +740,7 @@
 
 .fc-review-parts-note {
     display: block;
-    margin-top: 0.2rem;
+    margin-block-start: 0.2rem;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -765,20 +769,53 @@
     opacity: 0.65;
 }
 
+/* Mobile-first: keep prev/counter/next on one tight row on small phones,
+   relax onto wider, comfier buttons as the viewport grows. */
 .fc-review-controls {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
     width: 100%;
 }
 
 .fc-review-controls .default-button {
-    min-width: 7.25rem;
+    min-width: 0;
+    flex: 1 1 0;
     min-height: 38px;
-    padding: 0.55rem 0.8rem;
-    font-size: 0.92rem;
+    padding-block: 0.45rem;
+    padding-inline: 0.6rem;
+    font-size: 0.82rem;
+}
+
+.fc-review-counter {
+    white-space: nowrap;
+}
+
+/* Medium viewports — looser layout with auto-wrap and larger buttons. */
+@media (min-width: 461px) {
+    .fc-review-controls {
+        flex-wrap: wrap;
+        gap: 0.55rem;
+    }
+    .fc-review-controls .default-button {
+        flex: 1 1 10rem;
+        padding-block: 0.55rem;
+        padding-inline: 0.8rem;
+        font-size: 0.92rem;
+    }
+}
+
+/* Comfortable layout — wide screens get the full button minimum-width. */
+@media (min-width: 641px) {
+    .fc-review-controls {
+        gap: 0.6rem;
+    }
+    .fc-review-controls .default-button {
+        min-width: 7.25rem;
+        flex: 0 1 auto;
+    }
 }
 
 .fc-review-counter {
@@ -787,11 +824,6 @@
     color: var(--muted);
     min-width: 4.5rem;
     text-align: center;
-}
-
-.fc-mp-progress {
-    font-size: 0.88rem;
-    opacity: 0.7;
 }
 
 /* Override theme.css #exercise-content input (width:4em, max-width:6em) */
@@ -951,9 +983,9 @@
 /* ---- Mode options (one-sided deck selected) ---- */
 
 .fc-mode-options {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    margin-block-start: 1rem;
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid color-mix(in srgb, currentColor 15%, transparent);
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
@@ -996,7 +1028,7 @@
 }
 
 .card-parts-required {
-    margin-top: 0.2rem;
+    margin-block-start: 0.2rem;
 }
 
 .fc-parts-min-label {
@@ -1074,41 +1106,24 @@
    The highlight itself only exists when the user accepts motion; the
    `.deck-item-new` class is harmless if no animation runs. */
 
-@media (max-width: 640px) {
-    .fc-review-controls {
-        gap: 0.55rem;
-    }
+/* Note: the responsive layout for .fc-review-controls is defined alongside
+   the base rule above (mobile-first, with min-width breakpoints at 461 and
+   641). The hint-text shrink for review on phones lives below. */
 
-    .fc-review-controls .default-button {
-        min-width: 0;
-        flex: 1 1 10rem;
-    }
+/* Review hint text shrinks below 461 px to save the second line for
+   prev/counter/next. The rule is structured mobile-first: phones get the
+   compact line, larger viewports inherit the default `#exercise-feedback`
+   font-size from theme.css. */
+#exercise:has(.fc-review-viewer) #exercise-feedback {
+    font-size: 0.78rem;
+    min-height: unset;
+    margin-block-end: 2px;
 }
-
-@media (max-width: 460px) {
-    /* Shrink hint text when review is active */
+@media (min-width: 461px) {
     #exercise:has(.fc-review-viewer) #exercise-feedback {
-        font-size: 0.78rem;
+        font-size: unset;
         min-height: unset;
-        margin-block-end: 2px;
-    }
-
-    /* Keep prev/counter/next on one compact row */
-    .fc-review-controls {
-        flex-wrap: nowrap;
-        gap: 0.35rem;
-    }
-
-    .fc-review-controls .default-button {
-        font-size: 0.82rem;
-        padding-block: 0.45rem;
-        padding-inline: 0.6rem;
-        flex: 1 1 0;
-        min-width: 0;
-    }
-
-    .fc-review-counter {
-        white-space: nowrap;
+        margin-block-end: unset;
     }
 }
 
@@ -1195,8 +1210,8 @@
         transition:
             max-width 0.35s ease,
             opacity 0.3s ease,
-            padding-left 0.3s ease,
-            padding-right 0.35s ease;
+            padding-inline-start 0.3s ease,
+            padding-inline-end 0.35s ease;
     }
 
     /* Review viewer — card pickup, flip, entrance, resize fade */

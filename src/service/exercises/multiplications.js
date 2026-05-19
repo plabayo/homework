@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { load, read, runExercise, shuffle } from "@homework";
+import { load, parseStrictInt, read, runExercise, shuffle } from "@homework";
 
 function getSelectedTables(form) {
     const list = [];
@@ -106,7 +106,8 @@ runExercise({
         return () => input.value;
     },
     isCorrect(q, given) {
-        return Number(given) === q.answer;
+        const n = parseStrictInt(given);
+        return n !== null && n === q.answer;
     },
     describe(q) {
         return `${q.a} × ${q.b} = ${q.answer}`;

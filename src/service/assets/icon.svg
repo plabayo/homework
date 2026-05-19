@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <!-- Maskable icon: keep important content inside the safe-zone (centre
+         80% radius). The pad of 41px (~8%) on each side reserves room for
+         Android adaptive-icon cropping. -->
+    <rect width="512" height="512" rx="96" ry="96" fill="#2d6cdf"/>
+    <!-- Stylised letter "h" centred at 256,256. The glyph is built from
+         two rounded strokes so it looks the same in light and dark themes
+         (icon doesn't need to follow the system scheme). -->
+    <g fill="#ffffff" stroke="#ffffff" stroke-width="0">
+        <rect x="160" y="120" width="56" height="272" rx="14" ry="14"/>
+        <path d="M 216 240
+                 q 0 -48 56 -48
+                 l 24 0
+                 q 56 0 56 48
+                 l 0 152
+                 l -56 0
+                 l 0 -132
+                 q 0 -16 -20 -16
+                 l -8 0
+                 q -20 0 -20 16
+                 l 0 132
+                 l -32 0
+                 z"
+        />
+    </g>
+</svg>

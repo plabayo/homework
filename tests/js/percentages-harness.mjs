@@ -33,6 +33,16 @@ const ctx = createContext({
     isNaN,
     // pickRandom is imported from @homework in the real file; provide a real impl.
     pickRandom: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    // Real impl of parseStrictInt mirroring homework.js — keeping these in
+    // sync is the price of running pure-function tests in isolation.
+    parseStrictInt: (value, opts = {}) => {
+        if (value === null || value === undefined) return null;
+        const s = typeof value === "string" ? value : String(value);
+        const re = opts.allowNegative ? /^-?\d+$/ : /^\d+$/;
+        if (!re.test(s)) return null;
+        const n = Number(s);
+        return Number.isInteger(n) ? n : null;
+    },
     // Stubs for the remaining @homework imports — never called by pure functions.
     loadFields: () => {},
     readFields: () => ({}),

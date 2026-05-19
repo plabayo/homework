@@ -56,7 +56,9 @@
     --tick-minor: color-mix(in srgb, var(--fg) 30%, transparent);
     --tick-major: color-mix(in srgb, var(--fg) 70%, transparent);
     --num-color: color-mix(in srgb, var(--fg) 80%, transparent);
-    --liquid-color: #3b82f6;
+    /* Slightly lighter blue in dark mode so the liquid stays vibrant
+       against the dark page background without losing the "mercury" feel. */
+    --liquid-color: light-dark(#3b82f6, #5ea2ff);
     /* Width gated by viewport width AND height (the thermo is 2.4× as
        tall as it is wide, so on a short viewport the height term wins
        and shrinks the whole element). */

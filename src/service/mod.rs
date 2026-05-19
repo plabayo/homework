@@ -14,7 +14,7 @@ use rama::{
             exotic::XClacksOverhead,
         },
         layer::{
-            cors, map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
+            map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
             trace::TraceLayer,
         },
@@ -43,7 +43,11 @@ fn apply_common_middleware(
                 HeaderValue::from_static("fly.io"),
             ),
             SetResponseHeaderLayer::if_not_present_typed(XContentTypeOptions::nosniff()),
-            cors::CorsLayer::permissive(),
+            // No CorsLayer: this app is intentionally same-origin only. The
+            // PWA manifest, icons, JS, and HTML are all loaded from this
+            // origin; opening it up with `Access-Control-Allow-Origin: *`
+            // would let arbitrary third-party origins embed and read our
+            // assets in ways the privacy story doesn't promise.
         )
             .into_layer(service),
     )
@@ -76,6 +80,10 @@ pub async fn load_https_app_service()
         .with_get("/service-worker.js", assets::service_worker_js)
         .with_get("/manifest.webmanifest", assets::manifest)
         .with_get("/favicon.svg", assets::favicon_svg)
+        .with_get("/icon.svg", assets::icon_svg)
+        .with_get("/apple-touch-icon.png", assets::apple_touch_icon_png)
+        .with_get("/icon-192.png", assets::icon_192_png)
+        .with_get("/icon-512.png", assets::icon_512_png)
         .with_get("/1/mathbox", exercises::mathbox::handler)
         .with_get("/1/multiplications", exercises::multiplications::handler)
         .with_get("/1/thermometer", exercises::thermometer::handler)

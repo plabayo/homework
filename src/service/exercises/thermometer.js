@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, pickRandom, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -101,8 +101,9 @@ function attachInteractive(root, q) {
         if (inc) inc.disabled = current >= q.vmax;
     };
 
+    // The .interactive class drives cursor: pointer in thermometer.css —
+    // no need to also set it inline.
     container.classList.add("interactive");
-    container.style.cursor = "pointer";
     container.addEventListener("click", (e) => {
         const svg = container.querySelector("svg");
         if (!svg) return;
@@ -258,9 +259,9 @@ runExercise({
         }
     },
     isCorrect(q, given) {
-        const n = Number(given);
-        if (Number.isNaN(n)) return false;
-        return n === q.value;
+        // allowNegative because the thermometer supports sub-zero temps.
+        const n = parseStrictInt(given, { allowNegative: true });
+        return n !== null && n === q.value;
     },
     describe(q) {
         return q.kind === "teken" ? `kleur tot ${q.value}℃` : `lees ${q.value}℃`;

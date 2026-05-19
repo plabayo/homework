@@ -24,6 +24,9 @@ const STORE = "sessions";
 // ---------- IndexedDB helpers ----------
 
 // Single shared connection — opened once and reused for all operations.
+// Reset on versionchange (another tab opened a higher-version DB) and on
+// close (browser GC, quota eviction) so the next call opens a fresh handle
+// instead of crashing every subsequent transaction with InvalidStateError.
 let _dbPromise = null;
 function openDb() {
     if (!("indexedDB" in window)) return Promise.reject(new Error("indexedDB not supported"));
@@ -38,7 +41,27 @@ function openDb() {
                     store.createIndex("by_finishedAt", "finishedAt");
                 }
             };
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = () => {
+                const db = req.result;
+                // Another tab is upgrading the schema. Close so it can proceed
+                // and force the next withStore() call to re-open with the new
+                // version.
+                db.onversionchange = () => {
+                    db.close();
+                    _dbPromise = null;
+                };
+                // UA closed the connection (quota eviction, etc.). Same drill.
+                db.onclose = () => {
+                    _dbPromise = null;
+                };
+                resolve(db);
+            };
+            req.onblocked = () => {
+                // We're holding the old version open while another tab is
+                // trying to upgrade. Clear the cached promise so a retry from
+                // the caller opens a fresh handle.
+                _dbPromise = null;
+            };
             req.onerror = () => {
                 _dbPromise = null; // allow retry on transient failure
                 reject(req.error);
@@ -56,16 +79,40 @@ async function withStore(mode, fn) {
         return null;
     }
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, mode);
+        let tx;
+        try {
+            tx = db.transaction(STORE, mode);
+        } catch (e) {
+            // db.transaction throws InvalidStateError if the connection is
+            // closed (versionchange, quota eviction, …). Null the cached
+            // promise so the next call re-opens.
+            _dbPromise = null;
+            reject(e);
+            return;
+        }
         const store = tx.objectStore(STORE);
         let result;
-        Promise.resolve(fn(store))
+        let fnError = null;
+        // Race the work against transaction completion explicitly. If fn
+        // rejects, abort the tx and surface the error — the previous version
+        // let tx.oncomplete win and silently dropped cursor errors.
+        Promise.resolve()
+            .then(() => fn(store))
             .then((r) => {
                 result = r;
             })
-            .catch(reject);
-        tx.oncomplete = () => resolve(result);
-        tx.onerror = () => reject(tx.error);
+            .catch((err) => {
+                fnError = err;
+                try {
+                    tx.abort();
+                } catch {}
+            });
+        tx.oncomplete = () => {
+            if (fnError) reject(fnError);
+            else resolve(result);
+        };
+        tx.onerror = () => reject(fnError || tx.error);
+        tx.onabort = () => reject(fnError || tx.error || new Error("transaction aborted"));
     });
 }
 
@@ -258,12 +305,39 @@ export function shuffle(arr) {
 }
 
 export function escapeHtml(s) {
-    return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    return (
+        String(s)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            // Escape apostrophe too — current callers all use double-quoted
+            // attributes, so a single quote in interpolated content isn't an
+            // XSS vector today, but a future single-quoted attribute would be.
+            .replaceAll("'", "&#39;")
+    );
 }
 
 /** Pick a random element from a non-empty array. */
 export function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Strict non-negative integer parser. Returns `null` for anything other
+ * than a plain decimal string of digits (and an optional leading "-" when
+ * `allowNegative` is true). Rejects "1e2", " 5", "0x10", "5.", "", null,
+ * NaN, objects, etc. — these would all sneak past a bare `Number(...)`
+ * comparison and let the user "win" an exercise without actually typing
+ * the expected answer.
+ */
+export function parseStrictInt(value, { allowNegative = false } = {}) {
+    if (value === null || value === undefined) return null;
+    const s = typeof value === "string" ? value : String(value);
+    const re = allowNegative ? /^-?\d+$/ : /^\d+$/;
+    if (!re.test(s)) return null;
+    const n = Number(s);
+    return Number.isInteger(n) ? n : null;
 }
 
 /** Normalise a Dutch phrase for fuzzy comparison (strip diacritics, collapse whitespace). */
@@ -613,12 +687,20 @@ function leaveAnimated(el, done, fallbackMs = 220) {
     setTimeout(finish, fallbackMs);
 }
 
+let _dialogTitleSeq = 0;
 function showLeaveGuardDialog(spec) {
     if (leaveGuardDialogOpen) return Promise.resolve("stay");
     leaveGuardDialogOpen = true;
+    // Remember focus so we can restore it when the dialog closes — without
+    // this, focus falls back to <body> and keyboard users lose their place.
+    const prevFocus = document.activeElement;
     return new Promise((resolve) => {
         const dlg = document.createElement("dialog");
         dlg.className = "leave-guard-dialog";
+        const titleId = `leave-guard-title-${++_dialogTitleSeq}`;
+        // Wire ARIA: aria-modal is implicit on dialog.showModal() but we set
+        // aria-labelledby explicitly so SRs announce the heading on open.
+        dlg.setAttribute("aria-labelledby", titleId);
         const buttons = (spec.buttons || [])
             .map(
                 (btn) => `
@@ -634,7 +716,7 @@ function showLeaveGuardDialog(spec) {
             .join("");
         dlg.innerHTML = `
             <form method="dialog" class="leave-guard-form">
-                <h2>${escapeHtml(spec.title || "Pagina verlaten?")}</h2>
+                <h2 id="${titleId}">${escapeHtml(spec.title || "Pagina verlaten?")}</h2>
                 <p class="muted">${escapeHtml(spec.message || "")}</p>
                 <div class="button-row">${buttons}</div>
             </form>
@@ -648,6 +730,14 @@ function showLeaveGuardDialog(spec) {
             // node around briefly causes id-collisions with the next
             // dialog (`getElementById` picks the stale one first).
             dlg.remove();
+            // Restore focus to whatever was active before we opened the
+            // dialog (typically the button that triggered it). If it's gone
+            // from the DOM, skip silently.
+            if (prevFocus && typeof prevFocus.focus === "function" && prevFocus.isConnected) {
+                try {
+                    prevFocus.focus({ preventScroll: true });
+                } catch {}
+            }
             resolve(choice || "stay");
         };
         dlg.addEventListener("close", () => close(dlg.returnValue));
@@ -657,8 +747,23 @@ function showLeaveGuardDialog(spec) {
         dlg.addEventListener("click", (e) => {
             if (e.target === dlg) dlg.close("stay");
         });
-        if (typeof dlg.showModal === "function") dlg.showModal();
-        else close("stay");
+        if (typeof dlg.showModal === "function") {
+            dlg.showModal();
+            return;
+        }
+        // Older browsers (iOS < 15.4) don't support <dialog>. Rather than
+        // silently swallowing the prompt, fall back to a native confirm() —
+        // ugly but functional. The "leave" choice is the most destructive
+        // option in current call sites; treat OK as that.
+        dlg.remove();
+        const leaveBtn = (spec.buttons || []).find((b) => b.value && b.value !== "stay");
+        const stayBtn = (spec.buttons || []).find((b) => b.value === "stay");
+        const msg = [spec.title, spec.message].filter(Boolean).join("\n\n");
+        const ok = window.confirm(
+            `${msg}\n\nOK = ${leaveBtn?.label || "ja"}\nCancel = ${stayBtn?.label || "blijf hier"}`,
+        );
+        leaveGuardDialogOpen = false;
+        resolve(ok ? leaveBtn?.value || "leave" : "stay");
     });
 }
 
@@ -789,9 +894,12 @@ function registerServiceWorker() {
  * filtered question list, or null if the user cancelled.
  */
 function pickMistakes(spec, mistakes) {
+    const prevFocus = document.activeElement;
     return new Promise((resolve) => {
         const dlg = document.createElement("dialog");
         dlg.className = "mistake-picker";
+        const titleId = `picker-title-${++_dialogTitleSeq}`;
+        dlg.setAttribute("aria-labelledby", titleId);
         const items = mistakes
             .map((q, i) => {
                 const desc = spec.describe ? spec.describe(q) : JSON.stringify(q);
@@ -800,7 +908,7 @@ function pickMistakes(spec, mistakes) {
             .join("");
         dlg.innerHTML = `
             <form method="dialog" class="mistake-picker-form">
-                <h2>Welke fouten herhalen?</h2>
+                <h2 id="${titleId}">Welke fouten herhalen?</h2>
                 <p class="muted">${mistakes.length} oefening${mistakes.length === 1 ? "" : "en"} — vink uit wat je niet wil.</p>
                 <label class="all-toggle"><input type="checkbox" id="picker-all" checked> alles in/uit</label>
                 <ul class="picker-list">${items}</ul>
@@ -839,6 +947,11 @@ function pickMistakes(spec, mistakes) {
             // hidden by the UA stylesheet, and lingering in the DOM with
             // display:none causes id-collisions with the next dialog.
             dlg.remove();
+            if (prevFocus && typeof prevFocus.focus === "function" && prevFocus.isConnected) {
+                try {
+                    prevFocus.focus({ preventScroll: true });
+                } catch {}
+            }
             resolve(action === "start" ? selected : null);
         });
         dlg.addEventListener("click", (e) => {
@@ -847,11 +960,15 @@ function pickMistakes(spec, mistakes) {
         if (typeof dlg.showModal === "function") {
             dlg.showModal();
         } else {
-            // Fallback: synthesise a non-modal show; resolve immediately if
-            // <dialog> is not supported (very old browsers) — we just run
-            // with the full list.
+            // Fallback for browsers without <dialog> (iOS < 15.4). Use a
+            // native confirm so the parent at least knows the picker is
+            // happening; OK runs with everything selected (current default),
+            // Cancel aborts.
             dlg.remove();
-            resolve(mistakes.slice());
+            const ok = window.confirm(
+                "Wil je de recente fouten opnieuw oefenen?\n\nOK = alle fouten\nCancel = annuleren",
+            );
+            resolve(ok ? mistakes.slice() : null);
         }
     });
 }
@@ -1021,19 +1138,44 @@ export function runExercise(spec) {
         return `${m}:${String(r).padStart(2, "0")}`;
     }
 
+    // Reusable deadline span — the earlier implementation appended a fresh
+    // <span> every 250ms and never cleared the prior ones, accumulating
+    // ~1200 stale nodes over a 5-minute session. Now we keep one node and
+    // update its text/class.
+    let _deadlineSpan = null;
     function updateClock() {
         if (!clockEl) return;
         const elapsed = formatDuration(Date.now() - state.startedAt);
-        clockEl.textContent = `⏱️ ${elapsed}`;
+        while (clockEl.firstChild) clockEl.removeChild(clockEl.firstChild);
+        clockEl.appendChild(document.createTextNode(`⏱️ ${elapsed}`));
         if (deadlineSec()) {
             const remain = Math.max(0, deadlineSec() * 1000 - (Date.now() - state.questionStartedAt));
-            const danger = remain < deadlineSec() * 250 ? " danger" : "";
-            const span = document.createElement("span");
-            span.className = `deadline${danger}`;
-            span.textContent = `⏰ ${formatDuration(remain)}`;
-            clockEl.append("  ", span);
+            const danger = remain < deadlineSec() * 250;
+            if (!_deadlineSpan) _deadlineSpan = document.createElement("span");
+            _deadlineSpan.className = danger ? "deadline danger" : "deadline";
+            _deadlineSpan.textContent = `⏰ ${formatDuration(remain)}`;
+            clockEl.appendChild(document.createTextNode("  "));
+            clockEl.appendChild(_deadlineSpan);
+        } else {
+            _deadlineSpan = null;
         }
     }
+
+    // Pause the 250ms timer while the tab is hidden — mobile browsers throttle
+    // anyway, but pausing avoids wall-time drift when the tab comes back and
+    // stops needless wake-ups during long backgrounded sessions.
+    function _onVisibilityChange() {
+        if (document.visibilityState === "hidden") {
+            if (state.sessionTimerHandle) {
+                clearInterval(state.sessionTimerHandle);
+                state.sessionTimerHandle = null;
+            }
+        } else if (timeModeOn() && !play.hidden && !state.sessionTimerHandle) {
+            state.sessionTimerHandle = setInterval(updateClock, 250);
+            updateClock();
+        }
+    }
+    document.addEventListener("visibilitychange", _onVisibilityChange);
 
     function startSessionTimer() {
         if (!timeModeOn() || !clockEl) return;
@@ -1047,12 +1189,22 @@ export function runExercise(spec) {
         state.sessionTimerHandle = null;
         clearTimeout(state.deadlineTimerHandle);
         state.deadlineTimerHandle = null;
-        if (clockEl) clockEl.hidden = true;
+        _deadlineSpan = null;
+        if (clockEl) {
+            while (clockEl.firstChild) clockEl.removeChild(clockEl.firstChild);
+            clockEl.hidden = true;
+        }
     }
     function startDeadline() {
         clearTimeout(state.deadlineTimerHandle);
         if (!timeModeOn() || !deadlineSec()) return;
+        // Stash a token captured at scheduling time. If the user has moved
+        // on (skip / volgende / correct) by the time the timeout fires,
+        // state.currentQuestion has changed and we must NOT record an
+        // outcome against the wrong question.
+        const token = state.currentQuestion;
         state.deadlineTimerHandle = setTimeout(() => {
+            if (state.currentQuestion !== token) return;
             onDeadlineExpired();
         }, deadlineSec() * 1000);
     }
@@ -1144,7 +1296,11 @@ export function runExercise(spec) {
 
     function loadSavedConfig() {
         try {
-            const saved = JSON.parse(localStorage.getItem(`homework:${spec.id}`) || "null");
+            const raw = JSON.parse(localStorage.getItem(`homework:${spec.id}`) || "null");
+            // Reject anything that isn't a plain object — a hand-edited
+            // (or corrupted) localStorage entry would otherwise crash the
+            // exercise's loadConfig on `saved.someField` access.
+            const saved = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
             if (saved && spec.loadConfig) spec.loadConfig(formSetup, saved);
             if (saved) {
                 const tm = formSetup?.elements?.["time-mode"];
@@ -1152,7 +1308,9 @@ export function runExercise(spec) {
                 const dOn = formSetup?.elements?.["deadline-on"];
                 if (dOn && typeof saved.deadlineOn === "boolean") dOn.checked = saved.deadlineOn;
                 const ds = formSetup?.elements?.["deadline-seconds"];
-                if (ds && saved.deadlineSeconds) ds.value = saved.deadlineSeconds;
+                if (ds && typeof saved.deadlineSeconds === "number" && saved.deadlineSeconds > 0) {
+                    ds.value = String(saved.deadlineSeconds);
+                }
             }
         } catch {}
         // Sync visibility of both nested toggles to whatever was restored.
@@ -1184,7 +1342,9 @@ export function runExercise(spec) {
         const ds = form.elements?.["deadline-seconds"];
         cfg.timeMode = !!tm?.checked;
         cfg.deadlineOn = !!(cfg.timeMode && dOn?.checked);
-        cfg.deadlineSeconds = cfg.deadlineOn && ds?.value ? Number(ds.value) : 0;
+        // Use parseStrictInt so "1e5" or " 30 " can't sneak past validation.
+        // If parsing fails, treat as 0 (deadline off) rather than NaN.
+        cfg.deadlineSeconds = cfg.deadlineOn && ds?.value ? (parseStrictInt(ds.value) ?? 0) : 0;
         return cfg;
     }
 
@@ -1501,6 +1661,19 @@ export function runExercise(spec) {
         });
         renderResult(session);
         show("result");
+        // Broadcast the structured session so exercises can react (e.g.
+        // flashcards' perfect-score wave) without scraping the result DOM
+        // with a MutationObserver.
+        document.dispatchEvent(
+            new CustomEvent("homework:session-finished", {
+                detail: {
+                    exerciseId: session.exerciseId,
+                    correct: session.correct,
+                    total: session.total,
+                    mode: session.mode,
+                },
+            }),
+        );
     }
 
     function renderResult(session) {

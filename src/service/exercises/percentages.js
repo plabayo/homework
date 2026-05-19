@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, pickRandom, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
 
 // ---------- Fraction pools ----------
 
@@ -197,12 +197,19 @@ function isCorrectAnswer(q, given) {
     switch (q.kind) {
         case "breuk-naar-procent":
         case "procent-van-getal":
-        case "wat-procent":
-            return Number(given) === q.answer;
+        case "wat-procent": {
+            // Strict parse so "1e2", " 5", "0x10" etc. can't sneak past
+            // the comparison. The live-input filter on numeric inputs in
+            // homework.js strips most non-digits, but paste/programmatic
+            // value setting can still bypass it.
+            const n = parseStrictInt(given);
+            return n !== null && n === q.answer;
+        }
         case "procent-naar-breuk": {
-            const gNum = Number(given.num);
-            const gDen = Number(given.den);
-            if (!gDen || gDen <= 0) return false;
+            const gNum = parseStrictInt(given?.num);
+            const gDen = parseStrictInt(given?.den);
+            if (gNum === null || gDen === null) return false;
+            if (gDen <= 0) return false;
             if (q.requireSimplified) {
                 return gNum === q.answer.num && gDen === q.answer.den;
             }

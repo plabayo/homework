@@ -15,12 +15,31 @@ pub const THEME_CSS: &str = include_str!("assets/theme.css");
 pub const HOMEWORK_JS: &str = include_str!("assets/homework.js");
 pub const SERVICE_WORKER_JS: &str = include_str!("assets/service-worker.js");
 pub const FAVICON_SVG: &str = include_str!("assets/favicon.svg");
+// Geometric (no emoji-font dependency) icon used as the source for the PNG
+// home-screen icons. iOS does not accept SVG for the home-screen icon, and
+// Android's adaptive icons crop the corners — both reasons to ship sized
+// PNGs alongside the inline emoji favicon.
+pub const ICON_SVG: &str = include_str!("assets/icon.svg");
+pub const APPLE_TOUCH_ICON_PNG: &[u8] = include_bytes!("assets/apple-touch-icon.png");
+pub const ICON_192_PNG: &[u8] = include_bytes!("assets/icon-192.png");
+pub const ICON_512_PNG: &[u8] = include_bytes!("assets/icon-512.png");
 
-// Favicon URL with version query baked in at compile time — no per-request allocation.
+// Inject the asset-version query string into every icon URL the manifest
+// references, in one compile-time pass. The escape dance (replace twice,
+// pre-anchor each) is so a future `"/icon-192.png"` standalone usage
+// elsewhere in the manifest doesn't also get rewritten.
 const MANIFEST_VERSIONED: &str = const_format::str_replace!(
-    include_str!("assets/manifest.webmanifest"),
-    r#""/favicon.svg""#,
-    const_format::concatcp!(r#""/favicon.svg?v="#, ASSET_VERSION, "\""),
+    const_format::str_replace!(
+        const_format::str_replace!(
+            include_str!("assets/manifest.webmanifest"),
+            r#""/favicon.svg""#,
+            const_format::concatcp!(r#""/favicon.svg?v="#, ASSET_VERSION, "\""),
+        ),
+        r#""/icon-192.png""#,
+        const_format::concatcp!(r#""/icon-192.png?v="#, ASSET_VERSION, "\""),
+    ),
+    r#""/icon-512.png""#,
+    const_format::concatcp!(r#""/icon-512.png?v="#, ASSET_VERSION, "\""),
 );
 
 // Static assets are served with a versioned URL (`?v=<git-sha>`), so the
@@ -75,6 +94,38 @@ pub async fn favicon_svg() -> impl IntoResponse {
     let mut res = FAVICON_SVG.into_response();
     let headers = res.headers_mut();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+    headers.typed_insert(cache_immutable());
+    res
+}
+
+pub async fn icon_svg() -> impl IntoResponse {
+    let mut res = ICON_SVG.into_response();
+    let headers = res.headers_mut();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+    headers.typed_insert(cache_immutable());
+    res
+}
+
+pub async fn apple_touch_icon_png() -> impl IntoResponse {
+    let mut res = APPLE_TOUCH_ICON_PNG.into_response();
+    let headers = res.headers_mut();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    headers.typed_insert(cache_immutable());
+    res
+}
+
+pub async fn icon_192_png() -> impl IntoResponse {
+    let mut res = ICON_192_PNG.into_response();
+    let headers = res.headers_mut();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    headers.typed_insert(cache_immutable());
+    res
+}
+
+pub async fn icon_512_png() -> impl IntoResponse {
+    let mut res = ICON_512_PNG.into_response();
+    let headers = res.headers_mut();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
     headers.typed_insert(cache_immutable());
     res
 }

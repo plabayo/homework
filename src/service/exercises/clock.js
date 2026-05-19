@@ -11,6 +11,7 @@ import {
     minutesForStep,
     optionListHtml,
     pad,
+    parseStrictInt,
     phraseFlipHtml,
     pickRandom,
     readFields,
@@ -458,9 +459,11 @@ function renderClockLees(q, root, minStep) {
         const mm = root.querySelector("#answer-m");
         return () => {
             if (!hh.value || mm.value === "") return null;
-            let h = Number(hh.value);
+            let h = parseStrictInt(hh.value);
+            const m = parseStrictInt(mm.value);
+            if (h === null || m === null) return null;
             if (h === 12) h = 0;
-            return { h, m: Number(mm.value) };
+            return { h, m };
         };
     }
     const wordChoices = q.choiceStyle === "words" && !!dutchTimePhrase(q.h, q.m);
@@ -484,7 +487,12 @@ function renderClockLees(q, root, minStep) {
     const get = wireOptions(root);
     return () => {
         const s = get();
-        return s ? JSON.parse(s) : null;
+        if (!s) return null;
+        try {
+            return JSON.parse(s);
+        } catch {
+            return null;
+        }
     };
 }
 
@@ -601,7 +609,9 @@ runExercise({
     isCorrect(q, given) {
         if (!given) return false;
         if (q.kind === "lees") {
-            return Number(given.h) === q.h && Number(given.m) === q.m;
+            const h = parseStrictInt(given.h);
+            const m = parseStrictInt(given.m);
+            return h !== null && m !== null && h === q.h && m === q.m;
         }
         return given.h === q.h && given.m === q.m;
     },

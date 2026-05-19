@@ -156,7 +156,16 @@ pub fn exercise_scaffold(
             form!(
                 id = "form-setup",
                 config_fields,
-                p!(id = "config-error", class = "notice", hidden? = true),
+                // role=alert + aria-live=assertive so the validation error
+                // is announced as soon as setError() reveals it. Hidden
+                // until populated; the framework toggles `hidden` via JS.
+                p!(
+                    id = "config-error",
+                    class = "notice",
+                    role = "alert",
+                    "aria-live" = "assertive",
+                    hidden? = true
+                ),
                 div!(
                     class = "button-row",
                     button!(

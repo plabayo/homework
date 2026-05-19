@@ -585,8 +585,29 @@ async function wmPreloadDeck(deck) {
             }
         }),
     );
+    // Drop any object URLs for files no longer needed. Without this, every
+    // edited deck and every Wikimedia preview kept its blob alive for the
+    // whole session — tens of MB of leaked memory after an hour.
+    wmRevokeExcept(filenames);
     return { loaded, failed };
 }
+
+// Revoke object URLs for filenames not in `keep`. Pass an empty array to
+// drop everything (used on pagehide).
+function wmRevokeExcept(keep) {
+    const keepSet = new Set(keep);
+    for (const [fn, url] of imageObjectURLs) {
+        if (keepSet.has(fn)) continue;
+        try {
+            URL.revokeObjectURL(url);
+        } catch {}
+        imageObjectURLs.delete(fn);
+    }
+}
+
+// On page-unload, drop *all* outstanding object URLs so the browser can
+// reclaim the underlying blob memory immediately rather than waiting for GC.
+window.addEventListener("pagehide", () => wmRevokeExcept([]));
 
 // Search Commons for images matching term. Returns [{ title, thumbUrl }].
 // Uses the generator API so title lookup and imageinfo come in one round-trip.
@@ -990,7 +1011,7 @@ function buildReviewCards(deck) {
 function reviewImageHtml(filename) {
     const src = imageObjectURLs.get(filename) || "";
     if (src) {
-        return `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
+        return `<img src="${src}" alt="" class="fc-review-image">`;
     }
     return `<div class="fc-review-image-loading fc-review-face-image" data-wikimedia="${escapeHtml(filename)}">⏳ afbeelding laden…</div>`;
 }
@@ -1078,13 +1099,13 @@ function hydrateReviewImages() {
         const filename = el.dataset.wikimedia;
         if (!filename) return;
         if (imageObjectURLs.has(filename)) {
-            el.outerHTML = `<img src="${imageObjectURLs.get(filename)}" alt="afbeelding" class="fc-review-image">`;
+            el.outerHTML = `<img src="${imageObjectURLs.get(filename)}" alt="" class="fc-review-image">`;
             return;
         }
         wmLoad(filename)
             .then((src) => {
                 if (!reviewState.active || !el.isConnected) return;
-                el.outerHTML = `<img src="${src}" alt="afbeelding" class="fc-review-image">`;
+                el.outerHTML = `<img src="${src}" alt="" class="fc-review-image">`;
             })
             .catch(() => {
                 if (!el.isConnected) return;
@@ -2500,7 +2521,7 @@ runExercise({
                                 <span class="flash-side-label">afbeelding</span>
                                 ${
                                     imgSrc
-                                        ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                        ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
                                         : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`
                                 }
                             </div>
@@ -2516,7 +2537,7 @@ runExercise({
                         <div class="flash-image-container">
                             ${
                                 imgSrc
-                                    ? `<img src="${imgSrc}" alt="afbeelding" class="flash-card-image">`
+                                    ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
                                     : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`
                             }
                         </div>
@@ -2535,8 +2556,7 @@ runExercise({
                     wmLoad(q.wikimedia)
                         .then((url) => {
                             const container = root.querySelector(".flash-image-container");
-                            if (container)
-                                container.innerHTML = `<img src="${url}" alt="afbeelding" class="flash-card-image">`;
+                            if (container) container.innerHTML = `<img src="${url}" alt="" class="flash-card-image">`;
                         })
                         .catch(() => {});
                 }
@@ -2757,32 +2777,38 @@ function showCardWave(cards) {
     setTimeout(dismiss, totalMs);
 }
 
-// ---------- Lenient-match observer ----------
+// ---------- Lenient-match / perfect-score hooks ----------
+//
+// Listen for the framework's structured session-finished event instead of
+// observing page-result attributes — the previous MutationObserver had to
+// parse "X / Y" out of the result heading textContent, which broke as soon
+// as the result chrome gained extra spans (time, cycles, etc).
 
-(function setupResultObservers() {
-    const pageExercises = document.getElementById("page-exercises");
-    if (pageExercises) {
-        new MutationObserver(() => {
-            if (!pageExercises.hidden) lenientMatches.length = 0;
-        }).observe(pageExercises, { attributes: true, attributeFilter: ["hidden"] });
+const pageResultEl = document.getElementById("page-result");
+document.addEventListener("homework:session-finished", (e) => {
+    const { exerciseId, correct, total } = e.detail || {};
+    // The flashcards spec namespaces its id per deck (`flashcards-<deckId>`),
+    // so check the prefix rather than an exact match.
+    if (!exerciseId?.startsWith("flashcards")) return;
+    if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
+    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
+    if (deck && deckMode(deck) === "one-sided" && correct > 0 && correct === total) {
+        // Defer briefly so the result page is fully rendered before the
+        // wave covers it (the event fires before show("result") finishes).
+        setTimeout(() => {
+            if (pageResultEl?.querySelector("#review-button-repeat")) return;
+            showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
+        }, 0);
     }
-    const pageResult = document.getElementById("page-result");
-    if (pageResult) {
-        new MutationObserver(() => {
-            if (!pageResult.hidden) {
-                if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
-                const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-                if (deck && deckMode(deck) === "one-sided") {
-                    if (pageResult.querySelector("#review-button-repeat")) return;
-                    const scoreText = pageResult.querySelector("h3")?.textContent ?? "";
-                    const [rawCorrect, rawTotal] = scoreText.split("/");
-                    const correct = Number.parseInt(rawCorrect, 10);
-                    const total = Number.parseInt(rawTotal, 10);
-                    if (correct > 0 && correct === total) {
-                        showCardWave(deck.cards.map((c) => c.front).filter(Boolean));
-                    }
-                }
-            }
-        }).observe(pageResult, { attributes: true, attributeFilter: ["hidden"] });
-    }
-})();
+});
+
+// Clear any pending lenient-match buffer when a new play session starts;
+// detect via the framework's show() transitions by observing page-exercises
+// hidden flipping false. This stays a MutationObserver because no event
+// is emitted for "play started" yet.
+const pageExercisesEl = document.getElementById("page-exercises");
+if (pageExercisesEl) {
+    new MutationObserver(() => {
+        if (!pageExercisesEl.hidden) lenientMatches.length = 0;
+    }).observe(pageExercisesEl, { attributes: true, attributeFilter: ["hidden"] });
+}

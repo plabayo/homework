@@ -33,6 +33,9 @@ const PRECACHE = [
     versionedAsset("/homework.js"),
     versionedAsset("/manifest.webmanifest"),
     versionedAsset("/favicon.svg"),
+    versionedAsset("/apple-touch-icon.png"),
+    versionedAsset("/icon-192.png"),
+    versionedAsset("/icon-512.png"),
     "/offline",
     "/",
     "/extra/flashcards",
@@ -80,7 +83,10 @@ function isStaticAsset(url) {
         url.pathname === "/theme.css" ||
         url.pathname === "/homework.js" ||
         url.pathname === "/manifest.webmanifest" ||
-        url.pathname === "/favicon.svg"
+        url.pathname === "/favicon.svg" ||
+        url.pathname === "/apple-touch-icon.png" ||
+        url.pathname === "/icon-192.png" ||
+        url.pathname === "/icon-512.png"
     );
 }
 
@@ -104,13 +110,35 @@ async function staleWhileRevalidate(request) {
     return cached || (await fetchPromise) || Response.error();
 }
 
+// Cap the page cache so long-lived sessions can't run away with quota.
+// Anything beyond MAX_PAGES_CACHE_ENTRIES gets evicted FIFO. The static
+// pages we always want to keep are still in PRECACHE (STATIC_CACHE).
+const MAX_PAGES_CACHE_ENTRIES = 30;
+async function cachePagePut(cache, request, response) {
+    try {
+        await cache.put(request, response);
+        const keys = await cache.keys();
+        const overflow = keys.length - MAX_PAGES_CACHE_ENTRIES;
+        if (overflow > 0) {
+            // Service worker cache keys are stored in insertion order, so the
+            // first N are the oldest writes.
+            for (let i = 0; i < overflow; i++) await cache.delete(keys[i]);
+        }
+    } catch (_e) {
+        // Quota exceeded etc. — try to make room by clearing the page cache.
+        try {
+            await caches.delete(PAGES_CACHE);
+        } catch {}
+    }
+}
+
 async function networkFirstHtml(request) {
     const cache = await caches.open(PAGES_CACHE);
     // Race network against a 2.5s timeout.
     const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 2500));
     const network = fetch(request)
         .then((res) => {
-            if (res?.ok) cache.put(request, res.clone());
+            if (res?.ok) cachePagePut(cache, request, res.clone());
             return res;
         })
         .catch(() => null);

@@ -2,50 +2,8 @@
    License: https://github.com/plabayo/homework/blob/main/LICENSE
    Source-available; non-commercial use only. */
 
-/* Fraction display: vertically stacked numerator / bar / denominator.
-   Duplicated from fractions.css — each exercise page is self-contained. */
-.fraction {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    vertical-align: middle;
-    text-align: center;
-    line-height: 1.3;
-    gap: 1px;
-}
-.fraction .frac-num,
-.fraction .frac-den {
-    padding: 0 6px;
-    min-width: 1.5em;
-}
-.fraction .frac-bar {
-    width: 100%;
-    min-width: 1.5em;
-    height: 2px;
-    background: currentColor;
-    display: block;
-}
-
-/* Fraction input: same layout but with text fields */
-.fraction-input {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    vertical-align: middle;
-    gap: 2px;
-}
-.fraction-input input {
-    width: 3em;
-    text-align: center;
-    padding: 2px 4px;
-}
-.fraction-input .frac-bar {
-    width: 100%;
-    min-width: 3em;
-    height: 2px;
-    background: currentColor;
-    display: block;
-}
+/* `.fraction` / `.fraction-input` shared styles live in theme.css so this
+   file and fractions.css can't drift apart silently. */
 
 /* Expression row: question operands + answer input */
 .pct-expr {
@@ -75,7 +33,7 @@
     text-align: center;
     font-size: 0.88em;
     color: var(--muted);
-    margin-top: 0.2em;
+    margin-block-start: 0.2em;
 }
 
 /* Review-only: quiet arrow between expression stages */

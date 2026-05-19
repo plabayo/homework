@@ -12,6 +12,7 @@ import {
     normalizePhrase,
     optionListHtml,
     pad,
+    parseStrictInt,
     phraseFlipHtml,
     pickRandom,
     readFields,
@@ -171,6 +172,22 @@ function renderDigitalClockReview(q, root, mode) {
 }
 
 function makeClockFillGetter(hh, mm, q, feedbackEl) {
+    // Tie each invalid field to the live feedback element so screen-readers
+    // hear the validation message when they navigate onto the input. This
+    // and `aria-invalid` are cleared from the input event listener.
+    if (feedbackEl?.id) {
+        // Use describedby (cumulative) rather than overwriting; only add
+        // the link the first time so we don't accumulate duplicates on
+        // re-render.
+        for (const el of [hh, mm]) {
+            const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+            if (!ids.includes(feedbackEl.id)) {
+                ids.push(feedbackEl.id);
+                el.setAttribute("aria-describedby", ids.join(" "));
+            }
+        }
+    }
+
     const showInvalidFeedback = () => {
         if (!feedbackEl) return;
         // Stash the assignment text on first switch into the bad state so the
@@ -185,21 +202,28 @@ function makeClockFillGetter(hh, mm, q, feedbackEl) {
         feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59).`;
         feedbackEl.classList.add("is-bad");
     };
+
+    const setInvalid = (el, invalid) => {
+        el.classList.toggle("is-invalid", invalid);
+        if (invalid) el.setAttribute("aria-invalid", "true");
+        else el.removeAttribute("aria-invalid");
+    };
+
     return () => {
-        hh.classList.remove("is-invalid");
-        mm.classList.remove("is-invalid");
+        setInvalid(hh, false);
+        setInvalid(mm, false);
         if (!hh.value || mm.value === "") return null;
-        const rawH = Number(hh.value);
-        const rawM = Number(mm.value);
+        const rawH = parseStrictInt(hh.value);
+        const rawM = parseStrictInt(mm.value);
         const maxHour = q.use24h ? 23 : 12;
         const minHour = q.use24h ? 0 : 1;
         let invalid = false;
-        if (!Number.isInteger(rawH) || rawH < minHour || rawH > maxHour) {
-            hh.classList.add("is-invalid");
+        if (rawH === null || rawH < minHour || rawH > maxHour) {
+            setInvalid(hh, true);
             invalid = true;
         }
-        if (!Number.isInteger(rawM) || rawM < 0 || rawM > 59) {
-            mm.classList.add("is-invalid");
+        if (rawM === null || rawM < 0 || rawM > 59) {
+            setInvalid(mm, true);
             invalid = true;
         }
         if (invalid) {
@@ -291,9 +315,9 @@ runExercise({
                 root.innerHTML = `
                     <p class="dclock-label">${promptPhraseHtml(q, correctPhrase)}</p>
                     <div class="dclock dclock-input">
-                        <input class="dclock-field" id="answer-h" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required>
+                        <input class="dclock-field" id="answer-h" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required aria-label="uur">
                         <span class="dclock-colon">:</span>
-                        <input class="dclock-field" id="answer-m" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required>
+                        <input class="dclock-field" id="answer-m" maxlength="2" inputmode="numeric" pattern="[0-9]+" placeholder="--" autocomplete="off" required aria-label="minuten">
                     </div>
                     <small class="muted">${maxHourHint} : 00–59</small>
                 `;
@@ -313,11 +337,13 @@ runExercise({
                 };
                 hh.addEventListener("input", () => {
                     hh.classList.remove("is-invalid");
+                    hh.removeAttribute("aria-invalid");
                     clearInvalidFeedback();
                     if (hh.value.length >= 2) mm.focus();
                 });
                 mm.addEventListener("input", () => {
                     mm.classList.remove("is-invalid");
+                    mm.removeAttribute("aria-invalid");
                     clearInvalidFeedback();
                 });
                 return makeClockFillGetter(hh, mm, q, feedbackEl);
@@ -344,8 +370,9 @@ runExercise({
         }
         try {
             const obj = JSON.parse(given);
-            const h = Number(obj.h);
-            const m = Number(obj.m);
+            const h = parseStrictInt(obj?.h, { allowNegative: true });
+            const m = parseStrictInt(obj?.m);
+            if (h === null || m === null) return false;
             // For multiple choice we generated only same-half-day distractors,
             // so a strict match works. For fill-in we accept any hour that
             // shares the question's mod-12 (so "half drie" → 02:30 and 14:30

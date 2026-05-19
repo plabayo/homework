@@ -47,9 +47,8 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
 ///
 /// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
 /// they go into `<style>` / `<script type="module">` verbatim (not HTML-escaped).
-/// Inline exercise modules can import the shared runtime via `@homework`.
-/// `banner` is pre-rendered HTML inserted at the top of the page; pass
-/// `PreEscaped(String::new())` when no banner is needed.
+/// `banner` is composed into the page body at the top; pass `()` (the unit
+/// type, which `IntoHtml` treats as empty) when no banner is needed.
 // HTML responses must always revalidate. The HTML embeds versioned asset
 // URLs (`?v=<git-sha>`); if a browser holds on to an old HTML response via
 // heuristic freshness it will keep loading the old assets too. Firefox is
@@ -64,7 +63,7 @@ pub fn page(
     extra_style: &str,
     body_content: impl IntoHtml,
     extra_module_script: &str,
-    banner: PreEscaped<String>,
+    banner: impl IntoHtml,
 ) -> impl IntoResponse {
     let favicon_data = format!(
         "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>{}</text></svg>",
@@ -73,6 +72,7 @@ pub fn page(
     let og_url = format!("https://elementary.training{}", meta_data.og_path);
     let theme_css_url = versioned_asset_url("/theme.css");
     let manifest_url = versioned_asset_url("/manifest.webmanifest");
+    let apple_touch_icon_url = versioned_asset_url("/apple-touch-icon.png");
     let shared_js_url = versioned_asset_url("/homework.js");
     let shared_js_import_map = shared_js_import_map(&shared_js_url);
     let markup = html!(
@@ -92,6 +92,20 @@ pub fn page(
             meta!(name = "description", content = meta_data.description),
             title!(meta_data.title),
             link!(rel = "icon", href = favicon_data),
+            // iOS does not accept SVG home-screen icons; a real 180×180 PNG
+            // is required so add-to-home-screen renders the brand instead of
+            // a screenshot of the page.
+            link!(rel = "apple-touch-icon", href = apple_touch_icon_url),
+            // Configure the standalone PWA chrome on iOS. The non-legacy
+            // `mobile-web-app-capable` covers Android/Chrome; the legacy
+            // `apple-` prefixed one is still required for iOS Safari.
+            meta!(name = "apple-mobile-web-app-capable", content = "yes"),
+            meta!(name = "mobile-web-app-capable", content = "yes"),
+            meta!(
+                name = "apple-mobile-web-app-status-bar-style",
+                content = "default"
+            ),
+            meta!(name = "apple-mobile-web-app-title", content = "Oefeningen"),
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
             meta!("property" = "og:title", content = meta_data.title),
@@ -122,6 +136,16 @@ pub fn page(
         ),
         body!(
             canvas!(id = "confetti", "aria-hidden" = "true"),
+            // Skip-link as the very first focusable element so keyboard
+            // users can bypass the header (home link, page title, theme
+            // toggle, language banner, offline banner) and land directly
+            // on the main content. The link itself is visually hidden
+            // until focused — see `.skip-link` in theme.css.
+            a!(
+                class = "skip-link",
+                href = "#main-content",
+                "spring naar inhoud"
+            ),
             div!(
                 class = "page",
                 banner,
@@ -129,7 +153,7 @@ pub fn page(
                     class = "offline-banner",
                     "📴 Offline modus — je gebruikt een opgeslagen versie.",
                 ),
-                main!(body_content),
+                main!(id = "main-content", body_content),
             ),
             noscript!(p!(
                 class = "box bad",

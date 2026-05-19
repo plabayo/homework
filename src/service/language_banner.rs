@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::HeaderMap;
-use rama::http::html::PreEscaped;
+use rama::http::html::{IntoHtml, a, button, div, p};
 
 struct BannerLang {
     /// BCP-47 primary language subtag (e.g. "fr", "de", "zh").
@@ -189,22 +189,22 @@ static LANGS: &[BannerLang] = &[
     },
 ];
 
-/// Returns rendered banner HTML when the request headers indicate that the user
-/// does not prefer Dutch *and* has not previously dismissed the banner (cookie absent).
-/// Returns `PreEscaped(String::new())` when no banner is needed.
-pub(crate) fn lang_banner(headers: &HeaderMap) -> PreEscaped<String> {
+/// Returns the banner as composable HTML when the request headers indicate
+/// that the user does not prefer Dutch *and* has not previously dismissed
+/// the banner. `None` means no banner — `Option<T>` already implements
+/// `IntoHtml`, so `page()` can interpolate the result directly.
+pub(crate) fn lang_banner(headers: &HeaderMap) -> Option<impl IntoHtml + use<>> {
     if lang_ok_cookie_set(headers) {
-        return PreEscaped(String::new());
+        return None;
     }
     let accept_lang = headers
         .get("accept-language")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if accepts_nl(accept_lang) {
-        return PreEscaped(String::new());
+        return None;
     }
-    let t = find_translation(accept_lang);
-    PreEscaped(render_banner(t))
+    Some(render_banner(find_translation(accept_lang)))
 }
 
 fn lang_ok_cookie_set(headers: &HeaderMap) -> bool {
@@ -253,30 +253,29 @@ fn find_translation(accept_lang: &str) -> &'static BannerLang {
         .expect("English must be in LANGS")
 }
 
-/// Escape the five HTML special characters. `prefix`/`suffix`/`dismiss` are
-/// `&'static str` compile-time constants with no metacharacters today, but
-/// explicit escaping keeps the function correct if translations are ever
-/// sourced dynamically.
-fn html_escape(s: &str) -> std::borrow::Cow<'_, str> {
-    if !s.contains(['&', '<', '>', '"', '\'']) {
-        return std::borrow::Cow::Borrowed(s);
-    }
-    std::borrow::Cow::Owned(
-        s.replace('&', "&amp;")
-            .replace('<', "&lt;")
-            .replace('>', "&gt;")
-            .replace('"', "&quot;")
-            .replace('\'', "&#39;"),
-    )
-}
-
-fn render_banner(t: &BannerLang) -> String {
-    let dir = if t.rtl { r#" dir="rtl""# } else { "" };
-    format!(
-        r#"<div id="lang-banner" class="lang-banner" role="alert"{dir}><p>{prefix}<a href="mailto:hello@plabayo.tech">hello@plabayo.tech</a>{suffix}</p><button type="button" class="default-button" id="lang-banner-dismiss">{dismiss}</button></div>"#,
-        prefix = html_escape(t.prefix),
-        suffix = html_escape(t.suffix),
-        dismiss = html_escape(t.dismiss),
+// `role=status` (polite) instead of `role=alert`: this is informational
+// and shouldn't interrupt the user's flow. The `lang` attribute teaches
+// the screen reader to switch phonemes — without it Dutch SR voices would
+// try to read English/Arabic/etc. text with Dutch pronunciation.
+fn render_banner(t: &'static BannerLang) -> impl IntoHtml + use<> {
+    let dir: Option<&'static str> = if t.rtl { Some("rtl") } else { None };
+    div!(
+        id = "lang-banner",
+        class = "lang-banner",
+        role = "status",
+        lang = t.tag,
+        dir? = dir,
+        p!(
+            t.prefix,
+            a!(href = "mailto:hello@plabayo.tech", "hello@plabayo.tech"),
+            t.suffix,
+        ),
+        button!(
+            r#type = "button",
+            class = "default-button",
+            id = "lang-banner-dismiss",
+            t.dismiss,
+        ),
     )
 }
 
@@ -316,23 +315,27 @@ mod tests {
         assert!(!accepts_nl(""));
     }
 
+    fn rendered(headers: &HeaderMap) -> Option<String> {
+        lang_banner(headers).map(IntoHtml::into_string)
+    }
+
     #[test]
     fn lang_banner_empty_for_nl_be() {
         let headers = make_headers("nl-BE,nl;q=0.9");
-        assert!(lang_banner(&headers).0.is_empty());
+        assert!(lang_banner(&headers).is_none());
     }
 
     #[test]
     fn lang_banner_present_for_en() {
         let headers = make_headers("en-US,en;q=0.9");
-        assert!(!lang_banner(&headers).0.is_empty());
+        assert!(lang_banner(&headers).is_some());
     }
 
     #[test]
     fn lang_banner_empty_when_cookie_set() {
         let mut headers = make_headers("en-US");
         headers.insert("cookie", "lang_ok=1".parse().unwrap());
-        assert!(lang_banner(&headers).0.is_empty());
+        assert!(lang_banner(&headers).is_none());
     }
 
     #[test]
@@ -342,7 +345,7 @@ mod tests {
             "cookie",
             "session=abc; lang_ok=1; theme=dark".parse().unwrap(),
         );
-        assert!(lang_banner(&headers).0.is_empty());
+        assert!(lang_banner(&headers).is_none());
     }
 
     #[test]
@@ -359,23 +362,20 @@ mod tests {
 
     #[test]
     fn rendered_banner_contains_email_link() {
-        let headers = make_headers("en-US");
-        let banner = lang_banner(&headers);
-        assert!(banner.0.contains("hello@plabayo.tech"));
-        assert!(banner.0.contains("lang-banner-dismiss"));
+        let banner = rendered(&make_headers("en-US")).expect("expected a banner");
+        assert!(banner.contains("hello@plabayo.tech"));
+        assert!(banner.contains("lang-banner-dismiss"));
     }
 
     #[test]
     fn rtl_banner_has_dir_attribute() {
-        let headers = make_headers("ar");
-        let banner = lang_banner(&headers);
-        assert!(banner.0.contains(r#"dir="rtl""#));
+        let banner = rendered(&make_headers("ar")).expect("expected a banner");
+        assert!(banner.contains(r#"dir="rtl""#));
     }
 
     #[test]
     fn ltr_banner_has_no_dir_attribute() {
-        let headers = make_headers("en");
-        let banner = lang_banner(&headers);
-        assert!(!banner.0.contains("dir="));
+        let banner = rendered(&make_headers("en")).expect("expected a banner");
+        assert!(!banner.contains("dir="));
     }
 }

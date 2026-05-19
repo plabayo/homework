@@ -160,7 +160,7 @@
     text-align: center;
     padding-block-start: calc(var(--space) * 1.5);
     padding-block-end: var(--space);
-    border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    border-block-start: 1px solid color-mix(in srgb, currentColor 15%, transparent);
     margin-block-start: var(--space);
     display: flex;
     flex-direction: column;

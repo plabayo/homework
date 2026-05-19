@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, pickRandom, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
 
 function buildDeck(cfg) {
     const deck = [];
@@ -152,7 +152,8 @@ runExercise({
     },
     isCorrect(q, given) {
         const expect = q.kind === "splitsen" ? (q.hide === "a" ? q.a : q.b) : q.answer;
-        return Number(given) === expect;
+        const n = parseStrictInt(given);
+        return n !== null && n === expect;
     },
     describe(q) {
         switch (q.kind) {

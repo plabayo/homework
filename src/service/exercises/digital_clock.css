@@ -22,7 +22,11 @@
     text-align: center;
 }
 .dclock-label {
-    font-family: var(--font-base, sans-serif);
+    /* Inherit the body font stack from theme.css — the .dclock-label
+       lives outside .dclock (which forces JetBrains Mono) so without an
+       explicit family the kid would see the LED font on the label too.
+       inherit chains all the way up to <body>. */
+    font-family: inherit;
     font-size: 1.4rem;
     font-weight: 600;
     text-align: center;

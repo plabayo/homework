@@ -265,3 +265,50 @@ test("renderReview: procent-van-getal still labels the percentage with %", () =>
     const html = renderReview(q);
     assert.ok(html.includes("25% van 80"), `expected "25% van 80" in: ${html}`);
 });
+
+// ---------------------------------------------------------------------------
+// isCorrectAnswer — strict integer parsing
+//
+// Regression: the previous implementation used a bare `Number(given) === q.answer`
+// comparison, which silently accepted "1e2" as 100, "0x10" as 16, " 25 " as 25
+// — letting a kid (or a paste handler) sneak past the comparison with input
+// that didn't look like a plain integer. The strict parser must reject all of
+// these and return null instead.
+// ---------------------------------------------------------------------------
+
+test("isCorrectAnswer: rejects scientific-notation, hex, whitespace, empty", () => {
+    const q = { kind: "breuk-naar-procent", num: 1, den: 4, answer: 25 };
+    // Real answer
+    assert.ok(isCorrectAnswer(q, "25"));
+    assert.ok(isCorrectAnswer(q, 25));
+    // Coincidentally-numeric but malformed inputs
+    assert.ok(!isCorrectAnswer(q, "2.5e1"));
+    assert.ok(!isCorrectAnswer(q, "25.0"));
+    assert.ok(!isCorrectAnswer(q, " 25"));
+    assert.ok(!isCorrectAnswer(q, "25 "));
+    assert.ok(!isCorrectAnswer(q, ""));
+    assert.ok(!isCorrectAnswer(q, "+25"));
+    assert.ok(!isCorrectAnswer(q, null));
+    assert.ok(!isCorrectAnswer(q, undefined));
+    assert.ok(!isCorrectAnswer(q, "abc"));
+});
+
+test("isCorrectAnswer: rejects hex matching the numeric answer", () => {
+    // 0x10 === 16 in Number(); a strict parser must reject the leading 0x.
+    const q = { kind: "procent-van-getal", pct: 25, num: 1, den: 4, whole: 64, answer: 16 };
+    assert.ok(isCorrectAnswer(q, "16"));
+    assert.ok(!isCorrectAnswer(q, "0x10"));
+});
+
+test("isCorrectAnswer: procent-naar-breuk rejects malformed numerator/denominator strings", () => {
+    const q = { kind: "procent-naar-breuk", pct: 25, answer: { num: 1, den: 4 }, requireSimplified: true };
+    assert.ok(isCorrectAnswer(q, { num: "1", den: "4" }));
+    assert.ok(isCorrectAnswer(q, { num: 1, den: 4 }));
+    // bad shape / non-int strings
+    assert.ok(!isCorrectAnswer(q, { num: " 1", den: "4" }));
+    assert.ok(!isCorrectAnswer(q, { num: "1e0", den: "4" }));
+    assert.ok(!isCorrectAnswer(q, { num: "1", den: "0" }));
+    assert.ok(!isCorrectAnswer(q, { num: "1", den: "" }));
+    assert.ok(!isCorrectAnswer(q, null));
+    assert.ok(!isCorrectAnswer(q, undefined));
+});

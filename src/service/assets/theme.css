@@ -126,6 +126,29 @@
     body {
         padding: 12px;
     }
+    /* Skip-to-content link. Off-screen until focused via Tab; bringing it
+       into view as a regular focus ring lets keyboard users bypass the
+       header / banners and land on the main content. */
+    .skip-link {
+        position: absolute;
+        inset-inline-start: 8px;
+        inset-block-start: 8px;
+        padding: 8px 12px;
+        background: var(--accent);
+        color: var(--accent-fg);
+        border-radius: var(--radius);
+        text-decoration: none;
+        font-weight: 600;
+        z-index: 1000;
+        transform: translateY(-200%);
+        transition: transform 120ms ease-out;
+    }
+    .skip-link:focus,
+    .skip-link:focus-visible {
+        transform: translateY(0);
+        outline: 2px solid var(--accent-fg);
+        outline-offset: 2px;
+    }
     .page {
         max-width: var(--content-width);
         margin-inline: auto;
@@ -156,6 +179,12 @@
         font-size: 1.4rem;
         text-decoration: none;
         line-height: 1;
+        /* WCAG 2.5.5 — 44×44 minimum tap target. */
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     .theme-toggle {
         flex: 0 0 auto;
@@ -165,19 +194,26 @@
         font-size: 1.1rem;
         line-height: 1;
         border-radius: 6px;
-        opacity: 0.5;
+        /* Use color rather than opacity for the resting state so the icon
+           still passes non-text contrast even when not hovered/focused. */
+        color: color-mix(in srgb, currentColor 70%, transparent);
         transition:
-            opacity 120ms ease,
+            color 120ms ease,
             background 120ms ease;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     .theme-toggle:hover {
-        opacity: 1;
+        color: currentColor;
         background: color-mix(in srgb, var(--fg) 8%, transparent);
     }
     .theme-toggle:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
-        opacity: 1;
+        color: currentColor;
     }
     .page-intro {
         margin-block-end: var(--space);
@@ -438,6 +474,52 @@
         width: 3em;
     }
 
+    /* ---------- fraction display ----------
+       Shared between fractions and percentages (and any future exercise
+       that wants a stacked num/bar/den). Lives here so the two exercises
+       can't drift apart silently. */
+    .fraction {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        vertical-align: middle;
+        text-align: center;
+        line-height: 1.3;
+        gap: 1px;
+    }
+    .fraction .frac-num,
+    .fraction .frac-den {
+        padding-inline: 6px;
+        min-width: 1.5em;
+    }
+    .fraction .frac-bar {
+        width: 100%;
+        min-width: 1.5em;
+        height: 2px;
+        background: currentColor;
+        display: block;
+    }
+    /* Fraction input: same vertical-stack layout, with text fields. */
+    .fraction-input {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        vertical-align: middle;
+        gap: 2px;
+    }
+    .fraction-input input {
+        width: 3em;
+        text-align: center;
+        padding: 2px 4px;
+    }
+    .fraction-input .frac-bar {
+        width: 100%;
+        min-width: 3em;
+        height: 2px;
+        background: currentColor;
+        display: block;
+    }
+
     /* ---------- result ---------- */
     #result {
         text-align: center;
@@ -520,18 +602,19 @@
     }
     .result-detail-list li {
         padding: 12px 16px;
-        border-left: 3px solid var(--border);
-        border-radius: 0 var(--radius) var(--radius) 0;
+        border-inline-start: 3px solid var(--border);
+        border-start-end-radius: var(--radius);
+        border-end-end-radius: var(--radius);
         background: color-mix(in srgb, var(--bg) 96%, var(--fg) 4%);
         display: flex;
         flex-direction: column;
         gap: 6px;
     }
     .result-detail-list li.item-wrong {
-        border-left-color: var(--bad);
+        border-inline-start-color: var(--bad);
     }
     .result-detail-list li.item-tricky {
-        border-left-color: var(--warn-fg);
+        border-inline-start-color: var(--warn-fg);
     }
     .item-desc {
         font-weight: 600;
@@ -1226,7 +1309,7 @@
        above this strip — never crowding the peek icon. Easier on
        younger readers: the label and the affordance to flip it are
        visually distinct rather than mashed together. */
-        padding-bottom: 1.8em;
+        padding-block-end: 1.8em;
     }
     .word-option-spacer {
         /* Sizing-only ghost: stacks both labels in the same grid cell so
@@ -1276,10 +1359,14 @@
         right: 6px;
         background: none;
         border: none;
-        padding: 1px 4px;
+        /* Larger transparent padding gives a 44×24 hit area without
+           enlarging the visible glyph; combined with the 70% tint colour
+           the affordance now meets non-text contrast at rest. */
+        padding: 10px 14px;
+        margin: -8px -10px -3px -10px;
         font-size: 0.75em;
         line-height: 1;
-        color: color-mix(in srgb, currentColor 38%, transparent);
+        color: color-mix(in srgb, currentColor 70%, transparent);
         cursor: pointer;
         border-radius: 3px;
         z-index: 1;
