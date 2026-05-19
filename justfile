@@ -22,7 +22,7 @@ lint-web:
 
 # CI-style check: lint + format, no writes, warnings → errors
 check-web:
-	npx --yes @biomejs/biome ci src/service
+	npx --yes @biomejs/biome ci --error-on-warnings src/service
 
 # Verify every .rs/.css/.js source file starts with the copyright header
 [unix]

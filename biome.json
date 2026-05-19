@@ -7,14 +7,14 @@
       "style": {
         "useConst": "error",
         "noDescendingSpecificity": "off",
-        "useExplicitLengthCheck": "warn",
+        "useExplicitLengthCheck": "error",
         "noParameterAssign": "error",
-        "useNumberNamespace": "warn"
+        "useNumberNamespace": "error"
       },
       "complexity": {
         "noImportantStyles": "off",
         "noExcessiveCognitiveComplexity": {
-          "level": "warn",
+          "level": "error",
           "options": { "maxAllowedComplexity": 30 }
         }
       },
@@ -27,7 +27,7 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "noUnusedFunctionParameters": "warn"
+        "noUnusedFunctionParameters": "error"
       }
     }
   },
