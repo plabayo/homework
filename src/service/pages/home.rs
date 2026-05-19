@@ -30,7 +30,7 @@ pub async fn home(req: Request) -> impl IntoResponse {
 
 fn page_body() -> impl IntoHtml {
     (
-        page_header("Oefeningen Basisschool 🏫"),
+        page_header("Oefeningen Basisschool"),
         section!(
             class = "page-intro",
             p!("Kies een oefening en ga meteen aan de slag.",),

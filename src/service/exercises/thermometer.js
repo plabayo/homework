@@ -200,7 +200,7 @@ runExercise({
             `;
             return;
         }
-        const fb = q.kind === "teken" ? "kleur de thermometer 🎨" : "lees de temperatuur ✏️";
+        const fb = q.kind === "teken" ? "kleur de thermometer" : "lees de temperatuur";
         document.getElementById("exercise-feedback").textContent = fb;
         if (q.kind === "teken") {
             root.innerHTML = `

@@ -394,17 +394,17 @@ function timeLabel(h, m) {
 /** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
 function renderZetFeedback(feedbackEl, q) {
     if (q.promptStyle !== "words") {
-        feedbackEl.textContent = `zet de klok op ${timeLabel(q.h, q.m)} ⏰`;
+        feedbackEl.textContent = `zet de klok op ${timeLabel(q.h, q.m)}`;
         return;
     }
     const variants = dutchTimePhraseVariants(q.h, q.m);
     if (variants.length > 1) {
         const idx = Math.random() < 0.5 ? 0 : 1;
-        feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(variants[idx], variants[1 - idx])}" ⏰`;
+        feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(variants[idx], variants[1 - idx])}"`;
         const flip = feedbackEl.querySelector(".phrase-flip");
         if (flip) sizeFlip(flip);
     } else {
-        feedbackEl.textContent = `zet de klok op "${variants[0] ?? ""}" ⏰`;
+        feedbackEl.textContent = `zet de klok op "${variants[0] ?? ""}"`;
     }
 }
 
@@ -444,7 +444,7 @@ function renderClockReview(q, root, mode) {
 }
 
 function renderClockLees(q, root, minStep) {
-    document.getElementById("exercise-feedback").textContent = "lees de klok 🕐";
+    document.getElementById("exercise-feedback").textContent = "lees de klok";
     if (q.answerMode === "fill") {
         root.innerHTML = `
             ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}

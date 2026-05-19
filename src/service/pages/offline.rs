@@ -22,7 +22,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
         },
         "",
         (
-            page_header("offline 📴"),
+            page_header("offline"),
             p!(
                 class = "box",
                 "We konden de gevraagde pagina niet ophalen omdat je offline bent ",
@@ -50,7 +50,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
         },
         "",
         (
-            page_header("pagina niet gevonden 🔎"),
+            page_header("pagina niet gevonden"),
             p!(
                 class = "box",
                 "De gevraagde pagina bestaat niet of is verplaatst.",

@@ -1509,7 +1509,22 @@ export function runExercise(spec) {
         const cycleNum = state.cycles.length;
         const isMultiCycle = cycleNum > 1;
 
-        const headline = isMultiCycle ? `<h2>🎉 ronde ${cycleNum} afgerond</h2>` : `<h2>🎉 klaar</h2>`;
+        // Tone the headline emoji to the score — a party popper after a 0/3
+        // run feels off. 100% gets the celebration, partial gets a positive
+        // but more measured cue, and a zero score is neutral (kid still
+        // showed up, no need to rub it in).
+        const ratio = total > 0 ? score / total : 0;
+        let emoji;
+        if (score === total && total > 0) emoji = "🎉";
+        else if (ratio >= 0.8) emoji = "🌟";
+        else if (ratio >= 0.5) emoji = "👍";
+        else if (score > 0) emoji = "💪";
+        else emoji = "";
+        const emojiPrefix = emoji ? `${emoji} ` : "";
+
+        const headline = isMultiCycle
+            ? `<h2>${emojiPrefix}ronde ${cycleNum} afgerond</h2>`
+            : `<h2>${emojiPrefix}klaar</h2>`;
 
         const cyclesList = state.cycles.map((c, i) => cycleSummaryLine(c, i + 1)).join("");
 

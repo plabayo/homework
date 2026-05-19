@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("multiplications.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("maaltafels ✖️"),
+        page_header("maaltafels"),
         exercise_scaffold(
             INFO,
             "Oefen hier de maaltafels. Kies hoeveel oefeningen en welke tafels.",

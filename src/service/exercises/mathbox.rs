@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("mathbox.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("rekendoos 🔢"),
+        page_header("rekendoos"),
         exercise_scaffold(
             INFO,
             "De digitale rekendoos: optellen, aftrekken, splitsen, vermenigvuldigen en delen.",

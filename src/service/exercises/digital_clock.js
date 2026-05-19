@@ -246,7 +246,7 @@ runExercise({
         const fill = q.answerMode === "fill" && q.dir === "words-to-digital";
 
         if (q.dir === "digital-to-words") {
-            document.getElementById("exercise-feedback").textContent = "lees de digitale klok 🔢";
+            document.getElementById("exercise-feedback").textContent = "lees de digitale klok";
             // For each option, pick the "other" Dutch variant (if any) as
             // the peek label so the kid can compare "vijf voor half twaalf"
             // with "vijfentwintig over elf" before committing. The button's
@@ -284,8 +284,8 @@ runExercise({
         } else {
             // words → digital
             document.getElementById("exercise-feedback").textContent = fill
-                ? "typ de tijd op de klok 🔢"
-                : "kies de juiste tijd 🔢";
+                ? "typ de tijd op de klok"
+                : "kies de juiste tijd";
             if (fill) {
                 const maxHourHint = q.use24h ? "0–23" : "1–12";
                 root.innerHTML = `

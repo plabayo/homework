@@ -103,7 +103,7 @@ pub fn niveau_label(level: u8) -> &'static str {
 /// fieldset somewhere in their setup form.
 pub fn time_mode_fieldset() -> impl IntoHtml {
     fieldset!(
-        legend!("Tijdsmodus ⏱️"),
+        legend!("Tijdsmodus"),
         label!(
             input!(r#type = "checkbox", id = "time-mode", name = "time-mode",),
             " toon een timer en hoe lang elke oefening duurde",

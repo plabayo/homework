@@ -141,10 +141,10 @@ function buildDeck(cfg) {
 // ---------- Rendering ----------
 
 const FEEDBACK = {
-    "breuk-naar-procent": "breuk naar procent 📊",
-    "procent-naar-breuk": "procent naar breuk 🔣",
-    "procent-van-getal": "procent van een getal 🔢",
-    "wat-procent": "hoeveel procent? ❓",
+    "breuk-naar-procent": "breuk naar procent",
+    "procent-naar-breuk": "procent naar breuk",
+    "procent-van-getal": "procent van een getal",
+    "wat-procent": "hoeveel procent?",
 };
 
 function renderPlay(q) {

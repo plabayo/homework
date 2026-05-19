@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("clock.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("analoge klok 🕐"),
+        page_header("analoge klok"),
         freeplay_section(),
         exercise_scaffold(
             INFO,

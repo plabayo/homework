@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("thermometer.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("thermometer 🌡️"),
+        page_header("thermometer"),
         exercise_scaffold(
             INFO,
             "Leer werken met een analoge thermometer: kleur of lees de temperatuur. Optioneel ook met negatieve temperaturen.",

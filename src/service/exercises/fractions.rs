@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("fractions.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("breukendoos 🔣"),
+        page_header("breukendoos"),
         exercise_scaffold(
             INFO,
             "Oefen met breuken: een breuk van een getal nemen, optellen, aftrekken, vermenigvuldigen en delen.",

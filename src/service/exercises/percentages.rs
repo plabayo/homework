@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("percentages.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("procenten 💯"),
+        page_header("procenten"),
         exercise_scaffold(
             INFO,
             "Oefen met procenten: breuk naar procent, procent naar breuk, procent van een getal, en hoeveel procent.",
@@ -107,7 +107,7 @@ fn config_fields() -> impl IntoHtml {
                 kind_checkbox("breuk-naar-procent", "breuk → procent 📊", true),
                 kind_checkbox("procent-naar-breuk", "procent → breuk 🔣", true),
                 kind_checkbox("procent-van-getal", "procent van een getal 🔢", true),
-                kind_checkbox("wat-procent", "hoeveel procent? ❓", false),
+                kind_checkbox("wat-procent", "hoeveel procent?", false),
             ),
         ),
         fieldset!(

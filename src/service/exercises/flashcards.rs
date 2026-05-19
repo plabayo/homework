@@ -55,7 +55,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     };
 
     let body = (
-        page_header("flitskaarten 🃏"),
+        page_header("flitskaarten"),
         exercise_scaffold(
             INFO,
             "Maak je eigen kaartjes en oefen ze. Kies een deck hieronder of maak een nieuw deck aan.",

@@ -28,7 +28,7 @@ pub async fn about(req: Request) -> impl IntoResponse {
 
 fn page_body() -> impl IntoHtml {
     (
-        page_header("Over ons 🏫"),
+        page_header("Over ons"),
         section!(
             class = "page-intro",
             p!(
@@ -48,7 +48,7 @@ fn page_body() -> impl IntoHtml {
 fn section_missie() -> impl IntoHtml {
     section!(
         class = "about-section",
-        h2!("Onze missie 🎯"),
+        h2!("Onze missie"),
         p!(
             "Homework is een hulpmiddel voor thuis — geen vervanger voor de leerkracht. \
              Kinderen oefenen samen met een ouder of verzorger, op hun eigen tempo, \
@@ -66,7 +66,7 @@ fn section_missie() -> impl IntoHtml {
 fn section_didactiek() -> impl IntoHtml {
     section!(
         class = "about-section",
-        h2!("Onze didactische aanpak 📚"),
+        h2!("Onze didactische aanpak"),
         p!(
             "We geloven dat herhaling en rust de basis zijn van goed leren. \
              Daarom:"
@@ -91,7 +91,7 @@ fn section_didactiek() -> impl IntoHtml {
 fn section_gebruik() -> impl IntoHtml {
     section!(
         class = "about-section",
-        h2!("Hoe gebruik je de app? 🤔"),
+        h2!("Hoe gebruik je de app?"),
         ol!(
             li!("Kies een oefening op de startpagina."),
             li!("Stel het aantal vragen en de moeilijkheidsgraad in \
@@ -111,7 +111,7 @@ fn section_gebruik() -> impl IntoHtml {
 fn section_plabayo() -> impl IntoHtml {
     section!(
         class = "about-section",
-        h2!("Over Plabayo 🦙"),
+        h2!("Over Plabayo"),
         p!(
             "Plabayo is een kleine technologiestudio. We hebben deze app gemaakt \
              voor onze eigen kinderen en delen hem graag gratis met iedereen. \
@@ -133,7 +133,7 @@ fn section_plabayo() -> impl IntoHtml {
 fn section_bijdragen() -> impl IntoHtml {
     section!(
         class = "about-section",
-        h2!("Bijdragen en contact 🤝"),
+        h2!("Bijdragen en contact"),
         p!(
             "Heb je een idee, een fout gevonden, of wil je gewoon iets kwijt? \
              We horen het graag!"

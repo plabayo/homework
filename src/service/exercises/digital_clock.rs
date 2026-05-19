@@ -25,7 +25,7 @@ const SCRIPT: &str = include_str!("digital_clock.js");
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
-        page_header("digitale klok ⏰"),
+        page_header("digitale klok"),
         exercise_scaffold(
             INFO,
             "Oefen de Nederlandse uitdrukkingen voor tijd: \"kwart over\", \"half\", \"kwart voor\", en het volle uur — vertaal tussen digitale tijd en woorden.",
