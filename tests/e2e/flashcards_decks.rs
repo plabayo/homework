@@ -4,7 +4,7 @@
 
 use super::helpers::{
     click, generate_import_param, inject_deck_json, select_deck_and_start, set_input_value,
-    text_of, wait_for_css, wait_for_enabled, wait_for_nonempty_text, wait_for_text,
+    wait_for_css, wait_for_enabled, wait_for_nonempty_text, wait_for_text,
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
@@ -453,33 +453,43 @@ async fn flashcards_import_name_conflict_save_as_new() -> TestResult<()> {
         .goto(app.url(&format!("/extra/flashcards?import={param}")))
         .await?;
 
-    wait_for_css(driver, "#fc-saveas-import", Duration::from_secs(10)).await?;
+    // Mirror the overwrite-test pattern: wait for the outer container first, then
+    // the specific buttons inside it.  This is more robust than waiting directly
+    // for a child button because `renderImport()` sets managerRoot.innerHTML all
+    // at once — once the box is present, every button inside it is also present.
+    wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
+    wait_for_css(driver, "#fc-saveas-import", Duration::from_secs(5)).await?;
     wait_for_css(driver, "#fc-import-name", Duration::from_secs(5)).await?;
 
     // Set the input value via JS to avoid WebDriver send_keys timing races, then
     // click the button.  Both happen synchronously inside a single execute call so
     // doImport() is guaranteed to see the updated value.
-    driver
+    // Return the new deck's id from localStorage immediately (doImport is
+    // synchronous for text-only decks) so we can pin-point failures fast and
+    // wait on the exact deck-id rather than fuzzy text-matching.
+    let result = driver
         .execute(
             "var inp = document.querySelector('#fc-import-name'); \
              inp.value = 'Gedeeld deck (kopie)'; \
-             document.querySelector('#fc-saveas-import').click();",
+             document.querySelector('#fc-saveas-import').click(); \
+             var d = JSON.parse(localStorage.getItem('homework_flashcard_decks') || '[]') \
+                 .find(function(d) { return d.name === 'Gedeeld deck (kopie)'; }); \
+             return d ? d.id : '';",
             vec![],
         )
         .await?;
+    let new_id = result.json().as_str().unwrap_or("").to_owned();
+    assert!(
+        !new_id.is_empty(),
+        "expected a new deck named 'Gedeeld deck (kopie)' to be saved to localStorage"
+    );
 
-    wait_for_text(
+    wait_for_css(
         driver,
-        ".deck-item.selected .deck-name",
-        "Gedeeld deck (kopie)",
+        &format!(".deck-item[data-deck-id='{new_id}'].selected"),
         Duration::from_secs(10),
     )
     .await?;
-    let selected_name = text_of(driver, ".deck-item.selected .deck-name").await?;
-    assert_eq!(
-        selected_name, "Gedeeld deck (kopie)",
-        "the new deck must carry the user-supplied name"
-    );
 
     wait_for_css(
         driver,
