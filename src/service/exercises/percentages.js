@@ -4,17 +4,6 @@
 
 import { loadFields, pickRandom, readFields, runExercise } from "@homework";
 
-// ---------- Math helpers ----------
-
-function gcd(a, b) {
-    let x = Math.abs(a);
-    let y = Math.abs(b);
-    while (y) {
-        [x, y] = [y, x % y];
-    }
-    return x || 1;
-}
-
 // ---------- Fraction pools ----------
 
 // All (num, den) pairs in simplified form where num × 100 is divisible by den

@@ -43,4 +43,4 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { gcd, buildDeck, isCorrectAnswer } = ctx;
+export const { buildDeck, isCorrectAnswer } = ctx;

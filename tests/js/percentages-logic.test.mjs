@@ -11,16 +11,11 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { gcd, buildDeck, isCorrectAnswer } from "./percentages-harness.mjs";
+import { buildDeck, isCorrectAnswer } from "./percentages-harness.mjs";
 
-// ---------------------------------------------------------------------------
-// gcd
-// ---------------------------------------------------------------------------
-
-test("gcd: gcd(12, 8) = 4", () => { assert.equal(gcd(12, 8), 4); });
-test("gcd: gcd(7, 13) = 1 (coprime)", () => { assert.equal(gcd(7, 13), 1); });
-test("gcd: gcd(0, 5) = 5", () => { assert.equal(gcd(0, 5), 5); });
-test("gcd: gcd(6, 0) = 6", () => { assert.equal(gcd(6, 0), 6); });
+function gcd(a, b) {
+    return b === 0 ? a : gcd(b, a % b);
+}
 
 // ---------------------------------------------------------------------------
 // buildDeck — basic shape
