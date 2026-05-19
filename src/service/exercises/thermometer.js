@@ -63,7 +63,7 @@ function drawThermometer({ value, vmin, vmax, filled }) {
                 <circle class="bulb" cx="${BULB.cx}" cy="${BULB.cy}" r="${BULB.r}"/>
                 ${filled ? `<circle class="bulb-fill" cx="${BULB.cx}" cy="${BULB.cy}" r="${BULB.r - 2.5}"/>` : ""}
                 <rect class="glass" x="${TUBE.x}" y="${TUBE.top}" width="${TUBE.w}" height="${TUBE.bottom - TUBE.top}" rx="${TUBE.w / 2}" ry="${TUBE.w / 2}"/>
-                <g clip-path="url(#thermo-clip)">${liquid}</g>
+                <g clip-path="url(#${clipId})">${liquid}</g>
                 <g>${ticks.join("")}</g>
                 <g>${numbers.join("")}</g>
             </svg>

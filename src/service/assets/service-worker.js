@@ -79,8 +79,7 @@ function isStaticAsset(url) {
         url.pathname === "/theme.css" ||
         url.pathname === "/homework.js" ||
         url.pathname === "/manifest.webmanifest" ||
-        url.pathname === "/favicon.svg" ||
-        url.pathname.startsWith("/img/")
+        url.pathname === "/favicon.svg"
     );
 }
 

@@ -9,7 +9,10 @@ use rama::{
     error::extra::OpaqueError,
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
-        headers::{StrictTransportSecurity, XContentTypeOptions, exotic::XClacksOverhead},
+        headers::{
+            ContentSecurityPolicy, SourceList, StrictTransportSecurity, XContentTypeOptions,
+            exotic::XClacksOverhead,
+        },
         layer::{
             cors, map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
@@ -17,7 +20,7 @@ use rama::{
         },
         service::{redirect::RedirectHttpToHttps, web::Router},
     },
-    net::http::uri::UriMatchReplaceDomain,
+    net::{Protocol, http::uri::UriMatchReplaceDomain},
 };
 
 mod assets;
@@ -88,20 +91,23 @@ pub async fn load_https_app_service()
         ),
         // img-src and connect-src are broad (https:) to accommodate external image CDNs
         // (Wikimedia Commons) and future map/API integrations without further changes.
-        SetResponseHeaderLayer::overriding(
-            HeaderName::from_static("content-security-policy"),
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline'; \
-                 style-src 'self' 'unsafe-inline'; \
-                 img-src 'self' https: data: blob:; \
-                 connect-src 'self' https:; \
-                 font-src 'self'; \
-                 object-src 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'; \
-                 frame-ancestors 'none'",
-            ),
+        SetResponseHeaderLayer::overriding_typed(
+            ContentSecurityPolicy::empty()
+                .with_default_src(SourceList::self_origin())
+                .with_script_src(SourceList::self_origin().with_unsafe_inline())
+                .with_style_src(SourceList::self_origin().with_unsafe_inline())
+                .with_img_src(
+                    SourceList::self_origin()
+                        .with_scheme(Protocol::HTTPS)
+                        .with_data()
+                        .with_blob(),
+                )
+                .with_connect_src(SourceList::self_origin().with_scheme(Protocol::HTTPS))
+                .with_font_src(SourceList::self_origin())
+                .with_object_src(SourceList::none())
+                .with_base_uri(SourceList::self_origin())
+                .with_form_action(SourceList::self_origin())
+                .with_frame_ancestors(SourceList::none()),
         ),
         UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www()),
     );
