@@ -2086,17 +2086,6 @@ async function initManager() {
         }
     });
 
-    document.querySelector("#page-exercises .button-reset")?.addEventListener(
-        "click",
-        (e) => {
-            if (!reviewState.active) return;
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            stopReviewSession();
-        },
-        true,
-    );
-
     ensureExamples();
 
     const importParam = new URLSearchParams(location.search).get("import");
@@ -2362,6 +2351,10 @@ runExercise({
             fcCount: Number(form.querySelector("input[name='fc-count']")?.value) || 0,
             fcOrderImportant: form.querySelector("#fc-order-important")?.checked || false,
         };
+    },
+
+    onBeforeReset() {
+        stopReviewSession({ keepPage: true });
     },
 
     validateConfig(cfg) {

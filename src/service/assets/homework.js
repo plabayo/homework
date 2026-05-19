@@ -963,6 +963,7 @@ function renderTrickyList(session) {
  *   maxAttempts?: number                       — wrong attempts before answer is forced (default 3, 0 = no cap)
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
+ *   onBeforeReset?: () => void               — called before returning to setup (e.g. to clean up exercise-specific state)
  * }
  */
 export function runExercise(spec) {
@@ -1622,6 +1623,7 @@ export function runExercise(spec) {
                     if (choice === "stop") finishPartial();
                 });
             } else {
+                spec.onBeforeReset?.();
                 show("setup");
             }
         });
