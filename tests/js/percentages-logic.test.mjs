@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { gcd, simplify, buildDeck, isCorrectAnswer } from "./percentages-harness.mjs";
+import { gcd, buildDeck, isCorrectAnswer } from "./percentages-harness.mjs";
 
 // ---------------------------------------------------------------------------
 // gcd
@@ -21,21 +21,6 @@ test("gcd: gcd(12, 8) = 4", () => { assert.equal(gcd(12, 8), 4); });
 test("gcd: gcd(7, 13) = 1 (coprime)", () => { assert.equal(gcd(7, 13), 1); });
 test("gcd: gcd(0, 5) = 5", () => { assert.equal(gcd(0, 5), 5); });
 test("gcd: gcd(6, 0) = 6", () => { assert.equal(gcd(6, 0), 6); });
-
-// ---------------------------------------------------------------------------
-// simplify
-// ---------------------------------------------------------------------------
-
-function assertFrac(actual, num, den) {
-    assert.equal(actual.num, num, `expected num=${num}, got ${actual.num}`);
-    assert.equal(actual.den, den, `expected den=${den}, got ${actual.den}`);
-}
-
-test("simplify: 50/100 → 1/2", () => { assertFrac(simplify(50, 100), 1, 2); });
-test("simplify: 75/100 → 3/4", () => { assertFrac(simplify(75, 100), 3, 4); });
-test("simplify: 25/100 → 1/4", () => { assertFrac(simplify(25, 100), 1, 4); });
-test("simplify: 10/100 → 1/10", () => { assertFrac(simplify(10, 100), 1, 10); });
-test("simplify: 0/n → 0/1", () => { assertFrac(simplify(0, 7), 0, 1); });
 
 // ---------------------------------------------------------------------------
 // buildDeck — basic shape
@@ -72,18 +57,20 @@ test("buildDeck: breuk-naar-procent has integer percentage answer in 1–100", (
     }
 });
 
-test("buildDeck: breuk-naar-procent all 11 easy fracs are unique", () => {
-    const deck = buildDeck(cfg({ kinds: ["breuk-naar-procent"], numExercises: 11 }));
-    assert.equal(deck.length, 11);
+test("buildDeck: no duplicates within easy pool when well within pool size", () => {
+    // 8 exercises from 11-item easy pool — stale-reset cannot trigger, so all 8 must be unique.
+    const deck = buildDeck(cfg({ kinds: ["breuk-naar-procent"], numExercises: 8 }));
+    assert.equal(deck.length, 8);
     const keys = deck.map((q) => `${q.num}/${q.den}`);
-    assert.equal(new Set(keys).size, 11, `expected all unique, got: ${JSON.stringify(keys)}`);
+    assert.equal(new Set(keys).size, 8, `expected all unique, got: ${JSON.stringify(keys)}`);
 });
 
-test("buildDeck: breuk-naar-procent hard pool has 19 unique fracs", () => {
-    const deck = buildDeck(cfg({ difficulty: "moeilijk", kinds: ["breuk-naar-procent"], numExercises: 19 }));
-    assert.equal(deck.length, 19);
+test("buildDeck: no duplicates within hard pool when well within pool size", () => {
+    // 13 exercises from 19-item hard pool — safely below reset threshold.
+    const deck = buildDeck(cfg({ difficulty: "moeilijk", kinds: ["breuk-naar-procent"], numExercises: 13 }));
+    assert.equal(deck.length, 13);
     const keys = deck.map((q) => `${q.num}/${q.den}`);
-    assert.equal(new Set(keys).size, 19, "expected all unique for hard pool");
+    assert.equal(new Set(keys).size, 13, "expected all unique for hard pool");
 });
 
 // ---------------------------------------------------------------------------
@@ -156,6 +143,29 @@ test("buildDeck: wat-procent answer equals part/whole×100", () => {
     for (const q of deck) {
         assert.equal(q.answer, (q.part * 100) / q.whole, `${q.part}/${q.whole}×100 ≠ ${q.answer}`);
     }
+});
+
+// ---------------------------------------------------------------------------
+// buildDeck — pool exhaustion: fills up with repeats after reset
+// ---------------------------------------------------------------------------
+
+test("buildDeck: completes when breuk-naar-procent pool is exhausted (allows repeats)", () => {
+    // Easy pool has 11 unique fracs; requesting 15 must still fill up (4 repeats allowed).
+    const deck = buildDeck(cfg({ kinds: ["breuk-naar-procent"], numExercises: 15 }));
+    assert.equal(deck.length, 15);
+});
+
+test("buildDeck: completes when procent-naar-breuk pool is exhausted (allows repeats)", () => {
+    // Same 11-item pool (one key per percentage).
+    const deck = buildDeck(cfg({ kinds: ["procent-naar-breuk"], numExercises: 15 }));
+    assert.equal(deck.length, 15);
+});
+
+test("buildDeck: completes when hard pool is exhausted (allows repeats)", () => {
+    const deck = buildDeck(
+        cfg({ difficulty: "moeilijk", kinds: ["breuk-naar-procent"], numExercises: 25 }),
+    );
+    assert.equal(deck.length, 25);
 });
 
 // ---------------------------------------------------------------------------

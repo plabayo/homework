@@ -15,12 +15,6 @@ function gcd(a, b) {
     return x || 1;
 }
 
-function simplify(num, den) {
-    if (num === 0) return { num: 0, den: 1 };
-    const g = gcd(Math.abs(num), Math.abs(den));
-    return { num: num / g, den: den / g };
-}
-
 // ---------- Fraction pools ----------
 
 // All (num, den) pairs in simplified form where num × 100 is divisible by den
