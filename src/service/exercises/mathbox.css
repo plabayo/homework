@@ -53,11 +53,11 @@
         /* Leg length in viewBox units is ~44; dasharray of 50 is safely
            longer than the visible line so the animation fully reveals it. */
         stroke-dasharray: 50;
-        animation: split-leg-draw 280ms ease-out both;
+        animation: split-leg-draw 200ms ease-out both;
     }
     .split-stack .split-bottom .split-part {
         /* `pop-in` is declared in theme.css inside the same media query, so
            it's available here whenever this rule is. */
-        animation: pop-in 200ms ease-out 220ms both;
+        animation: pop-in 80ms ease-out 150ms both;
     }
 }
