@@ -754,24 +754,29 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
 
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
-    // Each typeable input must be wrapped in the inline clear-chip container.
+    // Each typeable input must be wrapped in the inline clear-chip container,
+    // and the chip itself must always be laid out in the DOM (we toggle a
+    // class for visibility, never `hidden`) so typing doesn't make the
+    // input jump sideways.
     wait_for_css(
         driver,
         ".input-with-clear > #answer",
         Duration::from_secs(5),
     )
     .await?;
-    // Fresh question, nothing typed → the chip stays hidden so it never
-    // sits next to the field as a tempting no-op.
-    assert_eq!(
+    wait_for_css(
+        driver,
+        ".input-with-clear .input-clear",
+        Duration::from_secs(5),
+    )
+    .await?;
+    // Fresh question, nothing typed → chip is dormant (no `is-active`).
+    assert!(
         driver
-            .find(By::Css(".input-with-clear .input-clear"))
+            .find_all(By::Css(".input-with-clear .input-clear.is-active"))
             .await?
-            .prop("hidden")
-            .await?
-            .unwrap_or_default(),
-        "true",
-        "the inline ✕ chip should be hidden before the child types anything",
+            .is_empty(),
+        "chip should be dormant before the child types anything",
     );
 
     // Crucial UX assertion: the chip must NOT live in the action row next to
@@ -784,31 +789,28 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
         "the clear chip must not sit in the action row next to antwoord",
     );
 
-    // Typing reveals the chip.
+    // Typing activates the chip.
     set_input_value(driver, "#answer", "42").await?;
     wait_for_css(
         driver,
-        ".input-with-clear .input-clear:not([hidden])",
+        ".input-with-clear .input-clear.is-active",
         Duration::from_secs(5),
     )
     .await?;
 
     click(driver, ".input-with-clear .input-clear").await?;
 
-    // After clicking, the input should be empty, the chip should hide itself
+    // After clicking, the input should be empty, the chip should go dormant
     // again, and focus should return to the answer field.
     let answer = driver.find(By::Css("#answer")).await?;
     let value = answer.prop("value").await?.unwrap_or_default();
     assert_eq!(value, "", "expected the answer input to be empty after wis");
-    assert_eq!(
+    assert!(
         driver
-            .find(By::Css(".input-with-clear .input-clear"))
+            .find_all(By::Css(".input-with-clear .input-clear.is-active"))
             .await?
-            .prop("hidden")
-            .await?
-            .unwrap_or_default(),
-        "true",
-        "chip should hide itself once the input is empty",
+            .is_empty(),
+        "chip should go dormant once the input is empty",
     );
     let focused_id = driver
         .execute("return document.activeElement?.id || '';", vec![])

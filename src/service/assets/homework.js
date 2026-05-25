@@ -1151,22 +1151,23 @@ export function runExercise(spec) {
             chip.tabIndex = -1; // not reachable via Tab; the input owns focus.
             const inputLabel = input.getAttribute("aria-label") || "antwoord";
             chip.setAttribute("aria-label", `wis ${inputLabel}`);
-            // Broom + the word "wis" — the icon alone reads as too small to
-            // even notice, the word alone bumps it close to a regular button
-            // (kids might confuse it with antwoord). Together it's clearly
-            // labelled and unambiguously a "clear the field" affordance.
-            chip.innerHTML =
-                '<span class="input-clear-icon" aria-hidden="true">🧹</span>' +
-                '<span class="input-clear-label">wis</span>';
-            chip.hidden = !input.value;
+            chip.textContent = "🧹";
+            // The chip ALWAYS occupies its slot next to the input — we only
+            // fade its opacity in/out via the `is-active` class. Toggling
+            // `hidden` (display:none) made the input visibly jump as the
+            // child typed, which was worse UX than the original problem.
+            chip.classList.toggle("is-active", !!input.value);
+            chip.setAttribute("aria-hidden", input.value ? "false" : "true");
             chip.addEventListener("click", (e) => {
                 e.preventDefault();
+                if (!input.value) return; // dormant chip — no jump, just a no-op
                 input.value = "";
                 // Any wrong-attempt styling came from the previous submission;
                 // clearing is the kid's way of starting that input over.
                 contentEl.classList.remove("is-wrong");
                 feedbackEl.classList.remove("is-bad");
-                chip.hidden = true;
+                chip.classList.remove("is-active");
+                chip.setAttribute("aria-hidden", "true");
                 try {
                     input.focus({ preventScroll: true });
                 } catch {
@@ -1183,7 +1184,9 @@ export function runExercise(spec) {
             const input = wrap.querySelector("input");
             const chip = wrap.querySelector(".input-clear");
             if (!input || !chip) return;
-            chip.hidden = !input.value;
+            const active = !!input.value;
+            chip.classList.toggle("is-active", active);
+            chip.setAttribute("aria-hidden", active ? "false" : "true");
         });
     }
     const errorEl = document.getElementById("config-error");
