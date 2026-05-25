@@ -696,6 +696,50 @@ async fn max_attempts_forces_correct_answer() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn timeout_with_correct_typed_answer_counts_as_correct() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    set_checkbox(driver, "#time-mode", true).await?;
+    set_checkbox(driver, "#deadline-on", true).await?;
+    set_input_value(driver, "#deadline-seconds", "3").await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    let prompt =
+        wait_for_nonempty_text(driver, "#exercise-content p", Duration::from_secs(2)).await?;
+    let answer = parse_product_answer(&prompt)?;
+    set_input_value(driver, "#answer", &answer.to_string()).await?;
+
+    // Deliberately do not click "antwoord" — the kid had the right value
+    // typed but ran out of time. The deadline must still credit them.
+    wait_for_css(driver, "#button-next", Duration::from_secs(10)).await?;
+
+    let feedback = text_of(driver, "#exercise-feedback").await?;
+    assert!(
+        feedback.contains("tijd op"),
+        "expected friendly 'tijd op' feedback, got: {feedback:?}"
+    );
+    assert!(
+        !feedback.contains("te traag"),
+        "should not show punitive 'te traag' when the typed answer was correct, got: {feedback:?}"
+    );
+
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn clear_button_resets_and_refocuses_answer_input() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;

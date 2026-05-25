@@ -1564,11 +1564,38 @@ export function runExercise(spec) {
     function onDeadlineExpired() {
         // Don't auto-advance — the kid should see the question they ran out
         // of time on, in a clearly-locked state. They tap "volgende" to move
-        // on. The outcome is already recorded; the deadline timer is cleared
-        // so the live countdown stops ticking.
-        recordOutcome(false, state.currentGiven, true, { timedOut: true });
+        // on. The deadline timer is cleared so the live countdown stops
+        // ticking before we touch any state.
         clearTimeout(state.deadlineTimerHandle);
         state.deadlineTimerHandle = null;
+
+        // Did the child already fill in / select the right answer before the
+        // timer expired? If so, give full credit — they knew it, the clock
+        // just beat them to the submit button. `partialCorrect` answers
+        // (multi-blank cards where only some parts matched) fall through to
+        // the regular timeout path; the card was not actually finished.
+        let pendingGiven = null;
+        try {
+            if (typeof state.getAnswer === "function") pendingGiven = state.getAnswer();
+        } catch (_err) {}
+        if (pendingGiven !== null && pendingGiven !== undefined && pendingGiven !== "") {
+            const evaluation = normalizeAnswerEvaluation(state.currentQuestion, pendingGiven);
+            if (evaluation.correct && !evaluation.partialCorrect) {
+                cleanupCurrentQuestion();
+                // Streak measures answering cleanly within the deadline, so
+                // a timeout — even with the right answer — still resets it.
+                state.streak = 0;
+                recordOutcome(true, pendingGiven, false, { ...evaluation, timedOut: true });
+                showReviewState({
+                    given: pendingGiven,
+                    correct: true,
+                    feedback: "⏰ tijd op — gelukkig had je het juiste antwoord al ingevuld!",
+                });
+                return;
+            }
+        }
+
+        recordOutcome(false, state.currentGiven, true, { timedOut: true });
         cleanupCurrentQuestion();
         state.streak = 0;
         showReviewState({
