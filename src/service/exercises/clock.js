@@ -127,11 +127,14 @@ function buildWordOptions(q, minStep) {
         seenTimes.add(key);
         seenLabels.add(canonical);
         const variants = dutchTimePhraseVariants(h, m);
-        // Pick two distinct variants at random for the flip widget so all
-        // wordings — including the Flemish "twintig na X" / "vijfentwintig
-        // na X" variants — are reachable, not just the first two in the
-        // canonical order.
-        const [label, altLabel] = variants.length > 1 ? shuffle(variants.slice()).slice(0, 2) : [variants[0], null];
+        // Stick to the canonical pair (variants[0] / variants[1]) so the
+        // word-choice options always surface the most established two
+        // wordings for the time — for m=20/25 that's the traditional
+        // "voor half" / modern "over" pair; for m=5/10/15 it's the
+        // standard / Flemish "na" pair.
+        const showAlt = variants.length > 1 && Math.random() < 0.5;
+        const label = showAlt ? variants[1] : variants[0];
+        const altLabel = variants.length > 1 ? (showAlt ? variants[0] : variants[1]) : null;
         out.push({ h, m, label, altLabel, value: JSON.stringify({ h, m }) });
     };
 
@@ -401,10 +404,12 @@ function renderZetFeedback(feedbackEl, q) {
     }
     const variants = dutchTimePhraseVariants(q.h, q.m);
     if (variants.length > 1) {
-        // Pick two distinct variants randomly so the third option — the
-        // Flemish "na" form for m=20/25 — is reachable through the flip.
-        const [front, back] = shuffle(variants.slice()).slice(0, 2);
-        feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(front, back)}"`;
+        // The flip widget surfaces the canonical pair (variants[0]/[1]).
+        // For m=5/10/15 that's the Flemish "na" alternative; for m=20/25 it
+        // stays the traditional "voor half" ↔ modern "over" pair the kids
+        // most need to see side-by-side.
+        const idx = Math.random() < 0.5 ? 0 : 1;
+        feedbackEl.innerHTML = `zet de klok op "${phraseFlipHtml(variants[idx], variants[1 - idx])}"`;
         const flip = feedbackEl.querySelector(".phrase-flip");
         if (flip) sizeFlip(flip);
     } else {
@@ -530,10 +535,11 @@ function mountFreeplay() {
                 digitalEl.textContent = timeLabel(h, m);
                 const variants = dutchTimePhraseVariants(h, m);
                 if (variants.length > 1) {
-                    // Random two-of-N pick so the Flemish "na" form is
-                    // reachable through the flip widget for m=20/25.
-                    const [front, back] = shuffle(variants.slice()).slice(0, 2);
-                    phraseEl.innerHTML = phraseFlipHtml(front, back);
+                    // Keep the deterministic canonical pair (variants[0] ↔
+                    // variants[1]) so the flip widget always shows the two
+                    // most-established wordings for the current time.
+                    const idx = Math.random() < 0.5 ? 0 : 1;
+                    phraseEl.innerHTML = phraseFlipHtml(variants[idx], variants[1 - idx]);
                     const flip = phraseEl.querySelector(".phrase-flip");
                     if (flip) sizeFlip(flip);
                 } else {
