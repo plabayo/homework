@@ -155,6 +155,10 @@ pub fn exercise_scaffold(
             p!(class = "page-intro", intro),
             form!(
                 id = "form-setup",
+                // Browser autofill dropdowns offering previously-typed values
+                // are noise for a learning app — kids should think, not pick
+                // from a history list.
+                autocomplete = "off",
                 config_fields,
                 // role=alert + aria-live=assertive so the validation error
                 // is announced as soon as setError() reveals it. Hidden
@@ -207,6 +211,7 @@ pub fn exercise_scaffold(
                 ),
                 form!(
                     id = "form-exercise",
+                    autocomplete = "off",
                     div!(id = "exercise-content"),
                     div!(
                         class = "exercise-actions",

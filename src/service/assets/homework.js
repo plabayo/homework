@@ -1469,6 +1469,13 @@ export function runExercise(spec) {
         contentEl.querySelectorAll("input:not([aria-label]):not([aria-labelledby])").forEach((input) => {
             input.setAttribute("aria-label", "jouw antwoord");
         });
+        // Suppress browser autofill suggestions for every answer input — the
+        // outer <form autocomplete="off"> already requests this, but Chrome
+        // sometimes ignores form-level off for inputs it considers
+        // address/credential-shaped. Setting it per input is reliable.
+        contentEl.querySelectorAll("input:not([autocomplete])").forEach((input) => {
+            input.setAttribute("autocomplete", "off");
+        });
         // Focus the first input before the entrance animation starts so the
         // browser sees a fully-visible element (opacity: 1) at focus time.
         // Adding question-enter immediately after would set opacity to 0 via
