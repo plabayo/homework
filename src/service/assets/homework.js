@@ -1119,13 +1119,11 @@ export function runExercise(spec) {
     const feedbackEl = document.getElementById("exercise-feedback");
     const contentEl = document.getElementById("exercise-content");
     const skipBtn = document.getElementById("button-skip");
-    const clearBtn = document.getElementById("button-clear");
     const resultEl = document.getElementById("result");
 
     // Any text/number-style answer input inside the current question card.
     // Excludes hidden/disabled/readonly fields and the option-button machinery
-    // (radio/checkbox) so multiple-choice exercises don't get a clear button
-    // that has nothing to clear.
+    // (radio/checkbox) so multiple-choice exercises never get a clear chip.
     const CLEARABLE_INPUT_SELECTOR =
         'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([disabled]):not([readonly])';
 
@@ -1133,23 +1131,57 @@ export function runExercise(spec) {
         return contentEl ? contentEl.querySelectorAll(CLEARABLE_INPUT_SELECTOR) : [];
     }
 
-    function syncClearButton() {
-        if (!clearBtn) return;
-        // Hidden while the card is locked (review state) — there is nothing
-        // for the child to edit at that point.
-        if (contentEl?.classList.contains("locked")) {
-            clearBtn.hidden = true;
-            return;
-        }
-        const inputs = clearableInputs();
-        if (inputs.length === 0) {
-            clearBtn.hidden = true;
-            return;
-        }
-        // Only worth showing once something has actually been typed, otherwise
-        // it's a no-op control taking up space next to "antwoord" / "weet het niet".
-        const hasContent = Array.from(inputs).some((i) => i.value !== "");
-        clearBtn.hidden = !hasContent;
+    // Wrap each typeable input in an inline-flex container that holds the
+    // input and a small ✕ chip. The chip lives next to the input it clears —
+    // visually associated with the field, far from the "antwoord" submit
+    // button so accidental taps that wipe the answer become much less
+    // likely. Hidden until the kid has actually typed something so it never
+    // sits there as a tempting no-op.
+    function attachClearChips() {
+        if (!contentEl) return;
+        clearableInputs().forEach((input) => {
+            if (input.parentElement?.classList.contains("input-with-clear")) return;
+            const wrap = document.createElement("span");
+            wrap.className = "input-with-clear";
+            input.replaceWith(wrap);
+            wrap.appendChild(input);
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "input-clear";
+            chip.tabIndex = -1; // not reachable via Tab; the input owns focus.
+            const inputLabel = input.getAttribute("aria-label") || "antwoord";
+            chip.setAttribute("aria-label", `wis ${inputLabel}`);
+            // Broom matches the original "wis" theme and — importantly —
+            // can't be misread as the multiplication sign sitting two
+            // characters to its left.
+            chip.textContent = "🧹";
+            chip.hidden = !input.value;
+            chip.addEventListener("click", (e) => {
+                e.preventDefault();
+                input.value = "";
+                // Any wrong-attempt styling came from the previous submission;
+                // clearing is the kid's way of starting that input over.
+                contentEl.classList.remove("is-wrong");
+                feedbackEl.classList.remove("is-bad");
+                chip.hidden = true;
+                try {
+                    input.focus({ preventScroll: true });
+                } catch {
+                    input.focus();
+                }
+            });
+            wrap.appendChild(chip);
+        });
+    }
+
+    function syncClearChips() {
+        if (!contentEl) return;
+        contentEl.querySelectorAll(".input-with-clear").forEach((wrap) => {
+            const input = wrap.querySelector("input");
+            const chip = wrap.querySelector(".input-clear");
+            if (!input || !chip) return;
+            chip.hidden = !input.value;
+        });
     }
     const errorEl = document.getElementById("config-error");
 
@@ -1449,7 +1481,6 @@ export function runExercise(spec) {
         feedbackEl.textContent = " ";
         feedbackEl.classList.remove("is-bad");
         if (skipBtn) skipBtn.hidden = true;
-        if (clearBtn) clearBtn.hidden = true;
 
         // Clean up any lock/animation state left over from a previous question.
         contentEl.classList.remove("locked", "is-wrong", "question-enter", "review-enter");
@@ -1488,9 +1519,10 @@ export function runExercise(spec) {
         void contentEl.offsetWidth;
         contentEl.classList.add("question-enter");
 
-        // Some exercises may pre-fill the first input (rare, but possible).
-        // Run once after render so the clear button reflects reality.
-        syncClearButton();
+        // Attach an inline ✕ chip to every typeable input. Each chip stays
+        // hidden until its input has content, so a fresh question shows no
+        // chip at all.
+        attachClearChips();
 
         startDeadline();
         updateClock();
@@ -1550,7 +1582,6 @@ export function runExercise(spec) {
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = true;
         if (skipBtn) skipBtn.hidden = true;
-        if (clearBtn) clearBtn.hidden = true;
         showAdvanceButton();
         updateClock();
     }
@@ -1892,32 +1923,10 @@ export function runExercise(spec) {
         }
     });
 
-    // Keep the clear button's visibility in sync with what the child has
-    // typed. One delegated listener covers any input the active question
-    // renders — no per-question wiring required.
-    contentEl?.addEventListener("input", syncClearButton);
-
-    clearBtn?.addEventListener("click", (e) => {
-        e.preventDefault();
-        const inputs = clearableInputs();
-        inputs.forEach((i) => {
-            i.value = "";
-        });
-        // Wrong-attempt styling lingers from the previous submission; clearing
-        // is the kid's way of starting over for this attempt, so drop the
-        // red-glow state too.
-        contentEl.classList.remove("is-wrong");
-        feedbackEl.classList.remove("is-bad");
-        const first = inputs[0];
-        if (first && typeof first.focus === "function") {
-            try {
-                first.focus({ preventScroll: true });
-            } catch {
-                first.focus();
-            }
-        }
-        syncClearButton();
-    });
+    // Keep every inline ✕ chip's visibility in sync with its input's value.
+    // One delegated listener covers whichever inputs the active question
+    // rendered — no per-question wiring required.
+    contentEl?.addEventListener("input", syncClearChips);
 
     // skip is type=reset; intercept to log + advance
     skipBtn?.addEventListener("click", (e) => {

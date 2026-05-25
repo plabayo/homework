@@ -221,16 +221,6 @@ pub fn exercise_scaffold(
                             class = "default-button primary btn-lift",
                             "👉 antwoord",
                         ),
-                        // Shown only while the active question has a typeable
-                        // input that holds content — `homework.js` toggles
-                        // visibility per question and on every `input` event.
-                        button!(
-                            r#type = "button",
-                            id = "button-clear",
-                            class = "default-button btn-lift",
-                            hidden? = true,
-                            "🧹 wis",
-                        ),
                         button!(
                             r#type = "reset",
                             id = "button-skip",

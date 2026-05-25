@@ -464,6 +464,63 @@
         justify-content: center;
         margin-block-start: 14px;
     }
+    /* ---------- inline clear chip ---------- */
+    /* Wraps any typeable answer input so a small ✕ chip can sit alongside
+       it. The chip lives next to the field it clears (search-bar style),
+       far from the primary "antwoord" button — kids can't fat-finger the
+       wrong control. Inline-flex keeps the input centered against the
+       chip, vertical-align: middle keeps the pair aligned with sibling
+       inline content like "2 × 5 =". */
+    .input-with-clear {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        vertical-align: middle;
+    }
+    .input-clear {
+        appearance: none;
+        background: transparent;
+        border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
+        border-radius: 999px;
+        width: 1.8em;
+        height: 1.8em;
+        min-width: 1.8em;
+        padding: 0;
+        font-size: 0.95rem;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex: 0 0 auto;
+        opacity: 0.85;
+        transition:
+            opacity 0.12s ease,
+            transform 0.12s ease,
+            background-color 0.12s ease;
+    }
+    .input-clear:hover {
+        opacity: 1;
+        background: color-mix(in oklab, var(--ink) 10%, transparent);
+    }
+    .input-clear:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+        opacity: 1;
+    }
+    .input-clear:active {
+        transform: scale(0.92);
+    }
+    /* Touch devices: bump the hit target so it's tappable but still clearly
+       a secondary, smaller control next to the input. */
+    @media (pointer: coarse) {
+        .input-clear {
+            width: 2.2em;
+            height: 2.2em;
+            min-width: 2.2em;
+            font-size: 1.05rem;
+        }
+    }
     .split-part {
         width: 3em;
         display: inline-block;

@@ -740,7 +740,7 @@ async fn timeout_with_correct_typed_answer_counts_as_correct() -> TestResult<()>
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
-async fn clear_button_resets_and_refocuses_answer_input() -> TestResult<()> {
+async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
@@ -754,45 +754,61 @@ async fn clear_button_resets_and_refocuses_answer_input() -> TestResult<()> {
 
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
-    // Fresh question: nothing typed yet → the clear button must stay hidden
-    // so the action row isn't cluttered with a no-op control.
+    // Each typeable input must be wrapped in the inline clear-chip container.
+    wait_for_css(
+        driver,
+        ".input-with-clear > #answer",
+        Duration::from_secs(5),
+    )
+    .await?;
+    // Fresh question, nothing typed → the chip stays hidden so it never
+    // sits next to the field as a tempting no-op.
     assert_eq!(
         driver
-            .find(By::Css("#button-clear"))
+            .find(By::Css(".input-with-clear .input-clear"))
             .await?
             .prop("hidden")
             .await?
             .unwrap_or_default(),
         "true",
-        "clear button should be hidden before the child types anything",
+        "the inline ✕ chip should be hidden before the child types anything",
     );
 
-    // Typing reveals the clear button.
+    // Crucial UX assertion: the chip must NOT live in the action row next to
+    // "antwoord" — that's exactly the proximity that caused accidental wipes.
+    assert!(
+        driver
+            .find_all(By::Css(".exercise-actions .input-clear"))
+            .await?
+            .is_empty(),
+        "the clear chip must not sit in the action row next to antwoord",
+    );
+
+    // Typing reveals the chip.
     set_input_value(driver, "#answer", "42").await?;
     wait_for_css(
         driver,
-        "#button-clear:not([hidden])",
+        ".input-with-clear .input-clear:not([hidden])",
         Duration::from_secs(5),
     )
     .await?;
 
-    click(driver, "#button-clear").await?;
+    click(driver, ".input-with-clear .input-clear").await?;
 
-    // After clicking, the input should be empty, the button should hide
-    // itself again, and focus should return to the answer field so the
-    // child can immediately start typing on a touch device.
+    // After clicking, the input should be empty, the chip should hide itself
+    // again, and focus should return to the answer field.
     let answer = driver.find(By::Css("#answer")).await?;
     let value = answer.prop("value").await?.unwrap_or_default();
     assert_eq!(value, "", "expected the answer input to be empty after wis");
     assert_eq!(
         driver
-            .find(By::Css("#button-clear"))
+            .find(By::Css(".input-with-clear .input-clear"))
             .await?
             .prop("hidden")
             .await?
             .unwrap_or_default(),
         "true",
-        "clear button should hide itself once the input is empty",
+        "chip should hide itself once the input is empty",
     );
     let focused_id = driver
         .execute("return document.activeElement?.id || '';", vec![])
