@@ -465,21 +465,26 @@
         margin-block-start: 14px;
     }
     /* ---------- inline clear chip ----------
-       Wraps every typeable answer input so a small 🧹 chip can sit beside
-       it. The chip's slot is ALWAYS laid out (we only toggle opacity),
-       so typing doesn't make the input pop sideways. The chip lives next
-       to the field it clears — far from the primary "antwoord" button so
-       kids can't fat-finger the wrong control. */
+       The wrapper hugs the input so it never affects sibling layout (e.g.
+       the two-box "splitsen" grid stays perfectly symmetric). The chip is
+       absolutely positioned BELOW the input — out of normal flow — and is
+       fully invisible (opacity 0, pointer-events: none) when the input is
+       empty. It only fades in when the kid has typed something. */
     .input-with-clear {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        position: relative;
+        display: inline-block;
         vertical-align: middle;
+        /* The input itself keeps its original size; the wrapper adds no
+           padding, margin or gap. */
     }
     .input-clear {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translate(-50%, 4px);
         appearance: none;
-        background: transparent;
-        border: 1px solid color-mix(in oklab, var(--fg) 30%, transparent);
+        background: var(--paper);
+        border: 1px solid color-mix(in oklab, var(--fg) 35%, transparent);
         border-radius: 999px;
         width: 1.9em;
         height: 1.9em;
@@ -492,17 +497,12 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        flex: 0 0 auto;
         color: var(--fg);
-        /* Default state is dormant: visible-but-faint, not interactive. The
-           kid sees the affordance from the start (so they can find it) but
-           it never "appears" suddenly when they type — it just gains
-           contrast. */
-        opacity: 0.18;
+        opacity: 0;
         pointer-events: none;
+        z-index: 2;
         transition:
             opacity 0.18s ease,
-            transform 0.12s ease,
             background-color 0.12s ease,
             border-color 0.12s ease;
     }
@@ -511,20 +511,18 @@
         pointer-events: auto;
     }
     .input-with-clear > .input-clear.is-active:hover {
-        background: color-mix(in oklab, currentcolor 10%, transparent);
-        border-color: color-mix(in oklab, currentcolor 55%, transparent);
+        background: color-mix(in oklab, var(--fg) 12%, var(--paper));
+        border-color: color-mix(in oklab, var(--fg) 60%, transparent);
     }
     .input-with-clear > .input-clear:focus-visible {
-        outline: 2px solid currentcolor;
+        outline: 2px solid var(--fg);
         outline-offset: 2px;
         opacity: 1;
     }
     .input-with-clear > .input-clear.is-active:active {
-        transform: scale(0.92);
+        transform: translate(-50%, 4px) scale(0.92);
     }
-    /* Touch devices: bump the hit target so even a dormant chip is tappable
-       if the kid does decide to use it (becomes active first input that
-       puts content in the field). */
+    /* Touch devices: bump the chip to a comfortable thumb target. */
     @media (pointer: coarse) {
         .input-clear {
             width: 2.2em;
