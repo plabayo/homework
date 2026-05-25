@@ -479,7 +479,7 @@
     .input-clear {
         appearance: none;
         background: transparent;
-        border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
+        border: 1px solid color-mix(in oklab, var(--fg) 30%, transparent);
         border-radius: 999px;
         width: 1.9em;
         height: 1.9em;
@@ -493,7 +493,7 @@
         justify-content: center;
         cursor: pointer;
         flex: 0 0 auto;
-        color: var(--ink);
+        color: var(--fg);
         /* Default state is dormant: visible-but-faint, not interactive. The
            kid sees the affordance from the start (so they can find it) but
            it never "appears" suddenly when they type — it just gains
@@ -506,20 +506,20 @@
             background-color 0.12s ease,
             border-color 0.12s ease;
     }
-    .input-clear.is-active {
+    .input-with-clear > .input-clear.is-active {
         opacity: 1;
         pointer-events: auto;
     }
-    .input-clear.is-active:hover {
-        background: color-mix(in oklab, var(--ink) 10%, transparent);
-        border-color: color-mix(in oklab, var(--ink) 55%, transparent);
+    .input-with-clear > .input-clear.is-active:hover {
+        background: color-mix(in oklab, currentcolor 10%, transparent);
+        border-color: color-mix(in oklab, currentcolor 55%, transparent);
     }
-    .input-clear:focus-visible {
-        outline: 2px solid var(--ink);
+    .input-with-clear > .input-clear:focus-visible {
+        outline: 2px solid currentcolor;
         outline-offset: 2px;
         opacity: 1;
     }
-    .input-clear.is-active:active {
+    .input-with-clear > .input-clear.is-active:active {
         transform: scale(0.92);
     }
     /* Touch devices: bump the hit target so even a dormant chip is tappable
