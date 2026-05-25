@@ -754,33 +754,21 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
 
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
-    // Each typeable input must be wrapped in the inline clear-chip container,
-    // and the chip itself must always be laid out in the DOM (we toggle a
-    // class for visibility, never `hidden`) so typing doesn't make the
-    // input jump sideways.
-    wait_for_css(
-        driver,
-        ".input-with-clear > #answer",
-        Duration::from_secs(5),
-    )
-    .await?;
-    wait_for_css(
-        driver,
-        ".input-with-clear .input-clear",
-        Duration::from_secs(5),
-    )
-    .await?;
+    // The wis chip floats absolutely in the exercise card's top-right
+    // corner — it must NEVER wrap or touch the inputs themselves (that
+    // disturbed layouts like splitsen's symmetric two-box row).
+    wait_for_css(driver, "#exercise > .input-clear", Duration::from_secs(5)).await?;
     // Fresh question, nothing typed → chip is dormant (no `is-active`).
     assert!(
         driver
-            .find_all(By::Css(".input-with-clear .input-clear.is-active"))
+            .find_all(By::Css("#exercise > .input-clear.is-active"))
             .await?
             .is_empty(),
         "chip should be dormant before the child types anything",
     );
-
-    // Crucial UX assertion: the chip must NOT live in the action row next to
-    // "antwoord" — that's exactly the proximity that caused accidental wipes.
+    // Crucial UX assertions: the chip must NOT live next to or inside
+    // anything that affects inline layout, and must NOT sit in the action
+    // row next to "antwoord".
     assert!(
         driver
             .find_all(By::Css(".exercise-actions .input-clear"))
@@ -788,17 +776,24 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
             .is_empty(),
         "the clear chip must not sit in the action row next to antwoord",
     );
+    assert!(
+        driver
+            .find_all(By::Css("#exercise-content .input-clear, #exercise-content .input-with-clear"))
+            .await?
+            .is_empty(),
+        "the clear chip must not be inside #exercise-content and must not wrap any input",
+    );
 
     // Typing activates the chip.
     set_input_value(driver, "#answer", "42").await?;
     wait_for_css(
         driver,
-        ".input-with-clear .input-clear.is-active",
+        "#exercise > .input-clear.is-active",
         Duration::from_secs(5),
     )
     .await?;
 
-    click(driver, ".input-with-clear .input-clear").await?;
+    click(driver, "#exercise > .input-clear").await?;
 
     // After clicking, the input should be empty, the chip should go dormant
     // again, and focus should return to the answer field.
@@ -807,7 +802,7 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
     assert_eq!(value, "", "expected the answer input to be empty after wis");
     assert!(
         driver
-            .find_all(By::Css(".input-with-clear .input-clear.is-active"))
+            .find_all(By::Css("#exercise > .input-clear.is-active"))
             .await?
             .is_empty(),
         "chip should go dormant once the input is empty",

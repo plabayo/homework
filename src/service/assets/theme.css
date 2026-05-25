@@ -363,6 +363,8 @@
     #exercise {
         margin-block: 12px 0;
         padding: var(--space);
+        /* Positioning context for the floating wis chip (see .input-clear). */
+        position: relative;
     }
     #exercise-title {
         text-align: center;
@@ -464,31 +466,24 @@
         justify-content: center;
         margin-block-start: 14px;
     }
-    /* ---------- inline clear chip ----------
-       The wrapper hugs the input so it never affects sibling layout (e.g.
-       the two-box "splitsen" grid stays perfectly symmetric). The chip is
-       absolutely positioned BELOW the input — out of normal flow — and is
-       fully invisible (opacity 0, pointer-events: none) when the input is
-       empty. It only fades in when the kid has typed something. */
-    .input-with-clear {
-        position: relative;
-        display: inline-block;
-        vertical-align: middle;
-        /* The input itself keeps its original size; the wrapper adds no
-           padding, margin or gap. */
-    }
-    .input-clear {
+    /* ---------- floating clear chip ----------
+       The chip floats in the exercise card's top-right corner via absolute
+       positioning. It never touches inline layout (so exercises like
+       splitsen's two-box grid render exactly as they would without the
+       chip). Fully invisible (opacity 0, pointer-events: none) when the
+       active question has no typed content; fades in once the kid has put
+       something into any input. */
+    #exercise > .input-clear {
         position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translate(-50%, 4px);
+        top: 10px;
+        right: 12px;
         appearance: none;
         background: var(--paper);
         border: 1px solid color-mix(in oklab, var(--fg) 35%, transparent);
         border-radius: 999px;
-        width: 1.9em;
-        height: 1.9em;
-        min-width: 1.9em;
+        width: 2.2em;
+        height: 2.2em;
+        min-width: 2.2em;
         padding: 0;
         font: inherit;
         font-size: 1rem;
@@ -504,30 +499,31 @@
         transition:
             opacity 0.18s ease,
             background-color 0.12s ease,
-            border-color 0.12s ease;
+            border-color 0.12s ease,
+            transform 0.12s ease;
     }
-    .input-with-clear > .input-clear.is-active {
+    #exercise > .input-clear.is-active {
         opacity: 1;
         pointer-events: auto;
     }
-    .input-with-clear > .input-clear.is-active:hover {
+    #exercise > .input-clear.is-active:hover {
         background: color-mix(in oklab, var(--fg) 12%, var(--paper));
         border-color: color-mix(in oklab, var(--fg) 60%, transparent);
     }
-    .input-with-clear > .input-clear:focus-visible {
+    #exercise > .input-clear:focus-visible {
         outline: 2px solid var(--fg);
         outline-offset: 2px;
         opacity: 1;
     }
-    .input-with-clear > .input-clear.is-active:active {
-        transform: translate(-50%, 4px) scale(0.92);
+    #exercise > .input-clear.is-active:active {
+        transform: scale(0.92);
     }
     /* Touch devices: bump the chip to a comfortable thumb target. */
     @media (pointer: coarse) {
-        .input-clear {
-            width: 2.2em;
-            height: 2.2em;
-            min-width: 2.2em;
+        #exercise > .input-clear {
+            width: 2.5em;
+            height: 2.5em;
+            min-width: 2.5em;
         }
     }
     .split-part {

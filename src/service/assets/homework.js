@@ -1131,63 +1131,63 @@ export function runExercise(spec) {
         return contentEl ? contentEl.querySelectorAll(CLEARABLE_INPUT_SELECTOR) : [];
     }
 
-    // Wrap each typeable input in an inline-flex container that holds the
-    // input and a small ✕ chip. The chip lives next to the input it clears —
-    // visually associated with the field, far from the "antwoord" submit
-    // button so accidental taps that wipe the answer become much less
-    // likely. Hidden until the kid has actually typed something so it never
-    // sits there as a tempting no-op.
-    function attachClearChips() {
-        if (!contentEl) return;
-        clearableInputs().forEach((input) => {
-            if (input.parentElement?.classList.contains("input-with-clear")) return;
-            const wrap = document.createElement("span");
-            wrap.className = "input-with-clear";
-            input.replaceWith(wrap);
-            wrap.appendChild(input);
-            const chip = document.createElement("button");
-            chip.type = "button";
-            chip.className = "input-clear";
-            chip.tabIndex = -1; // not reachable via Tab; the input owns focus.
-            const inputLabel = input.getAttribute("aria-label") || "antwoord";
-            chip.setAttribute("aria-label", `wis ${inputLabel}`);
-            chip.textContent = "🧹";
-            // The chip ALWAYS occupies its slot next to the input — we only
-            // fade its opacity in/out via the `is-active` class. Toggling
-            // `hidden` (display:none) made the input visibly jump as the
-            // child typed, which was worse UX than the original problem.
-            chip.classList.toggle("is-active", !!input.value);
-            chip.setAttribute("aria-hidden", input.value ? "false" : "true");
-            chip.addEventListener("click", (e) => {
-                e.preventDefault();
-                if (!input.value) return; // dormant chip — no jump, just a no-op
-                input.value = "";
-                // Any wrong-attempt styling came from the previous submission;
-                // clearing is the kid's way of starting that input over.
-                contentEl.classList.remove("is-wrong");
-                feedbackEl.classList.remove("is-bad");
-                chip.classList.remove("is-active");
-                chip.setAttribute("aria-hidden", "true");
-                try {
-                    input.focus({ preventScroll: true });
-                } catch {
-                    input.focus();
-                }
+    // One shared "wis" chip floats in the top-right corner of the exercise
+    // card — never inside the question content, so no inline layout (e.g.
+    // splitsen's two-box grid) is touched. Fully invisible when no input
+    // holds content; fades in the moment the kid types. Click clears every
+    // typeable input in the active question and focuses the first one.
+    function ensureClearChip() {
+        if (!exerciseEl) return null;
+        let chip = exerciseEl.querySelector(":scope > .input-clear");
+        if (chip) return chip;
+        chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "input-clear";
+        chip.tabIndex = -1; // not reachable via Tab; inputs own focus.
+        chip.setAttribute("aria-label", "wis antwoord");
+        chip.setAttribute("aria-hidden", "true");
+        chip.textContent = "🧹";
+        chip.addEventListener("click", (e) => {
+            e.preventDefault();
+            const inputs = clearableInputs();
+            if (inputs.length === 0) return;
+            const hadContent = Array.from(inputs).some((i) => i.value !== "");
+            if (!hadContent) return;
+            inputs.forEach((i) => {
+                i.value = "";
             });
-            wrap.appendChild(chip);
+            // Wrong-attempt styling lingers from the previous submission;
+            // clearing is the kid restarting that answer.
+            contentEl.classList.remove("is-wrong");
+            feedbackEl.classList.remove("is-bad");
+            syncClearChips();
+            const first = inputs[0];
+            if (first && typeof first.focus === "function") {
+                try {
+                    first.focus({ preventScroll: true });
+                } catch {
+                    first.focus();
+                }
+            }
         });
+        exerciseEl.appendChild(chip);
+        return chip;
     }
 
     function syncClearChips() {
-        if (!contentEl) return;
-        contentEl.querySelectorAll(".input-with-clear").forEach((wrap) => {
-            const input = wrap.querySelector("input");
-            const chip = wrap.querySelector(".input-clear");
-            if (!input || !chip) return;
-            const active = !!input.value;
-            chip.classList.toggle("is-active", active);
-            chip.setAttribute("aria-hidden", active ? "false" : "true");
-        });
+        const chip = exerciseEl?.querySelector(":scope > .input-clear");
+        if (!chip) return;
+        // Hidden while the card is locked (review state) — there's nothing
+        // for the child to edit at that point.
+        if (contentEl?.classList.contains("locked")) {
+            chip.classList.remove("is-active");
+            chip.setAttribute("aria-hidden", "true");
+            return;
+        }
+        const inputs = clearableInputs();
+        const active = inputs.length > 0 && Array.from(inputs).some((i) => i.value !== "");
+        chip.classList.toggle("is-active", active);
+        chip.setAttribute("aria-hidden", active ? "false" : "true");
     }
     const errorEl = document.getElementById("config-error");
 
@@ -1525,10 +1525,10 @@ export function runExercise(spec) {
         void contentEl.offsetWidth;
         contentEl.classList.add("question-enter");
 
-        // Attach an inline ✕ chip to every typeable input. Each chip stays
-        // hidden until its input has content, so a fresh question shows no
-        // chip at all.
-        attachClearChips();
+        // Make sure the floating "wis" chip exists in the exercise card and
+        // is in the right (dormant) state for this fresh question.
+        ensureClearChip();
+        syncClearChips();
 
         startDeadline();
         updateClock();
@@ -1588,6 +1588,8 @@ export function runExercise(spec) {
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = true;
         if (skipBtn) skipBtn.hidden = true;
+        // Review state: lock the chip into its dormant (invisible) state.
+        syncClearChips();
         showAdvanceButton();
         updateClock();
     }
