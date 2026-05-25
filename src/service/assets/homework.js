@@ -1119,7 +1119,38 @@ export function runExercise(spec) {
     const feedbackEl = document.getElementById("exercise-feedback");
     const contentEl = document.getElementById("exercise-content");
     const skipBtn = document.getElementById("button-skip");
+    const clearBtn = document.getElementById("button-clear");
     const resultEl = document.getElementById("result");
+
+    // Any text/number-style answer input inside the current question card.
+    // Excludes hidden/disabled/readonly fields and the option-button machinery
+    // (radio/checkbox) so multiple-choice exercises don't get a clear button
+    // that has nothing to clear.
+    const CLEARABLE_INPUT_SELECTOR =
+        'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([disabled]):not([readonly])';
+
+    function clearableInputs() {
+        return contentEl ? contentEl.querySelectorAll(CLEARABLE_INPUT_SELECTOR) : [];
+    }
+
+    function syncClearButton() {
+        if (!clearBtn) return;
+        // Hidden while the card is locked (review state) — there is nothing
+        // for the child to edit at that point.
+        if (contentEl?.classList.contains("locked")) {
+            clearBtn.hidden = true;
+            return;
+        }
+        const inputs = clearableInputs();
+        if (inputs.length === 0) {
+            clearBtn.hidden = true;
+            return;
+        }
+        // Only worth showing once something has actually been typed, otherwise
+        // it's a no-op control taking up space next to "antwoord" / "weet het niet".
+        const hasContent = Array.from(inputs).some((i) => i.value !== "");
+        clearBtn.hidden = !hasContent;
+    }
     const errorEl = document.getElementById("config-error");
 
     const clockEl = document.getElementById("exercise-clock");
@@ -1418,6 +1449,7 @@ export function runExercise(spec) {
         feedbackEl.textContent = " ";
         feedbackEl.classList.remove("is-bad");
         if (skipBtn) skipBtn.hidden = true;
+        if (clearBtn) clearBtn.hidden = true;
 
         // Clean up any lock/animation state left over from a previous question.
         contentEl.classList.remove("locked", "is-wrong", "question-enter", "review-enter");
@@ -1448,6 +1480,10 @@ export function runExercise(spec) {
         // Trigger entrance animation after content is in the DOM.
         void contentEl.offsetWidth;
         contentEl.classList.add("question-enter");
+
+        // Some exercises may pre-fill the first input (rare, but possible).
+        // Run once after render so the clear button reflects reality.
+        syncClearButton();
 
         startDeadline();
         updateClock();
@@ -1507,6 +1543,7 @@ export function runExercise(spec) {
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = true;
         if (skipBtn) skipBtn.hidden = true;
+        if (clearBtn) clearBtn.hidden = true;
         showAdvanceButton();
         updateClock();
     }
@@ -1819,6 +1856,33 @@ export function runExercise(spec) {
         } else {
             onWrongAttempt(given);
         }
+    });
+
+    // Keep the clear button's visibility in sync with what the child has
+    // typed. One delegated listener covers any input the active question
+    // renders — no per-question wiring required.
+    contentEl?.addEventListener("input", syncClearButton);
+
+    clearBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        const inputs = clearableInputs();
+        inputs.forEach((i) => {
+            i.value = "";
+        });
+        // Wrong-attempt styling lingers from the previous submission; clearing
+        // is the kid's way of starting over for this attempt, so drop the
+        // red-glow state too.
+        contentEl.classList.remove("is-wrong");
+        feedbackEl.classList.remove("is-bad");
+        const first = inputs[0];
+        if (first && typeof first.focus === "function") {
+            try {
+                first.focus({ preventScroll: true });
+            } catch {
+                first.focus();
+            }
+        }
+        syncClearButton();
     });
 
     // skip is type=reset; intercept to log + advance
