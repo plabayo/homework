@@ -32,7 +32,11 @@ import {
  */
 function promptPhraseHtml(q, correctPhrase) {
     const variants = dutchTimePhraseVariants(q.h, q.m);
-    const alt = variants.length > 1 ? variants.find((v) => v !== correctPhrase) : null;
+    // pickRandom (not .find) so the third variant — typically the Flemish
+    // "na" form — is reachable in the flip widget instead of being stuck
+    // behind the first non-matching wording.
+    const others = variants.filter((v) => v !== correctPhrase);
+    const alt = others.length > 0 ? pickRandom(others) : null;
     return alt ? phraseFlipHtml(correctPhrase, alt) : correctPhrase;
 }
 
@@ -278,7 +282,10 @@ runExercise({
             // pure preview — it doesn't change what gets answered.
             const altOf = (phrase, h, m) => {
                 const variants = dutchTimePhraseVariants(h, m);
-                return variants.length > 1 ? variants.find((v) => v !== phrase) : null;
+                const others = variants.filter((v) => v !== phrase);
+                // pickRandom so the Flemish "na" variant (variants[2] for
+                // m=20/25) is reachable through the peek widget.
+                return others.length > 0 ? pickRandom(others) : null;
             };
             const correctOpt = {
                 label: correctPhrase,
@@ -366,7 +373,14 @@ runExercise({
     isCorrect(q, given) {
         if (!given) return false;
         if (q.dir === "digital-to-words") {
-            return normalizePhrase(given) === normalizePhrase(q.phraseVariant || dutchTimePhrase(q.h, q.m));
+            // Accept ANY valid Dutch wording for this time — including the
+            // Flemish "na" alternative — not just the one variant we picked
+            // for the prompt. Otherwise a Flemish-speaking kid who picks the
+            // "na" option for a question prompted with the "over" form would
+            // be marked wrong even though the answer is correct.
+            const norm = normalizePhrase(given);
+            const variants = dutchTimePhraseVariants(q.h, q.m);
+            return variants.some((v) => normalizePhrase(v) === norm);
         }
         try {
             const obj = JSON.parse(given);

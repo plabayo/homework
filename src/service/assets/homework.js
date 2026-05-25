@@ -409,28 +409,55 @@ export function dutchTimePhrase(h, m) {
 }
 
 /**
- * All valid Dutch time phrases for a given 5-minute time (1 or 2 variants).
- * Traditional "half" form is always first; the modern direct form ("twintig
- * over", "vijfentwintig over/voor") is second when applicable (m=20/25/35/40).
+ * All valid Dutch time phrases for a given 5-minute time.
+ *
+ * Returns:
+ *   - the standard Dutch phrase from `dutchTimePhrase` (always first), and
+ *   - the modern direct alternative for m=20/25/35/40 (`twintig over X`,
+ *     `vijfentwintig voor X+1`, etc.), and
+ *   - the Flemish "na" alternative for every simple `[count] over [hour]`
+ *     phrase — e.g. "vijf over drie" ↔ "vijf na drie", "twintig over drie"
+ *     ↔ "twintig na drie". The "over" inside compound phrases such as
+ *     "vijf over half drie" is left untouched (it's a fixed construction,
+ *     not the "minutes past" usage).
+ *
  * Returns an empty array for times not on a 5-minute boundary.
  */
 export function dutchTimePhraseVariants(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
+    let variants;
     switch (m) {
         case 20:
-            return [`tien voor half ${hourName(next)}`, `twintig over ${hourName(h12)}`];
+            variants = [`tien voor half ${hourName(next)}`, `twintig over ${hourName(h12)}`];
+            break;
         case 25:
-            return [`vijf voor half ${hourName(next)}`, `vijfentwintig over ${hourName(h12)}`];
+            variants = [`vijf voor half ${hourName(next)}`, `vijfentwintig over ${hourName(h12)}`];
+            break;
         case 35:
-            return [`vijf over half ${hourName(next)}`, `vijfentwintig voor ${hourName(next)}`];
+            variants = [`vijf over half ${hourName(next)}`, `vijfentwintig voor ${hourName(next)}`];
+            break;
         case 40:
-            return [`tien over half ${hourName(next)}`, `twintig voor ${hourName(next)}`];
+            variants = [`tien over half ${hourName(next)}`, `twintig voor ${hourName(next)}`];
+            break;
         default: {
             const p = dutchTimePhrase(h, m);
-            return p !== null ? [p] : [];
+            variants = p !== null ? [p] : [];
         }
     }
+    // Append the Flemish "na" alternative for each simple "X over Y" phrase
+    // (kept right after its "over" sibling so callers that show only the
+    // first two variants still get a meaningful flip pair). Compound
+    // "over half" phrases are skipped.
+    const expanded = [];
+    for (const phrase of variants) {
+        expanded.push(phrase);
+        if (phrase.includes(" over ") && !phrase.includes(" over half ")) {
+            const na = phrase.replace(" over ", " na ");
+            if (!expanded.includes(na)) expanded.push(na);
+        }
+    }
+    return expanded;
 }
 
 /**

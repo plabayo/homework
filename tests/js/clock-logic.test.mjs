@@ -70,8 +70,53 @@ test("zet-woorden @ five granularity: dual-variant times all appear (phrase-flip
             `dual-variant time xx:${m} must be reachable so the phrase-flip widget gets exercised`,
         );
         // Sanity-check the variant generator itself — the widget only renders
-        // when both wordings exist.
-        assert.equal(dutchTimePhraseVariants(0, m).length, 2);
+        // when at least two wordings exist. (For m=20/25 the list now also
+        // includes the Flemish "twintig na X" / "vijfentwintig na X" form,
+        // so it can be longer than 2.)
+        assert.ok(
+            dutchTimePhraseVariants(0, m).length >= 2,
+            `xx:${m} should have ≥2 variants for the flip widget`,
+        );
+    }
+});
+
+test("Flemish 'na' alternative exists for every simple 'X over Y' phrase", () => {
+    // Maps minute → (canonical "over" phrase, expected "na" phrase) at h=3 so
+    // hourName(h12)=`drie`, hourName(next)=`vier`. Compound "over half" forms
+    // are intentionally absent — they're not the "minutes past" usage.
+    const expected = {
+        5: ["vijf over drie", "vijf na drie"],
+        10: ["tien over drie", "tien na drie"],
+        15: ["kwart over drie", "kwart na drie"],
+        20: ["twintig over drie", "twintig na drie"],
+        25: ["vijfentwintig over drie", "vijfentwintig na drie"],
+    };
+    for (const [mStr, [over, na]] of Object.entries(expected)) {
+        const m = Number(mStr);
+        const variants = dutchTimePhraseVariants(3, m);
+        assert.ok(
+            variants.includes(over),
+            `xx:${m} should contain canonical "${over}" (got ${JSON.stringify(variants)})`,
+        );
+        assert.ok(
+            variants.includes(na),
+            `xx:${m} should also expose Flemish "${na}" (got ${JSON.stringify(variants)})`,
+        );
+    }
+});
+
+test("Flemish 'na' alternative is NOT generated for compound 'over half' phrases", () => {
+    // m=35/40 use "vijf over half X+1" / "tien over half X+1". The "over" in
+    // those is part of the fixed "over half" construction, not "minutes past",
+    // so no "na" variant should be added.
+    for (const m of [35, 40]) {
+        const variants = dutchTimePhraseVariants(3, m);
+        for (const v of variants) {
+            assert.ok(
+                !v.includes(" na half "),
+                `xx:${m} must not produce a "na half …" form (got "${v}")`,
+            );
+        }
     }
 });
 
