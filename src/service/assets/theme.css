@@ -479,8 +479,8 @@
     }
     .input-clear {
         appearance: none;
-        background: transparent;
-        border: 1.5px solid color-mix(in oklab, var(--ink) 45%, transparent);
+        background: color-mix(in oklab, var(--ink) 6%, transparent);
+        border: 1.5px solid color-mix(in oklab, var(--ink) 65%, transparent);
         border-radius: 999px;
         padding: 0.4em 0.8em 0.4em 0.65em;
         min-height: 2.4em;
