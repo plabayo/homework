@@ -1151,10 +1151,13 @@ export function runExercise(spec) {
             chip.tabIndex = -1; // not reachable via Tab; the input owns focus.
             const inputLabel = input.getAttribute("aria-label") || "antwoord";
             chip.setAttribute("aria-label", `wis ${inputLabel}`);
-            // Broom matches the original "wis" theme and — importantly —
-            // can't be misread as the multiplication sign sitting two
-            // characters to its left.
-            chip.textContent = "🧹";
+            // Broom + the word "wis" — the icon alone reads as too small to
+            // even notice, the word alone bumps it close to a regular button
+            // (kids might confuse it with antwoord). Together it's clearly
+            // labelled and unambiguously a "clear the field" affordance.
+            chip.innerHTML =
+                '<span class="input-clear-icon" aria-hidden="true">🧹</span>' +
+                '<span class="input-clear-label">wis</span>';
             chip.hidden = !input.value;
             chip.addEventListener("click", (e) => {
                 e.preventDefault();
