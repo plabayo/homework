@@ -778,7 +778,9 @@ async fn clear_chip_resets_and_refocuses_answer_input() -> TestResult<()> {
     );
     assert!(
         driver
-            .find_all(By::Css("#exercise-content .input-clear, #exercise-content .input-with-clear"))
+            .find_all(By::Css(
+                "#exercise-content .input-clear, #exercise-content .input-with-clear"
+            ))
             .await?
             .is_empty(),
         "the clear chip must not be inside #exercise-content and must not wrap any input",

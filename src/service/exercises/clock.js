@@ -131,8 +131,7 @@ function buildWordOptions(q, minStep) {
         // wordings — including the Flemish "twintig na X" / "vijfentwintig
         // na X" variants — are reachable, not just the first two in the
         // canonical order.
-        const [label, altLabel] =
-            variants.length > 1 ? shuffle(variants.slice()).slice(0, 2) : [variants[0], null];
+        const [label, altLabel] = variants.length > 1 ? shuffle(variants.slice()).slice(0, 2) : [variants[0], null];
         out.push({ h, m, label, altLabel, value: JSON.stringify({ h, m }) });
     };
 
