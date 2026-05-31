@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /offline
+
+Sitemap: https://elementary.training/sitemap.xml

@@ -4,16 +4,28 @@
 
 use rama::http::service::web::response::IntoResponse;
 use rama::http::{
-    Request, StatusCode,
+    HeaderValue, Request, Response, StatusCode,
+    header::HeaderName,
     html::{a, p},
 };
 
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
+// Both the offline fallback and the 404 page render the shared chrome with
+// the global `<meta name="robots" content="index, follow">`. Override it
+// per-response via X-Robots-Tag so crawlers don't index these dead-ends
+// (the more-restrictive directive wins when both are present).
+fn set_noindex(res: &mut Response) {
+    res.headers_mut().insert(
+        HeaderName::from_static("x-robots-tag"),
+        HeaderValue::from_static("noindex, follow"),
+    );
+}
+
 pub async fn offline(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
-    page(
+    let mut res = page(
         PageMeta {
             title: "Offline — Oefeningen Basisschool",
             description: "Je bent offline.",
@@ -37,6 +49,9 @@ pub async fn offline(req: Request) -> impl IntoResponse {
         "",
         banner,
     )
+    .into_response();
+    set_noindex(&mut res);
+    res
 }
 
 pub async fn not_found(req: Request) -> impl IntoResponse {
@@ -66,5 +81,6 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
     )
     .into_response();
     *res.status_mut() = StatusCode::NOT_FOUND;
+    set_noindex(&mut res);
     res
 }

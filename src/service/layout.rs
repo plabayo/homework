@@ -43,6 +43,49 @@ fn shared_js_import_map(shared_js_url: &str) -> String {
     format!(r#"{{"imports":{{"@homework":"{shared_js_url}"}}}}"#)
 }
 
+/// Group the iOS / Android home-screen meta tags into one IntoHtml value
+/// so the parent `head!` stays under the IntoHtml tuple-impl arity (36).
+/// iOS does not accept SVG home-screen icons, so a real 180×180 PNG is
+/// linked. `mobile-web-app-capable` covers Android/Chrome; the legacy
+/// `apple-` prefixed one is still required for iOS Safari.
+fn apple_pwa_metas(apple_touch_icon_url: &str) -> impl IntoHtml {
+    (
+        link!(rel = "apple-touch-icon", href = apple_touch_icon_url),
+        meta!(name = "apple-mobile-web-app-capable", content = "yes"),
+        meta!(name = "mobile-web-app-capable", content = "yes"),
+        meta!(
+            name = "apple-mobile-web-app-status-bar-style",
+            content = "default"
+        ),
+        meta!(name = "apple-mobile-web-app-title", content = "Oefeningen"),
+    )
+}
+
+/// Open Graph metadata block used for link previews when the URL is shared
+/// in messaging apps and social networks. Grouped for the same reason as
+/// `apple_pwa_metas`. Takes ownership of `og_url` because the html macros
+/// move per-page strings into the rendered output.
+fn open_graph_metas(meta_data: &PageMeta, og_url: String) -> impl IntoHtml {
+    (
+        meta!("property" = "og:title", content = meta_data.title),
+        meta!("property" = "og:locale", content = "nl_BE"),
+        meta!("property" = "og:type", content = "website"),
+        meta!(
+            "property" = "og:description",
+            content = meta_data.description
+        ),
+        meta!(
+            "property" = "og:site_name",
+            content = "Oefeningen Basisschool"
+        ),
+        meta!("property" = "og:url", content = og_url),
+        meta!(
+            "property" = "og:image",
+            content = "https://elementary.training/img/social_preview.jpeg",
+        ),
+    )
+}
+
 /// Build a complete HTML page with the shared chrome.
 ///
 /// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
@@ -76,7 +119,7 @@ pub fn page(
     let shared_js_url = versioned_asset_url("/homework.js");
     let shared_js_import_map = shared_js_import_map(&shared_js_url);
     let markup = html!(
-        lang = "nl",
+        lang = "nl-BE",
         "data-asset-version" = ASSET_VERSION,
         head!(
             PreEscaped(
@@ -88,42 +131,32 @@ pub fn page(
                 content = "width=device-width, initial-scale=1.0"
             ),
             meta!(name = "color-scheme", content = "light dark"),
-            meta!(name = "theme-color", content = "#2d6cdf"),
+            // Tints the browser chrome on Android, iOS PWA, and Safari's
+            // tab bar. Two variants so dark-mode users don't get the light
+            // brand blue on a dark page. The dark value matches `--bg` in
+            // theme.css; the light value is the primary accent.
+            meta!(
+                name = "theme-color",
+                content = "#2d6cdf",
+                media = "(prefers-color-scheme: light)"
+            ),
+            meta!(
+                name = "theme-color",
+                content = "#14171c",
+                media = "(prefers-color-scheme: dark)"
+            ),
+            // Default indexing policy. Routes that should not be indexed
+            // (404, /offline) override this via X-Robots-Tag on the
+            // response; the more-restrictive directive wins.
+            meta!(name = "robots", content = "index, follow"),
             meta!(name = "description", content = meta_data.description),
             title!(meta_data.title),
+            link!(rel = "canonical", href = og_url.clone()),
             link!(rel = "icon", href = favicon_data),
-            // iOS does not accept SVG home-screen icons; a real 180×180 PNG
-            // is required so add-to-home-screen renders the brand instead of
-            // a screenshot of the page.
-            link!(rel = "apple-touch-icon", href = apple_touch_icon_url),
-            // Configure the standalone PWA chrome on iOS. The non-legacy
-            // `mobile-web-app-capable` covers Android/Chrome; the legacy
-            // `apple-` prefixed one is still required for iOS Safari.
-            meta!(name = "apple-mobile-web-app-capable", content = "yes"),
-            meta!(name = "mobile-web-app-capable", content = "yes"),
-            meta!(
-                name = "apple-mobile-web-app-status-bar-style",
-                content = "default"
-            ),
-            meta!(name = "apple-mobile-web-app-title", content = "Oefeningen"),
+            apple_pwa_metas(&apple_touch_icon_url),
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
-            meta!("property" = "og:title", content = meta_data.title),
-            meta!("property" = "og:locale", content = "nl_BE"),
-            meta!("property" = "og:type", content = "website"),
-            meta!(
-                "property" = "og:description",
-                content = meta_data.description
-            ),
-            meta!(
-                "property" = "og:site_name",
-                content = "Oefeningen Basisschool"
-            ),
-            meta!("property" = "og:url", content = og_url),
-            meta!(
-                "property" = "og:image",
-                content = "https://elementary.training/img/social_preview.jpeg",
-            ),
+            open_graph_metas(&meta_data, og_url),
             PreEscaped(if extra_style.is_empty() {
                 String::new()
             } else {

@@ -9,6 +9,7 @@ use rama::http::{
     service::web::response::{Css, IntoResponse, Script},
 };
 
+use crate::service::exercises::all_exercises;
 use crate::utils::info::ASSET_VERSION;
 
 pub const THEME_CSS: &str = include_str!("assets/theme.css");
@@ -23,6 +24,13 @@ pub const ICON_SVG: &str = include_str!("assets/icon.svg");
 pub const APPLE_TOUCH_ICON_PNG: &[u8] = include_bytes!("assets/apple-touch-icon.png");
 pub const ICON_192_PNG: &[u8] = include_bytes!("assets/icon-192.png");
 pub const ICON_512_PNG: &[u8] = include_bytes!("assets/icon-512.png");
+pub const ROBOTS_TXT: &str = include_str!("assets/robots.txt");
+pub const SECURITY_TXT: &str = include_str!("assets/security.txt");
+
+// Canonical absolute origin used in the sitemap. Hardcoded rather than
+// derived from the request because crawlers index by this exact URL and
+// `Host` headers in development would otherwise pollute it.
+const CANONICAL_ORIGIN: &str = "https://elementary.training";
 
 // Inject the asset-version query string into every icon URL the manifest
 // references, in one compile-time pass. The escape dance (replace twice,
@@ -59,6 +67,17 @@ fn cache_immutable() -> CacheControl {
 // until the browser's own SW-update heuristic fires.
 fn cache_revalidate() -> CacheControl {
     CacheControl::new().with_no_cache()
+}
+
+// Discovery files (robots.txt, sitemap.xml, security.txt) are not
+// fingerprinted in their URL, but they also rarely change. A short shared
+// cache lets the CDN absorb crawler bursts without making content
+// updates invisible for long.
+fn cache_short_revalidate() -> CacheControl {
+    CacheControl::new()
+        .with_public()
+        .with_max_age_seconds(3600)
+        .with_must_revalidate()
 }
 
 pub async fn theme_css() -> impl IntoResponse {
@@ -127,5 +146,66 @@ pub async fn icon_512_png() -> impl IntoResponse {
     let headers = res.headers_mut();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
     headers.typed_insert(cache_immutable());
+    res
+}
+
+pub async fn robots_txt() -> impl IntoResponse {
+    let mut res = ROBOTS_TXT.into_response();
+    let headers = res.headers_mut();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    headers.typed_insert(cache_short_revalidate());
+    res
+}
+
+pub async fn security_txt() -> impl IntoResponse {
+    let mut res = SECURITY_TXT.into_response();
+    let headers = res.headers_mut();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    headers.typed_insert(cache_short_revalidate());
+    res
+}
+
+/// Build the sitemap XML from the static page list plus the exercise
+/// catalogue. We omit `<lastmod>` deliberately — there's no per-route
+/// change tracking and crawlers fall back to other freshness signals.
+fn build_sitemap_xml() -> String {
+    // Static, indexable HTML routes. `/offline` is excluded because it's
+    // a fallback page (also marked noindex via X-Robots-Tag).
+    const STATIC_PATHS: &[&str] = &["/", "/about"];
+
+    let mut xml = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
+    );
+    for path in STATIC_PATHS {
+        xml.push_str("  <url><loc>");
+        xml.push_str(CANONICAL_ORIGIN);
+        xml.push_str(path);
+        xml.push_str("</loc></url>\n");
+    }
+    for info in all_exercises() {
+        xml.push_str("  <url><loc>");
+        xml.push_str(CANONICAL_ORIGIN);
+        xml.push_str(info.path);
+        xml.push_str("</loc></url>\n");
+    }
+    xml.push_str("</urlset>\n");
+    xml
+}
+
+pub async fn sitemap_xml() -> impl IntoResponse {
+    let mut res = build_sitemap_xml().into_response();
+    let headers = res.headers_mut();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("application/xml; charset=utf-8"),
+    );
+    headers.typed_insert(cache_short_revalidate());
     res
 }

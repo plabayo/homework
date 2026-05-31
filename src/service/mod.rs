@@ -65,8 +65,10 @@ pub async fn load_http_redirect_service()
 /// Full application service used on the HTTPS port (and on the plain-HTTP port
 /// when TLS is disabled, e.g. in local development).
 ///
-/// NOTE: every route registered here must also appear in the PRECACHE list in
-/// `src/service/assets/service-worker.js` so the page works offline.
+/// NOTE: every HTML PAGE route that should work offline must also appear in
+/// the PRECACHE list in `src/service/assets/service-worker.js`. Crawler-only
+/// routes (`/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt`) are
+/// not intercepted by the service worker and don't need to be precached.
 /// Similarly, every exercise route must be registered in
 /// `src/service/exercises/mod.rs::all_exercises()` to appear in the catalogue.
 pub async fn load_https_app_service()
@@ -84,6 +86,9 @@ pub async fn load_https_app_service()
         .with_get("/apple-touch-icon.png", assets::apple_touch_icon_png)
         .with_get("/icon-192.png", assets::icon_192_png)
         .with_get("/icon-512.png", assets::icon_512_png)
+        .with_get("/robots.txt", assets::robots_txt)
+        .with_get("/sitemap.xml", assets::sitemap_xml)
+        .with_get("/.well-known/security.txt", assets::security_txt)
         .with_get("/1/mathbox", exercises::mathbox::handler)
         .with_get("/1/multiplications", exercises::multiplications::handler)
         .with_get("/1/thermometer", exercises::thermometer::handler)
@@ -117,6 +122,21 @@ pub async fn load_https_app_service()
                 .with_base_uri(SourceList::self_origin())
                 .with_form_action(SourceList::self_origin())
                 .with_frame_ancestors(SourceList::none()),
+        ),
+        // Don't leak the full URL to third parties on outbound link clicks;
+        // only send the origin when crossing origins, and nothing when
+        // downgrading to HTTP.
+        SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ),
+        // Disable powerful features we never use, in this document and any
+        // iframe it embeds. `interest-cohort=()` opts out of FLoC/Topics.
+        SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static(
+                "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+            ),
         ),
         UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www()),
     );
