@@ -336,7 +336,7 @@ runExercise({
                 // the latter is its own user-visible signal and shouldn't vanish
                 // the moment the child starts retyping.
                 const clearInvalidFeedback = () => {
-                    if (!feedbackEl || feedbackEl.dataset.invalidInput !== "1") return;
+                    if (feedbackEl?.dataset.invalidInput !== "1") return;
                     feedbackEl.dataset.invalidInput = "";
                     const assignment = feedbackEl.dataset.assignment;
                     if (assignment) feedbackEl.textContent = assignment;

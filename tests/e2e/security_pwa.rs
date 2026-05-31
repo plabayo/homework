@@ -275,12 +275,26 @@ async fn leave_guard_dialog_has_aria_labelledby() -> TestResult<()> {
         !labelledby.is_empty(),
         "expected aria-labelledby on leave-guard dialog"
     );
-    // And the referenced element exists with the heading text.
-    let heading = driver.find(By::Id(&labelledby)).await?;
-    let text = heading.text().await?;
+    // Read the heading text via `textContent` rather than WebElement::text().
+    // WebDriver's `.text()` reads from the rendered layout tree, which is
+    // unreliable for elements painted in the top layer by `dialog.showModal()`
+    // — chromedriver returns empty even when the markup is correct. Screen
+    // readers compute the accessible name from `textContent` for
+    // aria-labelledby references, so checking textContent is the more
+    // faithful assertion anyway.
+    let heading_text: String = driver
+        .execute(
+            "return document.getElementById(arguments[0])?.textContent ?? \"\";",
+            vec![serde_json::Value::String(labelledby.clone())],
+        )
+        .await?
+        .json()
+        .as_str()
+        .map(str::to_owned)
+        .unwrap_or_default();
     assert!(
-        !text.trim().is_empty(),
-        "aria-labelledby target should hold heading text"
+        !heading_text.trim().is_empty(),
+        "aria-labelledby target should hold heading text (got {heading_text:?})"
     );
 
     driver.clone().quit().await?;
