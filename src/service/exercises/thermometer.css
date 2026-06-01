@@ -18,7 +18,13 @@
 }
 /* Sign chip next to the answer field. Shows the current sign of the
    typed number (`+` or `−`); tapping flips it. Only rendered when the
-   question's range allows negatives. */
+   question's range allows negatives.
+
+   Size derivation: `font-size: 1.6rem` = 25.6px, and the `2.6em` box uses
+   the element's own font-size, so the rendered chip is 2.6 × 25.6 ≈ 66.6
+   CSS px square — comfortably above WCAG 2.5.5's 44×44 minimum tap
+   target (and WCAG 2.2 SC 2.5.8's 24×24 enhanced minimum). No coarse-
+   pointer override needed. */
 .sign-toggle {
     flex: 0 0 auto;
     width: 2.6em;

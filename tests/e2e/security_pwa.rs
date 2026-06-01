@@ -8,7 +8,7 @@
 // <dialog>-fallback behaviour. See the NOTE further down for why the
 // 64 KiB body limit isn't e2e-tested.
 
-use super::helpers::{click, set_checkbox, set_input_value, wait_for_css};
+use super::helpers::{click, inject_deck, set_checkbox, set_input_value, wait_for_css};
 use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
 
 /// Run a `fetch(url)` in the page context and return (status, content-type,
@@ -561,4 +561,168 @@ fn strip_script_and_style(html: &str) -> String {
         i = close_pos + close_gt + 1;
     }
     out
+}
+
+// ---- Accessibility regression tests (audit Wave 2) ----
+
+/// Flashcards' `.deck-select-btn` previously shipped
+/// `:focus-visible { outline: none }` with no replacement — keyboard users
+/// landing on a deck button couldn't see where focus was. Wave 2 swapped
+/// in an inset accent outline. Lock that in so future CSS edits can't
+/// silently re-introduce the `outline: none` regression.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_deck_button_has_visible_focus_ring() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    inject_deck(
+        driver,
+        "test-focus-ring",
+        "Focus ring regression",
+        r#"[{"front":"aap"}]"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    wait_for_css(
+        driver,
+        ".deck-item[data-deck-id='test-focus-ring'] .deck-select-btn",
+        Duration::from_secs(10),
+    )
+    .await?;
+
+    // Focus the deck button programmatically and read back the computed
+    // outline. WebDriver sessions don't have a preceding mouse event, so
+    // `.focus()` is treated as keyboard-style and matches `:focus-visible`
+    // in Chrome / Firefox / Edge. (Test will fail loudly if a future
+    // browser version changes that heuristic — we want to know.)
+    let result = driver
+        .execute(
+            r#"
+            const btn = document.querySelector(
+                ".deck-item[data-deck-id='test-focus-ring'] .deck-select-btn"
+            );
+            btn.focus();
+            const cs = getComputedStyle(btn);
+            return {
+                matchesFocusVisible: btn.matches(":focus-visible"),
+                outlineWidth: cs.outlineWidth,
+                outlineStyle: cs.outlineStyle,
+                outlineColor: cs.outlineColor,
+            };
+            "#,
+            vec![],
+        )
+        .await?;
+    let val = result.json();
+    let matches = val
+        .get("matchesFocusVisible")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let width = val
+        .get("outlineWidth")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let style = val
+        .get("outlineStyle")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    assert!(
+        matches,
+        "expected .deck-select-btn to match :focus-visible after .focus(); \
+         if this stops working in a future browser, switch the test to a TAB-key \
+         interaction. Got: {val:?}"
+    );
+    // Parse the leading number out of e.g. "3px".
+    let width_px: f64 = width.trim_end_matches("px").parse().unwrap_or(0.0);
+    assert!(
+        width_px >= 2.0,
+        "expected a visible outline of at least 2px on focused .deck-select-btn, \
+         got outline-width={width:?}, outline-style={style:?}. \
+         Did someone re-add `outline: none` to .deck-select-btn:focus-visible?"
+    );
+    assert_ne!(
+        style, "none",
+        "outline-style on focused .deck-select-btn must not be 'none' \
+         (was {style:?}). Did someone re-add `outline: none`?"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Every `<img>` element emitted from any frontend JS source under
+/// `src/service/` must carry an explicit `alt` attribute — even if empty
+/// (decorative). Pure source-level invariant, not a runtime check: we
+/// can't reliably render every `<img>` code path in e2e (the active-play
+/// image-card path requires Wikimedia API access), so we lock the source
+/// pattern instead. Catches future regressions like
+/// `'<img src="' + url + '">'` (no `alt=`) before the patch lands.
+#[test]
+#[allow(
+    clippy::expect_used,
+    reason = "test code — surfaces walk failure clearly on regression"
+)]
+fn every_img_in_service_js_has_alt_attribute() {
+    let root = std::path::Path::new("src/service");
+    let mut violations = Vec::new();
+    walk_js(root, &mut violations).expect("walk src/service for .js files");
+    assert!(
+        violations.is_empty(),
+        "found <img> emission(s) without an `alt=` attribute. \
+         Decorative images: use `alt=\"\"`. Meaningful images: \
+         use a short non-spoiling description.\n\n{}",
+        violations.join("\n"),
+    );
+}
+
+fn walk_js(dir: &std::path::Path, out: &mut Vec<String>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            walk_js(&path, out)?;
+        } else if path.extension().and_then(|s| s.to_str()) == Some("js") {
+            scan_js_for_imgs_without_alt(&path, out)?;
+        }
+    }
+    Ok(())
+}
+
+fn scan_js_for_imgs_without_alt(
+    path: &std::path::Path,
+    out: &mut Vec<String>,
+) -> std::io::Result<()> {
+    let content = std::fs::read_to_string(path)?;
+    for (line_idx, line) in content.lines().enumerate() {
+        // Skip JS comments — `// <img …>` inside a comment isn't a real
+        // emission. Crude but sufficient for this codebase (no block
+        // comments embed `<img`).
+        let stripped = line.split("//").next().unwrap_or(line);
+        let mut cursor = 0;
+        while let Some(off) = stripped[cursor..].find("<img") {
+            let tag_start = cursor + off;
+            // Skip past `<img` itself, then scan until the tag's `>`.
+            let after_open = tag_start + 4;
+            let tag_end = stripped[after_open..]
+                .find('>')
+                .map(|e| after_open + e)
+                .unwrap_or(stripped.len());
+            let tag = &stripped[tag_start..tag_end];
+            if !tag.contains("alt=") {
+                out.push(format!(
+                    "{}:{}: {}",
+                    path.display(),
+                    line_idx + 1,
+                    line.trim()
+                ));
+            }
+            cursor = after_open;
+        }
+    }
+    Ok(())
 }

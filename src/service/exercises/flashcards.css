@@ -253,10 +253,18 @@
     background: color-mix(in srgb, currentColor 6%, transparent);
 }
 .deck-select-btn:focus {
+    /* Suppress the browser default ring for mouse clicks; keyboard focus
+       is handled below via :focus-visible. */
     outline: none;
 }
 .deck-select-btn:focus-visible {
-    outline: none;
+    /* Inset outline so a tab-focused deck button gets a clear high-
+       contrast ring without colliding with adjacent buttons in the
+       stacked deck list. Matches the project's accent-coloured
+       focus-ring vocabulary (see theme.css `button:focus-visible`),
+       just placed inside the button rect rather than around it. */
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
 }
 
 .deck-name {
