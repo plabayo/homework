@@ -19,8 +19,16 @@ const INFO: ExerciseInfo = ExerciseInfo {
     level: 1,
 };
 
-const STYLE: &str = include_str!("multiplications.css");
-const SCRIPT: &str = include_str!("multiplications.js");
+crate::inline_style!(
+    STYLE,
+    "multiplications.css",
+    EXERCISES_MULTIPLICATIONS_CSS_HASH_B64
+);
+crate::inline_module_script!(
+    SCRIPT,
+    "multiplications.js",
+    EXERCISES_MULTIPLICATIONS_JS_HASH_B64
+);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -41,9 +49,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/1/multiplications".into(),
             favicon_emoji: "✖️",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }

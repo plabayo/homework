@@ -135,7 +135,7 @@ function renderDigitalClockReview(q, root, mode) {
                 (o) => !!givenPhrase && normalizePhrase(o.value) === normalizePhrase(givenPhrase),
             );
         } else {
-            answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${escapeHtml(phrase)}</p>`;
+            answerHtml = `<p class="bad box split-part split-part--phrase">${escapeHtml(phrase)}</p>`;
         }
         root.innerHTML = `
             <div class="dclock">${dt}</div>
@@ -148,7 +148,7 @@ function renderDigitalClockReview(q, root, mode) {
     if (q.answerMode === "fill") {
         root.innerHTML = `
             <p class="dclock-label">${correctPhrase}</p>
-            <p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>
+            <p class="bad box split-part split-part--phrase">${dt}</p>
         `;
         return;
     }
@@ -167,7 +167,7 @@ function renderDigitalClockReview(q, root, mode) {
             (o) => givenH !== null && o.h === givenH && o.m === givenM,
         );
     } else {
-        answerHtml = `<p class="bad box split-part" style="width:auto;padding:6px 12px">${dt}</p>`;
+        answerHtml = `<p class="bad box split-part split-part--phrase">${dt}</p>`;
     }
     root.innerHTML = `
         <p class="dclock-label">${correctPhrase}</p>

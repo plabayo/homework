@@ -2760,11 +2760,16 @@ function showCardWave(cards) {
     // so reduced-motion users see the cards statically without animation.
     const overlay = document.createElement("div");
     overlay.className = "fc-wave-overlay";
-    const items = cards
-        .map((text, i) => `<div class="fc-wave-card" style="--i:${i}">${escapeHtml(text)}</div>`)
-        .join("");
+    const items = cards.map((text) => `<div class="fc-wave-card">${escapeHtml(text)}</div>`).join("");
     overlay.innerHTML = `<div class="fc-wave-stage">${items}</div>`;
     document.body.appendChild(overlay);
+    // Stagger each card's animation by setting `--i` via CSSOM rather
+    // than as an inline `style="--i:…"` attribute on the template — the
+    // attribute form would require `'unsafe-inline'` in `style-src-attr`.
+    // `.style.setProperty` is CSSOM-side and not CSP-governed.
+    for (const [i, el] of overlay.querySelectorAll(".fc-wave-card").entries()) {
+        el.style.setProperty("--i", String(i));
+    }
     let dismissed = false;
     function dismiss() {
         if (dismissed) return;

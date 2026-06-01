@@ -21,9 +21,9 @@ pub async fn home(req: Request) -> impl IntoResponse {
             og_path: "/".into(),
             favicon_emoji: "🏫",
         },
-        "",
+        None,
         body,
-        "",
+        None,
         banner,
     )
 }

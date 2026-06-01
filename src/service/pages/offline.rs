@@ -32,7 +32,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
             og_path: "/offline".into(),
             favicon_emoji: "📴",
         },
-        "",
+        None,
         (
             page_header("offline"),
             p!(
@@ -46,7 +46,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
                 ". Eerder geopende oefeningen zijn meestal nog te gebruiken.",
             ),
         ),
-        "",
+        None,
         banner,
     )
     .into_response();
@@ -63,7 +63,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
             og_path: "/404".into(),
             favicon_emoji: "🔎",
         },
-        "",
+        None,
         (
             page_header("pagina niet gevonden"),
             p!(
@@ -76,7 +76,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
                 " om een oefening te kiezen.",
             ),
         ),
-        "",
+        None,
         banner,
     )
     .into_response();

@@ -4,13 +4,17 @@
 
 use std::borrow::Cow;
 
-use rama::http::headers::{CacheControl, HeaderMapExt};
+use rama::http::headers::{
+    CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceList,
+};
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
     noscript, p, script, span, title,
 };
 use rama::http::service::web::response::IntoResponse;
+use rama::net::Protocol;
 
+use crate::service::csp::{self, InlineModuleScript, InlineStyle};
 use crate::utils::info::ASSET_VERSION;
 
 #[derive(Debug, Clone)]
@@ -37,10 +41,6 @@ impl Default for PageMeta {
 
 fn versioned_asset_url(path: &str) -> String {
     format!("{path}?v={ASSET_VERSION}")
-}
-
-fn shared_js_import_map(shared_js_url: &str) -> String {
-    format!(r#"{{"imports":{{"@homework":"{shared_js_url}"}}}}"#)
 }
 
 /// Group the iOS / Android home-screen meta tags into one IntoHtml value
@@ -88,10 +88,15 @@ fn open_graph_metas(meta_data: &PageMeta, og_url: String) -> impl IntoHtml {
 
 /// Build a complete HTML page with the shared chrome.
 ///
-/// `extra_style` and `extra_module_script` are raw CSS / JS source strings —
-/// they go into `<style>` / `<script type="module">` verbatim (not HTML-escaped).
-/// `banner` is composed into the page body at the top; pass `()` (the unit
-/// type, which `IntoHtml` treats as empty) when no banner is needed.
+/// `extra_style` and `extra_module_script` are typed handles to
+/// compile-time-static inlines declared via [`crate::inline_style!`] /
+/// [`crate::inline_module_script!`]; their SHA-256 hashes — known at
+/// build time and whitelisted in the per-response Content-Security-Policy
+/// — are guaranteed by construction to match the bytes that end up in the
+/// rendered `<style>` / `<script>` elements.
+///
+/// `banner` is composed into the page body at the top; pass `()` (the
+/// unit type, which `IntoHtml` treats as empty) when no banner is needed.
 // HTML responses must always revalidate. The HTML embeds versioned asset
 // URLs (`?v=<git-sha>`); if a browser holds on to an old HTML response via
 // heuristic freshness it will keep loading the old assets too. Firefox is
@@ -101,11 +106,52 @@ fn html_cache_control() -> CacheControl {
     CacheControl::new().with_no_cache()
 }
 
+/// Build a `Content-Security-Policy` whose `script-src` / `style-src`
+/// whitelist precisely the inline assets `page()` is about to render —
+/// always [`csp::THEME_INIT`] plus any per-page extras. Every other
+/// directive is locked to `'self'` (or `'none'` where loading is never
+/// expected), so a successful injection has no source list to abuse.
+fn build_csp(
+    extra_style: Option<&InlineStyle>,
+    extra_script: Option<&InlineModuleScript>,
+) -> ContentSecurityPolicy {
+    let mut script_src = SourceList::self_origin()
+        .with_hash(HashAlgorithm::Sha256, csp::THEME_INIT.hash_b64())
+        .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64());
+    if let Some(s) = extra_script {
+        script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
+    }
+
+    let mut style_src = SourceList::self_origin();
+    if let Some(s) = extra_style {
+        style_src = style_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
+    }
+
+    ContentSecurityPolicy::empty()
+        .with_default_src(SourceList::self_origin())
+        .with_script_src(script_src)
+        .with_style_src(style_src)
+        // img-src and connect-src remain broad (https:) for external image
+        // CDNs (Wikimedia Commons) and any future map/API integrations.
+        .with_img_src(
+            SourceList::self_origin()
+                .with_scheme(Protocol::HTTPS)
+                .with_data()
+                .with_blob(),
+        )
+        .with_connect_src(SourceList::self_origin().with_scheme(Protocol::HTTPS))
+        .with_font_src(SourceList::self_origin())
+        .with_object_src(SourceList::none())
+        .with_base_uri(SourceList::self_origin())
+        .with_form_action(SourceList::self_origin())
+        .with_frame_ancestors(SourceList::none())
+}
+
 pub fn page(
     meta_data: PageMeta,
-    extra_style: &str,
+    extra_style: Option<&'static InlineStyle>,
     body_content: impl IntoHtml,
-    extra_module_script: &str,
+    extra_module_script: Option<&'static InlineModuleScript>,
     banner: impl IntoHtml,
 ) -> impl IntoResponse {
     let favicon_data = format!(
@@ -117,7 +163,6 @@ pub fn page(
     let manifest_url = versioned_asset_url("/manifest.webmanifest");
     let apple_touch_icon_url = versioned_asset_url("/apple-touch-icon.png");
     let shared_js_url = versioned_asset_url("/homework.js");
-    let shared_js_import_map = shared_js_import_map(&shared_js_url);
     let markup = html!(
         lang = "nl-BE",
         "data-asset-version" = ASSET_VERSION,
@@ -157,15 +202,11 @@ pub fn page(
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
             open_graph_metas(&meta_data, og_url),
-            PreEscaped(if extra_style.is_empty() {
-                String::new()
-            } else {
-                format!("<style>{extra_style}</style>")
-            }),
+            extra_style.map(InlineStyle::render),
             // Apply stored theme override before first paint to avoid flash.
-            PreEscaped(
-                r#"<script>(function(){var t=localStorage.getItem('homework:theme');if(t)document.documentElement.style.colorScheme=t;})()</script>"#
-            ),
+            // Body lives in `assets/theme-init.js` so its SHA-256 (and the
+            // matching CSP source) is computed by build.rs.
+            csp::THEME_INIT.render(),
         ),
         body!(
             canvas!(id = "confetti", "aria-hidden" = "true"),
@@ -192,17 +233,17 @@ pub fn page(
                 class = "box bad",
                 "Deze website heeft JavaScript nodig om de oefeningen te doen.",
             )),
-            script!(r#type = "importmap", PreEscaped(shared_js_import_map)),
+            csp::IMPORTMAP.render(),
             script!(r#type = "module", src = shared_js_url),
-            PreEscaped(if extra_module_script.is_empty() {
-                String::new()
-            } else {
-                format!(r#"<script type="module">{extra_module_script}</script>"#)
-            }),
+            extra_module_script.map(InlineModuleScript::render),
         ),
     );
     let mut res = markup.into_response();
-    res.headers_mut().typed_insert(html_cache_control());
+    let headers = res.headers_mut();
+    headers.typed_insert(html_cache_control());
+    // Per-response CSP whose script-src/style-src whitelist exactly the
+    // inline hashes this page emitted — nothing more, nothing less.
+    headers.typed_insert(build_csp(extra_style, extra_module_script));
     res
 }
 

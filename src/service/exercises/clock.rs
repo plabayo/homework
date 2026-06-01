@@ -19,8 +19,8 @@ const INFO: ExerciseInfo = ExerciseInfo {
     level: 2,
 };
 
-const STYLE: &str = include_str!("clock.css");
-const SCRIPT: &str = include_str!("clock.js");
+crate::inline_style!(STYLE, "clock.css", EXERCISES_CLOCK_CSS_HASH_B64);
+crate::inline_module_script!(SCRIPT, "clock.js", EXERCISES_CLOCK_JS_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -42,9 +42,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/2/clock".into(),
             favicon_emoji: "🕐",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }

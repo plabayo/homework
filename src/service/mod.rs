@@ -20,10 +20,11 @@ use rama::{
         },
         service::{redirect::RedirectHttpToHttps, web::Router},
     },
-    net::{Protocol, http::uri::UriMatchReplaceDomain},
+    net::http::uri::UriMatchReplaceDomain,
 };
 
 mod assets;
+pub mod csp;
 mod exercises;
 mod language_banner;
 mod layout;
@@ -103,24 +104,16 @@ pub async fn load_https_app_service()
         SetResponseHeaderLayer::if_not_present_typed(
             StrictTransportSecurity::excluding_subdomains_for_max_seconds(31536000),
         ),
-        // img-src and connect-src are broad (https:) to accommodate external image CDNs
-        // (Wikimedia Commons) and future map/API integrations without further changes.
-        SetResponseHeaderLayer::overriding_typed(
+        // CSP fallback: applied only to responses that didn't set their
+        // own header. HTML pages all route through `layout::page()`, which
+        // attaches a per-response CSP that whitelists exactly the inline
+        // hashes that page emits — see `service::csp`. Static-asset routes
+        // (`/theme.css`, icons, `/robots.txt` etc.) don't go through
+        // `page()`; for them the deny-all baseline below is correct,
+        // since none of them load other resources.
+        SetResponseHeaderLayer::if_not_present_typed(
             ContentSecurityPolicy::empty()
-                .with_default_src(SourceList::self_origin())
-                .with_script_src(SourceList::self_origin().with_unsafe_inline())
-                .with_style_src(SourceList::self_origin().with_unsafe_inline())
-                .with_img_src(
-                    SourceList::self_origin()
-                        .with_scheme(Protocol::HTTPS)
-                        .with_data()
-                        .with_blob(),
-                )
-                .with_connect_src(SourceList::self_origin().with_scheme(Protocol::HTTPS))
-                .with_font_src(SourceList::self_origin())
-                .with_object_src(SourceList::none())
-                .with_base_uri(SourceList::self_origin())
-                .with_form_action(SourceList::self_origin())
+                .with_default_src(SourceList::none())
                 .with_frame_ancestors(SourceList::none()),
         ),
         // Don't leak the full URL to third parties on outbound link clicks;

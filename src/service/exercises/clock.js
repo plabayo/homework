@@ -171,8 +171,8 @@ const HAND_MINUTE_LEN = 36;
 
 function clockSvg(h, m, opts) {
     const interactive = !!opts.interactive;
-    const minuteAngle = (m / 60) * 360;
-    const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
+    // Note: hand angles are NOT included in the markup string — see
+    // `initClockHands` below.
     const num = (n) => {
         const angle = (n / 12) * 2 * Math.PI - Math.PI / 2;
         const r = 30;
@@ -198,29 +198,28 @@ function clockSvg(h, m, opts) {
     }
     const hourTip = 50 - HAND_HOUR_LEN;
     const minTip = 50 - HAND_MINUTE_LEN;
+    // Hand rotations are applied via `el.style.transform` after the
+    // markup is inserted (see `initClockHands`). Doing it that way
+    // instead of as `style="transform: rotate(…)"` attributes in the
+    // string keeps the per-page Content-Security-Policy fully
+    // hash-locked — no `'unsafe-inline'` on style-src or style-src-attr.
     return `
         <div class="clock${interactive ? " interactive" : ""}" data-h="${h}" data-m="${m}">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <circle class="face" cx="50" cy="50" r="46" />
                 ${ticks.join("")}
                 ${numbers.join("")}
-                <line class="hand-hour" style="transform: rotate(${hourAngle}deg)"
-                      x1="50" y1="50" x2="50" y2="${hourTip}" />
-                <line class="hand-minute" style="transform: rotate(${minuteAngle}deg)"
-                      x1="50" y1="50" x2="50" y2="${minTip}" />
+                <line class="hand-hour" x1="50" y1="50" x2="50" y2="${hourTip}" />
+                <line class="hand-minute" x1="50" y1="50" x2="50" y2="${minTip}" />
                 ${
                     interactive
                         ? `
                     <!-- Wider invisible hit-zones along each hand, plus a tip circle for easy grabbing.
                          They rotate alongside the visible hand so the hit area follows the visual. -->
-                    <line class="hand-hit" data-hand="hour" style="transform: rotate(${hourAngle}deg)"
-                          x1="50" y1="50" x2="50" y2="${hourTip}" />
-                    <circle class="hand-hit-tip" data-hand="hour" style="transform: rotate(${hourAngle}deg)"
-                            cx="50" cy="${hourTip}" r="8" />
-                    <line class="hand-hit" data-hand="minute" style="transform: rotate(${minuteAngle}deg)"
-                          x1="50" y1="50" x2="50" y2="${minTip}" />
-                    <circle class="hand-hit-tip" data-hand="minute" style="transform: rotate(${minuteAngle}deg)"
-                            cx="50" cy="${minTip}" r="8" />
+                    <line class="hand-hit" data-hand="hour" x1="50" y1="50" x2="50" y2="${hourTip}" />
+                    <circle class="hand-hit-tip" data-hand="hour" cx="50" cy="${hourTip}" r="8" />
+                    <line class="hand-hit" data-hand="minute" x1="50" y1="50" x2="50" y2="${minTip}" />
+                    <circle class="hand-hit-tip" data-hand="minute" cx="50" cy="${minTip}" r="8" />
                 `
                         : ""
                 }
@@ -228,6 +227,34 @@ function clockSvg(h, m, opts) {
             </svg>
         </div>
     `;
+}
+
+/**
+ * Rotate the hour/minute hands (and their interactive hit-targets) on
+ * every `.clock` inside `container`. Call once after each `innerHTML`
+ * assignment that contains a clockSvg() output. Reads the canonical
+ * `data-h` / `data-m` attributes that `clockSvg` writes onto the `.clock`
+ * div, so the angles always match the structural markup. CSS transitions
+ * on freshly-inserted elements don't fire (no "before" value to animate
+ * from), so the hands paint at their target angle on first frame.
+ */
+function initClockHands(container) {
+    for (const clock of container.querySelectorAll(".clock")) {
+        const h = Number(clock.dataset.h);
+        const m = Number(clock.dataset.m);
+        const minuteAngle = (m / 60) * 360;
+        const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
+        for (const el of clock.querySelectorAll(
+            '.hand-hour, .hand-hit[data-hand="hour"], .hand-hit-tip[data-hand="hour"]',
+        )) {
+            el.style.transform = `rotate(${hourAngle}deg)`;
+        }
+        for (const el of clock.querySelectorAll(
+            '.hand-minute, .hand-hit[data-hand="minute"], .hand-hit-tip[data-hand="minute"]',
+        )) {
+            el.style.transform = `rotate(${minuteAngle}deg)`;
+        }
+    }
 }
 
 function attachInteractive(root, q, opts = {}) {
@@ -442,6 +469,7 @@ function renderClockReview(q, root, mode) {
             ${wordChoices && q._reviewOpts ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
             ${answerHtml}
         `;
+        initClockHands(root);
     } else {
         const promptHtml = q.promptStyle === "words" && phrase ? `<p class="clock-choice-label">${phrase}</p>` : "";
         root.innerHTML = `
@@ -449,6 +477,7 @@ function renderClockReview(q, root, mode) {
             ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
             <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
         `;
+        initClockHands(root);
     }
 }
 
@@ -463,6 +492,7 @@ function renderClockLees(q, root, minStep) {
                 <input inputmode="numeric" pattern="[0-9]+" id="answer-m" min="0" max="59" step="${minStep}" placeholder="mm" required>
             </div>
         `;
+        initClockHands(root);
         const hh = root.querySelector("#answer-h");
         const mm = root.querySelector("#answer-m");
         return () => {
@@ -492,6 +522,7 @@ function renderClockLees(q, root, minStep) {
                   )
         }
     `;
+    initClockHands(root);
     const get = wireOptions(root);
     return () => {
         const s = get();
@@ -523,6 +554,7 @@ function mountFreeplay() {
     });
 
     clockDiv.innerHTML = clockSvg(6, 0, { interactive: true });
+    initClockHands(clockDiv);
 
     const digitalEl = document.getElementById("freeplay-digital");
     const phraseEl = document.getElementById("freeplay-phrase");

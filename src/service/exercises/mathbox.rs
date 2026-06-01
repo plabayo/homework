@@ -19,8 +19,8 @@ const INFO: ExerciseInfo = ExerciseInfo {
     level: 1,
 };
 
-const STYLE: &str = include_str!("mathbox.css");
-const SCRIPT: &str = include_str!("mathbox.js");
+crate::inline_style!(STYLE, "mathbox.css", EXERCISES_MATHBOX_CSS_HASH_B64);
+crate::inline_module_script!(SCRIPT, "mathbox.js", EXERCISES_MATHBOX_JS_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -41,9 +41,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/1/mathbox".into(),
             favicon_emoji: "🔢",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }

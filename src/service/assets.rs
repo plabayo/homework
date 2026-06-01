@@ -5,7 +5,7 @@
 use rama::http::{
     HeaderValue,
     header::CONTENT_TYPE,
-    headers::{CacheControl, HeaderMapExt},
+    headers::{CacheControl, ContentSecurityPolicy, HeaderMapExt, SourceList},
     service::web::response::{Css, IntoResponse, Script},
 };
 
@@ -94,7 +94,24 @@ pub async fn homework_js() -> impl IntoResponse {
 
 pub async fn service_worker_js() -> impl IntoResponse {
     let mut res = Script(SERVICE_WORKER_JS).into_response();
-    res.headers_mut().typed_insert(cache_revalidate());
+    let headers = res.headers_mut();
+    headers.typed_insert(cache_revalidate());
+    // CSP on a service-worker script's response governs what the worker
+    // is allowed to do at runtime — importScripts(), fetch(), etc. The
+    // global deny-all fallback in `service::mod` would block both, so we
+    // emit a service-worker-specific policy that lets the SW fetch from
+    // its own origin (needed to populate the offline pre-cache and to
+    // serve the network-first HTML strategy) without granting it any
+    // cross-origin reach. Wider than the strict deny-all but no looser
+    // than what the SW genuinely requires.
+    headers.typed_insert(
+        ContentSecurityPolicy::empty()
+            .with_default_src(SourceList::self_origin())
+            .with_script_src(SourceList::self_origin())
+            .with_connect_src(SourceList::self_origin())
+            .with_object_src(SourceList::none())
+            .with_frame_ancestors(SourceList::none()),
+    );
     res
 }
 

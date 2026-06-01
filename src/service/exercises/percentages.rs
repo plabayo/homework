@@ -19,8 +19,8 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     level: 2,
 };
 
-const STYLE: &str = include_str!("percentages.css");
-const SCRIPT: &str = include_str!("percentages.js");
+crate::inline_style!(STYLE, "percentages.css", EXERCISES_PERCENTAGES_CSS_HASH_B64);
+crate::inline_module_script!(SCRIPT, "percentages.js", EXERCISES_PERCENTAGES_JS_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -41,9 +41,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/2/percentages".into(),
             favicon_emoji: "💯",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }

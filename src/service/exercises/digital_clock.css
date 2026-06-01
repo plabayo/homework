@@ -2,6 +2,17 @@
    License: https://github.com/plabayo/homework/blob/main/LICENSE
    Source-available; non-commercial use only. */
 
+/* Modifier for the review-page phrase/digital readout: tighter padding
+   than the default `.split-part` (which is sized for fraction inputs),
+   width hugged to the text rather than a fixed `3em`. Replaces three
+   `style="width:auto;padding:6px 12px"` inline attributes that we
+   used to ship from digital_clock.js — now gone so the per-page CSP
+   stays hash-locked with no `'unsafe-inline'`. */
+.split-part.split-part--phrase {
+    width: auto;
+    padding: 6px 12px;
+}
+
 .dclock {
     /* The LED face deliberately keeps its dark backdrop in both themes —
        a digital clock isn't a digital clock if it's white-on-black-bg one

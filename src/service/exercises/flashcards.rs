@@ -21,8 +21,8 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     level: 10,
 };
 
-const STYLE: &str = include_str!("flashcards.css");
-const SCRIPT: &str = include_str!("flashcards.js");
+crate::inline_style!(STYLE, "flashcards.css", EXERCISES_FLASHCARDS_CSS_HASH_B64);
+crate::inline_module_script!(SCRIPT, "flashcards.js", EXERCISES_FLASHCARDS_JS_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -71,9 +71,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path,
             favicon_emoji: "🃏",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }

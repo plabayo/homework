@@ -19,8 +19,16 @@ const INFO: ExerciseInfo = ExerciseInfo {
     level: 2,
 };
 
-const STYLE: &str = include_str!("digital_clock.css");
-const SCRIPT: &str = include_str!("digital_clock.js");
+crate::inline_style!(
+    STYLE,
+    "digital_clock.css",
+    EXERCISES_DIGITAL_CLOCK_CSS_HASH_B64
+);
+crate::inline_module_script!(
+    SCRIPT,
+    "digital_clock.js",
+    EXERCISES_DIGITAL_CLOCK_JS_HASH_B64
+);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -41,9 +49,9 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/2/digital-clock".into(),
             favicon_emoji: "⏰",
         },
-        STYLE,
+        Some(&STYLE),
         body,
-        SCRIPT,
+        Some(&SCRIPT),
         banner,
     )
 }
