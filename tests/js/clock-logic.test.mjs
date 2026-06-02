@@ -198,3 +198,63 @@ test("choiceStyle=words only assigned when the time has a Dutch phrasing", () =>
         }
     }
 });
+
+// ---------------------------------------------------------------------------
+// 1-minute Dutch phrasings (freeplay clock support)
+// ---------------------------------------------------------------------------
+
+test("dutchTimePhraseVariants covers every minute 0..59", () => {
+    // Freeplay lets the parent drag the hand to any minute; every landing
+    // spot must have at least one spoken Dutch phrase so the readout
+    // never goes blank.
+    for (let m = 0; m < 60; m++) {
+        const variants = dutchTimePhraseVariants(3, m);
+        assert.ok(
+            variants.length >= 1,
+            `xx:${m} must produce at least one Dutch phrase (got ${JSON.stringify(variants)})`,
+        );
+    }
+});
+
+test("1-minute phrasings: representative samples", () => {
+    // h=3 so hourName(h12)="drie" and hourName(next)="vier". Each tuple
+    // is [minute, expected canonical phrase].
+    const expected = [
+        [1, "een over drie"], //  early past the hour
+        [3, "drie over drie"], //  collision with "drie" — uses minute name
+        [13, "dertien over drie"], //  not-quite-quarter
+        [16, "veertien voor half vier"], //  short side of half
+        [22, "acht voor half vier"], //  approaching half
+        [29, "een voor half vier"], //  just before half
+        [31, "een over half vier"], //  just after half
+        [38, "acht over half vier"], //  past half
+        [44, "veertien over half vier"], //  just before kwart voor
+        [46, "veertien voor vier"], //  just after kwart voor
+        [58, "twee voor vier"], //  almost the hour
+        [59, "een voor vier"], //  one before
+    ];
+    for (const [m, phrase] of expected) {
+        const variants = dutchTimePhraseVariants(3, m);
+        assert.ok(
+            variants.includes(phrase),
+            `xx:${m} should produce canonical "${phrase}" (got ${JSON.stringify(variants)})`,
+        );
+    }
+});
+
+test("1-minute alternative + Flemish 'na' propagate to the new minutes", () => {
+    // For m=21 the "long-count over" alt joins "negen voor half vier", and
+    // its Flemish "na" sibling rides along — three valid wordings.
+    const v21 = dutchTimePhraseVariants(3, 21);
+    assert.ok(v21.includes("negen voor half vier"), `m=21 missing "voor half" form: ${JSON.stringify(v21)}`);
+    assert.ok(v21.includes("eenentwintig over drie"), `m=21 missing "over" alt: ${JSON.stringify(v21)}`);
+    assert.ok(v21.includes("eenentwintig na drie"), `m=21 missing Flemish "na" alt: ${JSON.stringify(v21)}`);
+
+    // For m=33 the "voor next-hour" alt joins; "over half" is left alone.
+    const v33 = dutchTimePhraseVariants(3, 33);
+    assert.ok(v33.includes("drie over half vier"), `m=33 missing "over half" form: ${JSON.stringify(v33)}`);
+    assert.ok(v33.includes("zevenentwintig voor vier"), `m=33 missing "voor" alt: ${JSON.stringify(v33)}`);
+    for (const v of v33) {
+        assert.ok(!v.includes(" na half "), `m=33 must not produce "na half" (got "${v}")`);
+    }
+});

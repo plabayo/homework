@@ -371,80 +371,108 @@ export function normalizePhrase(s) {
         .trim();
 }
 
+// Dutch minute-count names 0–30. We only ever need up to 30 because every
+// "voor half" / "over half" / "over" / "voor" phrase counts off at most
+// 30 minutes from a reference point (the previous hour, the upcoming hour,
+// or the half-hour). "een" is the spoken form (not "één") to match how
+// children are taught the clock at school.
+const MINUTE_NAMES = [
+    "nul",
+    "een",
+    "twee",
+    "drie",
+    "vier",
+    "vijf",
+    "zes",
+    "zeven",
+    "acht",
+    "negen",
+    "tien",
+    "elf",
+    "twaalf",
+    "dertien",
+    "veertien",
+    "vijftien",
+    "zestien",
+    "zeventien",
+    "achttien",
+    "negentien",
+    "twintig",
+    "eenentwintig",
+    "tweeëntwintig",
+    "drieëntwintig",
+    "vierentwintig",
+    "vijfentwintig",
+    "zesentwintig",
+    "zevenentwintig",
+    "achtentwintig",
+    "negenentwintig",
+    "dertig",
+];
+const minuteName = (n) => MINUTE_NAMES[n];
+
 /**
- * Standard Dutch time phrase for any 5-minute step (12-hour convention).
- * Returns null for times that don't land on a 5-minute boundary.
+ * Standard Dutch time phrase for any minute 0–59 (12-hour convention).
+ *
+ * Mapping (m is the minute past the hour):
+ *   - 0   → "<hour> uur"
+ *   - 1–14 → "<m> over <hour>"
+ *   - 15  → "kwart over <hour>"
+ *   - 16–29 → "<30−m> voor half <hour+1>" (the form Dutch children are
+ *           taught — keeps the half-hour as the cognitive anchor)
+ *   - 30  → "half <hour+1>"
+ *   - 31–44 → "<m−30> over half <hour+1>"
+ *   - 45  → "kwart voor <hour+1>"
+ *   - 46–59 → "<60−m> voor <hour+1>"
+ *
+ * Never returns null for valid (0 ≤ m ≤ 59) input — the freeplay clock
+ * needs a spoken form for every single minute the kid can land on.
+ * Returns null only for out-of-range m (defensive guard).
  */
 export function dutchTimePhrase(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
-    switch (m) {
-        case 0:
-            return `${hourName(h12)} uur`;
-        case 5:
-            return `vijf over ${hourName(h12)}`;
-        case 10:
-            return `tien over ${hourName(h12)}`;
-        case 15:
-            return `kwart over ${hourName(h12)}`;
-        case 20:
-            return `tien voor half ${hourName(next)}`;
-        case 25:
-            return `vijf voor half ${hourName(next)}`;
-        case 30:
-            return `half ${hourName(next)}`;
-        case 35:
-            return `vijf over half ${hourName(next)}`;
-        case 40:
-            return `tien over half ${hourName(next)}`;
-        case 45:
-            return `kwart voor ${hourName(next)}`;
-        case 50:
-            return `tien voor ${hourName(next)}`;
-        case 55:
-            return `vijf voor ${hourName(next)}`;
-        default:
-            return null;
-    }
+    if (m === 0) return `${hourName(h12)} uur`;
+    if (m === 15) return `kwart over ${hourName(h12)}`;
+    if (m === 30) return `half ${hourName(next)}`;
+    if (m === 45) return `kwart voor ${hourName(next)}`;
+    if (m >= 1 && m <= 14) return `${minuteName(m)} over ${hourName(h12)}`;
+    if (m >= 16 && m <= 29) return `${minuteName(30 - m)} voor half ${hourName(next)}`;
+    if (m >= 31 && m <= 44) return `${minuteName(m - 30)} over half ${hourName(next)}`;
+    if (m >= 46 && m <= 59) return `${minuteName(60 - m)} voor ${hourName(next)}`;
+    return null;
 }
 
 /**
- * All valid Dutch time phrases for a given 5-minute time.
+ * All valid Dutch time phrases for a given time.
  *
- * Returns:
- *   - the standard Dutch phrase from `dutchTimePhrase` (always first), and
- *   - the modern direct alternative for m=20/25/35/40 (`twintig over X`,
- *     `vijfentwintig voor X+1`, etc.), and
- *   - the Flemish "na" alternative for every simple `[count] over [hour]`
- *     phrase — e.g. "vijf over drie" ↔ "vijf na drie", "twintig over drie"
- *     ↔ "twintig na drie". The "over" inside compound phrases such as
- *     "vijf over half drie" is left untouched (it's a fixed construction,
- *     not the "minutes past" usage).
+ * Layout of the returned array (always non-empty for valid m):
+ *   1. The canonical phrase from `dutchTimePhrase` (preferred wording).
+ *   2. The "long-count" alternative — `<m> over <hour>` for m in 16–29,
+ *      `<60−m> voor <hour+1>` for m in 31–44. Lets a parent demonstrate
+ *      "tien voor half acht" ↔ "twintig over zeven" side by side.
+ *   3. The Flemish "na" alternative for every simple `<count> over <hour>`
+ *      phrase — "vijf over drie" ↔ "vijf na drie". Compound "over half"
+ *      forms are left untouched (the "over" there is fixed grammar, not
+ *      the "minutes past" usage).
  *
- * Returns an empty array for times not on a 5-minute boundary.
+ * The flip widget in the play UI shows variants[0] ↔ variants[1] when
+ * the array has ≥2 entries.
  */
 export function dutchTimePhraseVariants(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
-    let variants;
-    switch (m) {
-        case 20:
-            variants = [`tien voor half ${hourName(next)}`, `twintig over ${hourName(h12)}`];
-            break;
-        case 25:
-            variants = [`vijf voor half ${hourName(next)}`, `vijfentwintig over ${hourName(h12)}`];
-            break;
-        case 35:
-            variants = [`vijf over half ${hourName(next)}`, `vijfentwintig voor ${hourName(next)}`];
-            break;
-        case 40:
-            variants = [`tien over half ${hourName(next)}`, `twintig voor ${hourName(next)}`];
-            break;
-        default: {
-            const p = dutchTimePhrase(h, m);
-            variants = p !== null ? [p] : [];
-        }
+    const primary = dutchTimePhrase(h, m);
+    const variants = primary !== null ? [primary] : [];
+
+    // Long-count alternative (e.g. "twintig over X" for m=20, also reaches
+    // the new 1-minute steps like "eenentwintig over X" for m=21).
+    if (m >= 16 && m <= 29) {
+        variants.push(`${minuteName(m)} over ${hourName(h12)}`);
+    } else if (m >= 31 && m <= 44) {
+        variants.push(`${minuteName(60 - m)} voor ${hourName(next)}`);
     }
+
     // Append the Flemish "na" alternative for each simple "X over Y" phrase
     // (kept right after its "over" sibling so callers that show only the
     // first two variants still get a meaningful flip pair). Compound

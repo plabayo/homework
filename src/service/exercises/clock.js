@@ -33,12 +33,15 @@ function buildDeck(cfg) {
             allowed.push({ h, m });
         }
     }
-    // Every 5-minute boundary has a Dutch phrasing (vijf over, tien voor
-    // half, kwart over, …), and four of them — xx:20, xx:25, xx:35, xx:40 —
-    // even have two valid variants that drive the phrase-flip widget. So
-    // any time that `dutchTimePhrase` accepts is fair game for the
-    // "zet de klok vanuit woorden" prompt at finer granularities.
-    const wordsAllowed = allowed.filter((e) => dutchTimePhrase(e.h, e.m) !== null);
+    // `dutchTimePhrase` now returns a spoken form for every minute (the
+    // freeplay clock needs that) — but the *structured* exercises still
+    // limit word-mode questions to 5-minute boundaries. Asking a kid to
+    // disambiguate "drie over half acht" from "twee over half acht" in a
+    // 4-way multiple-choice grid is needlessly hard; the 5-min set
+    // already covers all the spoken-form vocabulary that matters
+    // pedagogically.
+    const isWordModeCandidate = (m) => m % 5 === 0;
+    const wordsAllowed = allowed.filter((e) => isWordModeCandidate(e.m));
 
     const out = [];
     let bag = allowed.slice();
@@ -68,13 +71,13 @@ function buildDeck(cfg) {
             promptStyle:
                 kind === "zet-woorden"
                     ? "words"
-                    : kind === "zet" && dutchTimePhrase(entry.h, entry.m) && Math.random() < 0.35
+                    : kind === "zet" && isWordModeCandidate(entry.m) && Math.random() < 0.35
                       ? "words"
                       : "digits",
             choiceStyle:
                 kind === "lees" &&
                 (cfg.answerMode || "multiple") === "multiple" &&
-                dutchTimePhrase(entry.h, entry.m) &&
+                isWordModeCandidate(entry.m) &&
                 Math.random() < 0.4
                     ? "words"
                     : "digits",
@@ -559,6 +562,28 @@ function mountFreeplay() {
     const digitalEl = document.getElementById("freeplay-digital");
     const phraseEl = document.getElementById("freeplay-phrase");
 
+    // Debounce phrase updates so rapid ± clicks (or fast drags) don't
+    // strobe through 60 word swaps per second — meaningful both as a UX
+    // smoothing AND as a photosensitivity safeguard. The digital readout
+    // still updates instantly for tactile feedback; only the spoken
+    // phrase waits for the kid to settle.
+    let phraseTimer = null;
+    const PHRASE_DEBOUNCE_MS = 180;
+    const renderPhrase = (h, m) => {
+        const variants = dutchTimePhraseVariants(h, m);
+        if (variants.length > 1) {
+            // Keep the deterministic canonical pair (variants[0] ↔
+            // variants[1]) so the flip widget always shows the two
+            // most-established wordings for the current time.
+            const idx = Math.random() < 0.5 ? 0 : 1;
+            phraseEl.innerHTML = phraseFlipHtml(variants[idx], variants[1 - idx]);
+            const flip = phraseEl.querySelector(".phrase-flip");
+            if (flip) sizeFlip(flip);
+        } else {
+            phraseEl.textContent = variants[0] ?? "";
+        }
+    };
+
     attachInteractive(
         clockDiv,
         // Free-mode runs at 1-minute precision: drag snaps to the nearest
@@ -570,18 +595,13 @@ function mountFreeplay() {
         {
             onSet(h, m) {
                 digitalEl.textContent = timeLabel(h, m);
-                const variants = dutchTimePhraseVariants(h, m);
-                if (variants.length > 1) {
-                    // Keep the deterministic canonical pair (variants[0] ↔
-                    // variants[1]) so the flip widget always shows the two
-                    // most-established wordings for the current time.
-                    const idx = Math.random() < 0.5 ? 0 : 1;
-                    phraseEl.innerHTML = phraseFlipHtml(variants[idx], variants[1 - idx]);
-                    const flip = phraseEl.querySelector(".phrase-flip");
-                    if (flip) sizeFlip(flip);
-                } else {
-                    phraseEl.textContent = variants[0] ?? "";
-                }
+                phraseEl.classList.add("is-updating");
+                if (phraseTimer !== null) clearTimeout(phraseTimer);
+                phraseTimer = setTimeout(() => {
+                    phraseTimer = null;
+                    renderPhrase(h, m);
+                    phraseEl.classList.remove("is-updating");
+                }, PHRASE_DEBOUNCE_MS);
             },
             hourIncBtn: document.getElementById("freeplay-hour-inc"),
             hourDecBtn: document.getElementById("freeplay-hour-dec"),

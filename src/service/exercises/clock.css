@@ -207,6 +207,18 @@
     min-height: 1.6em;
     text-align: center;
 }
+/* While the kid is rapidly mashing the ± buttons (or dragging a hand at
+   speed), the phrase update is debounced — and during the wait the text
+   dims so the visual signal is "I'm catching up", not a strobing word
+   swap. Motion-sensitive users get the debounce without the fade. */
+@media (prefers-reduced-motion: no-preference) {
+    .freeplay-phrase {
+        transition: opacity 180ms ease;
+    }
+    .freeplay-phrase.is-updating {
+        opacity: 0.25;
+    }
+}
 .phrase-or {
     font-style: normal;
     font-weight: 400;

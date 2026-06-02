@@ -78,7 +78,10 @@ async fn freeplay_shows_interactive_clock_with_initial_time_and_phrase() -> Test
         "expected initial freeplay time 06:00, got {digital:?}"
     );
 
-    // Initial Dutch phrase: "zes uur" (single variant).
+    // Initial Dutch phrase: "zes uur" (single variant). Phrase updates
+    // are debounced (and dimmed via `.is-updating` while pending) to
+    // prevent rapid-click strobing — wait for it to settle before reading.
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
     let phrase = text_of(driver, "#freeplay-phrase").await?;
     assert!(
         phrase.contains("zes uur"),
@@ -102,6 +105,7 @@ async fn freeplay_hour_inc_updates_time_and_phrase() -> TestResult<()> {
     // One hour increment: 06:00 → 07:00.
     click(driver, "#freeplay-hour-inc").await?;
     wait_for_text(driver, "#freeplay-digital", "07:00", TIMEOUT).await?;
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
 
     let phrase = text_of(driver, "#freeplay-phrase").await?;
     assert!(
@@ -133,6 +137,7 @@ async fn freeplay_shows_both_phrase_variants_for_ambiguous_time() -> TestResult<
         click(driver, "#freeplay-min-inc").await?;
     }
     wait_for_text(driver, "#freeplay-digital", "11:20", TIMEOUT).await?;
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
 
     // Both Dutch variants must appear in the phrase element's innerHTML.
     let phrase_html = driver

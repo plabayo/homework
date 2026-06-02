@@ -45,63 +45,70 @@ const HOUR_NAMES = [
 ];
 const hourName = (h) => HOUR_NAMES[((h % 12) + 12) % 12];
 
+// Kept in sync with `dutchTimePhrase` / `dutchTimePhraseVariants` in
+// src/service/assets/homework.js — including 1-minute precision support
+// for the freeplay clock.
+const MINUTE_NAMES = [
+    "nul",
+    "een",
+    "twee",
+    "drie",
+    "vier",
+    "vijf",
+    "zes",
+    "zeven",
+    "acht",
+    "negen",
+    "tien",
+    "elf",
+    "twaalf",
+    "dertien",
+    "veertien",
+    "vijftien",
+    "zestien",
+    "zeventien",
+    "achttien",
+    "negentien",
+    "twintig",
+    "eenentwintig",
+    "tweeëntwintig",
+    "drieëntwintig",
+    "vierentwintig",
+    "vijfentwintig",
+    "zesentwintig",
+    "zevenentwintig",
+    "achtentwintig",
+    "negenentwintig",
+    "dertig",
+];
+const minuteName = (n) => MINUTE_NAMES[n];
+
 function dutchTimePhrase(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
-    switch (m) {
-        case 0:
-            return `${hourName(h12)} uur`;
-        case 5:
-            return `vijf over ${hourName(h12)}`;
-        case 10:
-            return `tien over ${hourName(h12)}`;
-        case 15:
-            return `kwart over ${hourName(h12)}`;
-        case 20:
-            return `tien voor half ${hourName(next)}`;
-        case 25:
-            return `vijf voor half ${hourName(next)}`;
-        case 30:
-            return `half ${hourName(next)}`;
-        case 35:
-            return `vijf over half ${hourName(next)}`;
-        case 40:
-            return `tien over half ${hourName(next)}`;
-        case 45:
-            return `kwart voor ${hourName(next)}`;
-        case 50:
-            return `tien voor ${hourName(next)}`;
-        case 55:
-            return `vijf voor ${hourName(next)}`;
-        default:
-            return null;
-    }
+    if (m === 0) return `${hourName(h12)} uur`;
+    if (m === 15) return `kwart over ${hourName(h12)}`;
+    if (m === 30) return `half ${hourName(next)}`;
+    if (m === 45) return `kwart voor ${hourName(next)}`;
+    if (m >= 1 && m <= 14) return `${minuteName(m)} over ${hourName(h12)}`;
+    if (m >= 16 && m <= 29) return `${minuteName(30 - m)} voor half ${hourName(next)}`;
+    if (m >= 31 && m <= 44) return `${minuteName(m - 30)} over half ${hourName(next)}`;
+    if (m >= 46 && m <= 59) return `${minuteName(60 - m)} voor ${hourName(next)}`;
+    return null;
 }
 
 function dutchTimePhraseVariants(h, m) {
     const h12 = ((h % 12) + 12) % 12;
     const next = (h12 + 1) % 12;
-    let variants;
-    switch (m) {
-        case 20:
-            variants = [`tien voor half ${hourName(next)}`, `twintig over ${hourName(h12)}`];
-            break;
-        case 25:
-            variants = [`vijf voor half ${hourName(next)}`, `vijfentwintig over ${hourName(h12)}`];
-            break;
-        case 35:
-            variants = [`vijf over half ${hourName(next)}`, `vijfentwintig voor ${hourName(next)}`];
-            break;
-        case 40:
-            variants = [`tien over half ${hourName(next)}`, `twintig voor ${hourName(next)}`];
-            break;
-        default: {
-            const p = dutchTimePhrase(h, m);
-            variants = p !== null ? [p] : [];
-        }
+    const primary = dutchTimePhrase(h, m);
+    const variants = primary !== null ? [primary] : [];
+
+    if (m >= 16 && m <= 29) {
+        variants.push(`${minuteName(m)} over ${hourName(h12)}`);
+    } else if (m >= 31 && m <= 44) {
+        variants.push(`${minuteName(60 - m)} voor ${hourName(next)}`);
     }
-    // Append the Flemish "na" alternative for simple "[count] over [hour]"
-    // phrases — keeps this harness in sync with production homework.js.
+
     const expanded = [];
     for (const phrase of variants) {
         expanded.push(phrase);
