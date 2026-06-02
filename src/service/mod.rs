@@ -10,11 +10,12 @@ use rama::{
     http::{
         Body, HeaderName, HeaderValue, Request, Response,
         headers::{
-            ContentSecurityPolicy, SourceList, StrictTransportSecurity, XContentTypeOptions,
-            exotic::XClacksOverhead,
+            ContentSecurityPolicy, PermissionsPolicy, ReferrerPolicy, SourceList,
+            StrictTransportSecurity, XContentTypeOptions, exotic::XClacksOverhead,
         },
         layer::{
-            map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
+            error_handling::ErrorHandlerLayer, map_response_body::MapResponseBodyLayer,
+            match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
             trace::TraceLayer,
         },
@@ -101,8 +102,14 @@ pub async fn load_https_app_service()
         .with_not_found(pages::offline::not_found);
 
     let middlewares = (
+        // `with_preload(true)` opts the domain in for HSTS preload-list
+        // submission at https://hstspreload.org/. One-way commitment: once
+        // the domain ships in the preload list every `*.elementary.training`
+        // (current AND future) must serve HTTPS. We own only the apex +
+        // `www`, both already HTTPS-only, so this is safe.
         SetResponseHeaderLayer::if_not_present_typed(
-            StrictTransportSecurity::excluding_subdomains_for_max_seconds(31536000),
+            StrictTransportSecurity::including_subdomains_for_max_seconds(31536000)
+                .with_preload(true),
         ),
         // CSP fallback: applied only to responses that didn't set their
         // own header. HTML pages all route through `layout::page()`, which
@@ -119,19 +126,31 @@ pub async fn load_https_app_service()
         // Don't leak the full URL to third parties on outbound link clicks;
         // only send the origin when crossing origins, and nothing when
         // downgrading to HTTP.
-        SetResponseHeaderLayer::if_not_present(
-            HeaderName::from_static("referrer-policy"),
-            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        SetResponseHeaderLayer::if_not_present_typed(
+            ReferrerPolicy::STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
         ),
         // Disable powerful features we never use, in this document and any
-        // iframe it embeds. `interest-cohort=()` opts out of FLoC/Topics.
-        SetResponseHeaderLayer::if_not_present(
-            HeaderName::from_static("permissions-policy"),
-            HeaderValue::from_static(
-                "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
-            ),
+        // iframe it embeds. Both `interest-cohort` (FLoC) and the newer
+        // `browsing-topics` (Topics API) are denied — FLoC is deprecated
+        // but worth denying for older browsers; Topics is its successor.
+        SetResponseHeaderLayer::if_not_present_typed(
+            PermissionsPolicy::empty()
+                .with_deny_camera()
+                .with_deny_microphone()
+                .with_deny_geolocation()
+                .with_deny_payment()
+                .with_deny_usb()
+                .with_deny_interest_cohort()
+                .with_deny_browsing_topics(),
         ),
         UriMatchRedirectLayer::permanent(UriMatchReplaceDomain::drop_prefix_www()),
+        // Collapse `Router`'s `RouterError` (e.g. `MethodNotAllowed` with
+        // its `Allow` header from rama's 405-fix) into a plain `Response`
+        // so the outer middleware stack and `apply_common_middleware` see
+        // `Error = Infallible`. Innermost middleware (closest to the
+        // Router) so the conversion happens before any header-setting
+        // layer above it.
+        ErrorHandlerLayer::new(),
     );
 
     Ok(apply_common_middleware(middlewares.into_layer(app)))
