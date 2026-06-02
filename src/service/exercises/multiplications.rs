@@ -6,9 +6,11 @@ use rama::http::Request;
 use rama::http::html::{div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
+use crate::service::exercises::{
+    ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
+};
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 const INFO: ExerciseInfo = ExerciseInfo {
     id: "multiplications",
@@ -29,10 +31,16 @@ crate::inline_module_script!(
     "multiplications.js",
     EXERCISES_MULTIPLICATIONS_JS_HASH_B64
 );
+crate::inline_ld_json!(
+    LD_JSON,
+    "multiplications.jsonld",
+    EXERCISES_MULTIPLICATIONS_JSONLD_HASH_B64
+);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
+        exercise_breadcrumb(INFO),
         page_header("maaltafels"),
         exercise_scaffold(
             INFO,
@@ -49,10 +57,13 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/1/multiplications".into(),
             favicon_emoji: "✖️",
         },
-        Some(&STYLE),
+        PageInlines {
+            style: Some(&STYLE),
+            module_script: Some(&SCRIPT),
+            ld_json: Some(&LD_JSON),
+            ..Default::default()
+        },
         body,
-        Some(&SCRIPT),
-        None,
         banner,
     )
 }

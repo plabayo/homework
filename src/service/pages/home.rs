@@ -8,7 +8,7 @@ use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, niveau_label};
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 // Prefetch every exercise route from the home page. Bodies stay in the
 // browser's per-document in-memory cache, so when the kid taps through
@@ -28,10 +28,11 @@ pub async fn home(req: Request) -> impl IntoResponse {
             og_path: "/".into(),
             favicon_emoji: "🏫",
         },
-        None,
+        PageInlines {
+            speculation_rules: Some(&SPECULATION),
+            ..Default::default()
+        },
         body,
-        None,
-        Some(&SPECULATION),
         banner,
     )
 }
@@ -69,8 +70,13 @@ fn levels() -> impl IntoHtml {
         .filter_map(|&lvl| {
             let items: Vec<_> = exercises.iter().filter(|e| e.level == lvl).collect();
             (!items.is_empty()).then(|| {
+                // `id="niveau-N"` is the anchor target for the matching
+                // exercise-page breadcrumbs (and the BreadcrumbList JSON-LD
+                // `item` URL); changing this format means updating every
+                // exercises/*.jsonld breadcrumb URL.
+                let anchor = format!("niveau-{lvl}");
                 (
-                    h2!(niveau_label(lvl)),
+                    h2!(id = anchor, niveau_label(lvl)),
                     ul!(
                         class = "exercise-list",
                         items

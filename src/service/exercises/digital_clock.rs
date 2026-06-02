@@ -6,9 +6,9 @@ use rama::http::Request;
 use rama::http::html::{div, fieldset, input, label, legend, p};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{ExerciseInfo, exercise_scaffold};
+use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaffold};
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 const INFO: ExerciseInfo = ExerciseInfo {
     id: "digital-clock",
@@ -29,10 +29,16 @@ crate::inline_module_script!(
     "digital_clock.js",
     EXERCISES_DIGITAL_CLOCK_JS_HASH_B64
 );
+crate::inline_ld_json!(
+    LD_JSON,
+    "digital_clock.jsonld",
+    EXERCISES_DIGITAL_CLOCK_JSONLD_HASH_B64
+);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
+        exercise_breadcrumb(INFO),
         page_header("digitale klok"),
         exercise_scaffold(
             INFO,
@@ -49,10 +55,13 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/2/digital-clock".into(),
             favicon_emoji: "⏰",
         },
-        Some(&STYLE),
+        PageInlines {
+            style: Some(&STYLE),
+            module_script: Some(&SCRIPT),
+            ld_json: Some(&LD_JSON),
+            ..Default::default()
+        },
         body,
-        Some(&SCRIPT),
-        None,
         banner,
     )
 }

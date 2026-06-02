@@ -2,7 +2,9 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-use rama::http::html::{IntoHtml, button, div, fieldset, form, input, label, legend, p, section};
+use rama::http::html::{
+    IntoHtml, a, button, div, fieldset, form, input, label, legend, li, nav, ol, p, section, span,
+};
 
 pub mod clock;
 pub mod digital_clock;
@@ -94,6 +96,45 @@ pub fn niveau_label(level: u8) -> &'static str {
         10 => "Extra ✨",
         _ => "Niveau",
     }
+}
+
+/// Plain-text breadcrumb label for the middle item ("Niveau 1" / "Niveau 2"
+/// / "Extra"). Mirrors `niveau_label()` minus the trailing emoji digit, so
+/// it can be paired with the per-exercise BreadcrumbList JSON-LD bodies
+/// (which use the same plain wording).
+pub fn breadcrumb_level_label(level: u8) -> &'static str {
+    match level {
+        1 => "Niveau 1",
+        2 => "Niveau 2",
+        3 => "Niveau 3",
+        10 => "Extra",
+        _ => "Niveau",
+    }
+}
+
+/// Visible breadcrumb shown on every exercise page, above the `<h1>`:
+///
+///   🏠 home › Niveau 2 › analoge klok
+///
+/// The middle item anchors back to the level section on the home page
+/// (`/#niveau-2`); the leaf carries `aria-current="page"` so screen
+/// readers announce it as the current location, not a link.
+pub fn exercise_breadcrumb(info: ExerciseInfo) -> impl IntoHtml {
+    let niveau_anchor = format!("/#niveau-{}", info.level);
+    let niveau_label = breadcrumb_level_label(info.level);
+    nav!(
+        class = "breadcrumb",
+        "aria-label" = "kruimelpad",
+        ol!(
+            li!(a!(
+                href = "/",
+                span!(class = "icon", "aria-hidden" = "true", "🏠 "),
+                "home"
+            )),
+            li!(a!(href = niveau_anchor, niveau_label)),
+            li!("aria-current" = "page", info.label),
+        ),
+    )
 }
 
 /// Shared "time mode" fieldset. When enabled, the framework shows a session

@@ -7,7 +7,7 @@ use rama::http::html::{IntoHtml, a, code, footer, h2, li, p, section, small, ul}
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 pub async fn privacy(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -20,10 +20,8 @@ pub async fn privacy(req: Request) -> impl IntoResponse {
             og_path: "/privacy".into(),
             favicon_emoji: "🔒",
         },
-        None,
+        PageInlines::default(),
         page_body(),
-        None,
-        None,
         banner,
     )
 }

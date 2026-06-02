@@ -1510,6 +1510,51 @@
             grid-template-columns: repeat(2, 1fr);
         }
     }
+    /* ---------- exercise breadcrumb ---------- */
+    /* Sits above the exercise `<h1>`. Visually unobtrusive — we want the
+       kid's attention on the exercise itself, not the navigation chrome.
+       Uses logical properties so RTL flips for free if/when we localise. */
+    .breadcrumb ol {
+        list-style: none;
+        padding: 0;
+        margin-block: 0 12px;
+        margin-inline: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        font-size: 0.9rem;
+        color: color-mix(in oklab, var(--fg) 70%, transparent);
+    }
+    .breadcrumb li {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    /* `›` separator inserted before every li except the first. Generated
+       via ::before so screen readers (which skip generated content by
+       convention) don't read it as part of the link text. */
+    .breadcrumb li + li::before {
+        content: "›";
+        color: color-mix(in oklab, var(--fg) 45%, transparent);
+        font-weight: 600;
+    }
+    .breadcrumb a {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        text-decoration-color: color-mix(in oklab, var(--fg) 25%, transparent);
+    }
+    .breadcrumb a:hover {
+        color: var(--fg);
+        text-decoration-color: currentColor;
+    }
+    .breadcrumb [aria-current="page"] {
+        color: var(--fg);
+        font-weight: 600;
+    }
+    .breadcrumb .icon {
+        margin-inline-end: -2px;
+    }
 } /* end @layer base */
 
 /* ---------- cross-document View Transitions ----------

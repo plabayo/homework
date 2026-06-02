@@ -14,8 +14,29 @@ use rama::http::html::{
 use rama::http::service::web::response::IntoResponse;
 use rama::net::Protocol;
 
-use crate::service::csp::{self, InlineModuleScript, InlineSpeculationRules, InlineStyle};
+use crate::service::csp::{
+    self, InlineLdJson, InlineModuleScript, InlineSpeculationRules, InlineStyle,
+};
 use crate::utils::info::ASSET_VERSION;
+
+/// All the optional inline-asset slots a page can fill. Bundled into one
+/// struct so adding a future inline type (e.g. a CSP report endpoint
+/// script) doesn't widen `page()`'s positional argument list.
+///
+/// Call-site idiom:
+/// ```ignore
+/// page(meta, PageInlines { style: Some(&STYLE), module_script: Some(&SCRIPT), ..Default::default() }, body, banner)
+/// ```
+#[derive(Default)]
+pub struct PageInlines {
+    pub style: Option<&'static InlineStyle>,
+    pub module_script: Option<&'static InlineModuleScript>,
+    pub speculation_rules: Option<&'static InlineSpeculationRules>,
+    /// Per-page JSON-LD (`LearningResource`, `BreadcrumbList`, …). Site-wide
+    /// `WebSite` / `EducationalOrganization` data is emitted unconditionally
+    /// from `csp::SITE_LD_JSON` and doesn't go here.
+    pub ld_json: Option<&'static InlineLdJson>,
+}
 
 #[derive(Debug, Clone)]
 pub struct PageMeta {
@@ -138,10 +159,7 @@ fn html_cache_control() -> CacheControl {
 /// always [`csp::THEME_INIT`] plus any per-page extras. Every other
 /// directive is locked to `'self'` (or `'none'` where loading is never
 /// expected), so a successful injection has no source list to abuse.
-fn build_csp(
-    extra_style: Option<&InlineStyle>,
-    extra_script: Option<&InlineModuleScript>,
-) -> ContentSecurityPolicy {
+fn build_csp(inlines: &PageInlines) -> ContentSecurityPolicy {
     // `'inline-speculation-rules'` is scoped to `<script type="speculationrules">`
     // blocks only — adding it doesn't loosen what other inlines may execute.
     // Cheap to add unconditionally so pages can grow speculation rules later
@@ -149,13 +167,17 @@ fn build_csp(
     let mut script_src = SourceList::self_origin()
         .with_hash(HashAlgorithm::Sha256, csp::THEME_INIT.hash_b64())
         .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64())
+        .with_hash(HashAlgorithm::Sha256, csp::SITE_LD_JSON.hash_b64())
         .with(SourceExpression::InlineSpeculationRules);
-    if let Some(s) = extra_script {
+    if let Some(s) = inlines.module_script {
+        script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
+    }
+    if let Some(s) = inlines.ld_json {
         script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
     }
 
     let mut style_src = SourceList::self_origin();
-    if let Some(s) = extra_style {
+    if let Some(s) = inlines.style {
         style_src = style_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
     }
 
@@ -181,10 +203,8 @@ fn build_csp(
 
 pub fn page(
     meta_data: PageMeta,
-    extra_style: Option<&'static InlineStyle>,
+    inlines: PageInlines,
     body_content: impl IntoHtml,
-    extra_module_script: Option<&'static InlineModuleScript>,
-    extra_speculation_rules: Option<&'static InlineSpeculationRules>,
     banner: impl IntoHtml,
 ) -> impl IntoResponse {
     let favicon_data = format!(
@@ -236,7 +256,14 @@ pub fn page(
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
             share_preview_metas(&meta_data, og_url),
-            extra_style.map(InlineStyle::render),
+            inlines.style.map(InlineStyle::render),
+            // Site-wide schema.org structured data (WebSite +
+            // EducationalOrganization). Emitted unconditionally so
+            // crawlers see the same publisher identity on every page.
+            csp::SITE_LD_JSON.render(),
+            // Per-page schema.org JSON-LD (LearningResource +
+            // BreadcrumbList on exercise pages).
+            inlines.ld_json.map(InlineLdJson::render),
             // Apply stored theme override before first paint to avoid flash.
             // Body lives in `assets/theme-init.js` so its SHA-256 (and the
             // matching CSP source) is computed by build.rs.
@@ -269,8 +296,10 @@ pub fn page(
             )),
             csp::IMPORTMAP.render(),
             script!(r#type = "module", src = shared_js_url),
-            extra_module_script.map(InlineModuleScript::render),
-            extra_speculation_rules.map(InlineSpeculationRules::render),
+            inlines.module_script.map(InlineModuleScript::render),
+            inlines
+                .speculation_rules
+                .map(InlineSpeculationRules::render),
         ),
     );
     let mut res = markup.into_response();
@@ -278,7 +307,7 @@ pub fn page(
     headers.typed_insert(html_cache_control());
     // Per-response CSP whose script-src/style-src whitelist exactly the
     // inline hashes this page emitted — nothing more, nothing less.
-    headers.typed_insert(build_csp(extra_style, extra_module_script));
+    headers.typed_insert(build_csp(&inlines));
     res
 }
 

@@ -1,0 +1,21 @@
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "WebSite",
+            "@id": "https://elementary.training/#site",
+            "url": "https://elementary.training/",
+            "name": "Oefeningen Basisschool",
+            "description": "Gratis huiswerk middel voor de basisschool. Geen account, geen tracking, volledig offline na het eerste bezoek.",
+            "inLanguage": "nl-BE",
+            "publisher": { "@id": "https://elementary.training/#publisher" }
+        },
+        {
+            "@type": "EducationalOrganization",
+            "@id": "https://elementary.training/#publisher",
+            "name": "Plabayo",
+            "url": "https://plabayo.tech",
+            "sameAs": ["https://github.com/plabayo", "https://github.com/plabayo/homework"]
+        }
+    ]
+}

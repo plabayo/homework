@@ -10,7 +10,7 @@ use rama::http::{
 };
 
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 // Both the offline fallback and the 404 page render the shared chrome with
 // the global `<meta name="robots" content="index, follow">`. Override it
@@ -32,7 +32,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
             og_path: "/offline".into(),
             favicon_emoji: "📴",
         },
-        None,
+        PageInlines::default(),
         (
             page_header("offline"),
             p!(
@@ -46,8 +46,6 @@ pub async fn offline(req: Request) -> impl IntoResponse {
                 ". Eerder geopende oefeningen zijn meestal nog te gebruiken.",
             ),
         ),
-        None,
-        None,
         banner,
     )
     .into_response();
@@ -64,7 +62,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
             og_path: "/404".into(),
             favicon_emoji: "🔎",
         },
-        None,
+        PageInlines::default(),
         (
             page_header("pagina niet gevonden"),
             p!(
@@ -77,8 +75,6 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
                 " om een oefening te kiezen.",
             ),
         ),
-        None,
-        None,
         banner,
     )
     .into_response();

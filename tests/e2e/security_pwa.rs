@@ -728,3 +728,255 @@ fn scan_js_for_imgs_without_alt(
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Wave 4 — manifest tightening, JSON-LD, breadcrumbs
+// ---------------------------------------------------------------------------
+
+/// Locks in the [W3C manifest spec](https://www.w3.org/TR/appmanifest/) keys
+/// every install-prompt-ready PWA wants. Catches three regressions: the
+/// "any maskable" anti-pattern slipping back in (would crop badly on
+/// Android adaptive icons), losing the install-identity stability
+/// (`id`), or losing the launcher classification (`categories`).
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn manifest_advertises_required_pwa_fields() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/")).await?;
+
+    let (status, body, _csp) = fetch_csp(driver, &app.url("/manifest.webmanifest")).await?;
+    assert_eq!(status, 200, "/manifest.webmanifest must serve 200");
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&body).expect("/manifest.webmanifest must parse as JSON");
+    let obj = manifest
+        .as_object()
+        .expect("manifest top-level must be an object");
+
+    for required in [
+        "id",
+        "name",
+        "short_name",
+        "start_url",
+        "scope",
+        "display",
+        "lang",
+        "dir",
+        "theme_color",
+        "background_color",
+        "categories",
+        "icons",
+    ] {
+        assert!(
+            obj.contains_key(required),
+            "manifest missing required key {required:?}; got {body}"
+        );
+    }
+    assert_eq!(obj["id"], "/", "manifest id must pin install identity to /");
+    assert_eq!(obj["lang"], "nl-BE", "manifest lang must be nl-BE");
+    assert_eq!(obj["dir"], "ltr", "manifest dir must be explicit ltr");
+
+    let categories = obj["categories"]
+        .as_array()
+        .expect("manifest categories must be a JSON array");
+    let cat_strs: Vec<&str> = categories.iter().filter_map(|c| c.as_str()).collect();
+    assert!(
+        cat_strs.contains(&"education"),
+        "manifest categories must include 'education', got {cat_strs:?}"
+    );
+
+    let icons = obj["icons"]
+        .as_array()
+        .expect("manifest icons must be a JSON array");
+    assert!(!icons.is_empty(), "manifest must declare at least one icon");
+    for (i, icon) in icons.iter().enumerate() {
+        let purpose = icon["purpose"]
+            .as_str()
+            .unwrap_or_else(|| panic!("icon {i} missing purpose: {icon}"));
+        // The "any maskable" combo is the anti-pattern Wave 4 dropped:
+        // one icon design can't be both unmodified AND mask-safe without
+        // looking compromised in one of the two contexts.
+        assert!(
+            !purpose.split_whitespace().any(|p| p == "maskable")
+                || purpose.split_whitespace().all(|p| p == "maskable"),
+            "icon {i} mixes maskable with another purpose ({purpose:?}); split into separate entries"
+        );
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// JSON-LD structured data: site-wide (`WebSite` + `EducationalOrganization`)
+/// on every HTML page, plus per-exercise (`LearningResource` + `BreadcrumbList`)
+/// on exercise routes. Asserts the bodies parse as valid JSON and carry
+/// the expected schema.org `@type` markers — catches a missing inline,
+/// truncated body, or wrong content-type.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn json_ld_is_present_and_well_formed() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    // Every HTML page must carry the always-on site-wide block.
+    for path in ["/", "/about", "/privacy", "/1/multiplications", "/2/clock"] {
+        driver.goto(app.url(path)).await?;
+        wait_for_css(driver, "h1", Duration::from_secs(10)).await?;
+        let bodies = ld_json_bodies(driver).await?;
+        assert!(
+            !bodies.is_empty(),
+            "{path} must include at least one <script type=\"application/ld+json\"> block"
+        );
+        let types: Vec<String> = bodies
+            .iter()
+            .filter_map(|b| serde_json::from_str::<serde_json::Value>(b).ok())
+            .flat_map(collect_types)
+            .collect();
+        assert!(
+            types.iter().any(|t| t == "WebSite"),
+            "{path} must include a schema.org WebSite entity, got types {types:?}"
+        );
+        assert!(
+            types.iter().any(|t| t == "EducationalOrganization"),
+            "{path} must include a schema.org EducationalOrganization entity, got types {types:?}"
+        );
+    }
+
+    // Exercise pages must additionally carry LearningResource + BreadcrumbList.
+    for path in ["/1/multiplications", "/2/clock", "/extra/flashcards"] {
+        driver.goto(app.url(path)).await?;
+        wait_for_css(driver, "h1", Duration::from_secs(10)).await?;
+        let bodies = ld_json_bodies(driver).await?;
+        let types: Vec<String> = bodies
+            .iter()
+            .filter_map(|b| serde_json::from_str::<serde_json::Value>(b).ok())
+            .flat_map(collect_types)
+            .collect();
+        assert!(
+            types.iter().any(|t| t == "LearningResource"),
+            "{path} must include LearningResource JSON-LD, got types {types:?}"
+        );
+        assert!(
+            types.iter().any(|t| t == "BreadcrumbList"),
+            "{path} must include BreadcrumbList JSON-LD, got types {types:?}"
+        );
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Visible breadcrumb on every exercise page: 🏠 home › Niveau X ›
+/// {exercise label}. Three items, only the last has `aria-current="page"`,
+/// the middle link points at the matching `#niveau-X` anchor on home.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    // (path, expected niveau anchor, expected exercise label).
+    for (path, niveau_anchor, leaf) in [
+        ("/2/clock", "/#niveau-2", "analoge klok"),
+        ("/1/multiplications", "/#niveau-1", "maaltafels"),
+        ("/extra/flashcards", "/#niveau-10", "flitskaarten"),
+    ] {
+        driver.goto(app.url(path)).await?;
+        wait_for_css(driver, "nav.breadcrumb", Duration::from_secs(10)).await?;
+
+        let items = driver.find_all(By::Css("nav.breadcrumb ol > li")).await?;
+        assert_eq!(items.len(), 3, "{path} breadcrumb must have 3 items");
+
+        // Middle item links to the home-page niveau anchor.
+        let middle_href = driver
+            .find(By::Css(
+                "nav.breadcrumb ol > li:nth-child(2) > a[href]",
+            ))
+            .await?
+            .attr("href")
+            .await?
+            .unwrap_or_default();
+        assert_eq!(
+            middle_href, niveau_anchor,
+            "{path} breadcrumb middle item must link to {niveau_anchor}"
+        );
+
+        // Leaf is aria-current="page" and matches the exercise label.
+        let leaf_text = driver
+            .find(By::Css("nav.breadcrumb ol > li[aria-current='page']"))
+            .await?
+            .text()
+            .await?;
+        assert_eq!(
+            leaf_text.trim(),
+            leaf,
+            "{path} breadcrumb leaf must be the exercise label"
+        );
+    }
+
+    // Also the home-page anchors the breadcrumbs link into.
+    driver.goto(app.url("/")).await?;
+    for anchor in ["niveau-1", "niveau-2", "niveau-10"] {
+        wait_for_css(
+            driver,
+            &format!("h2#{anchor}"),
+            Duration::from_secs(10),
+        )
+        .await?;
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Helper: collect every inline JSON-LD body on the current document, in
+/// source order. Strips the `<script>` wrapper, returns raw JSON strings.
+async fn ld_json_bodies(driver: &WebDriver) -> TestResult<Vec<String>> {
+    let result = driver
+        .execute(
+            r#"return Array.from(
+                document.querySelectorAll('script[type="application/ld+json"]')
+            ).map(s => s.textContent);"#,
+            vec![],
+        )
+        .await?;
+    let arr = result.json().as_array().cloned().unwrap_or_default();
+    Ok(arr
+        .into_iter()
+        .filter_map(|v| v.as_str().map(str::to_owned))
+        .collect())
+}
+
+/// Helper: walk a parsed JSON-LD value and collect every `@type` it
+/// declares. Handles both flat `{ "@type": "X" }` and `@graph` arrays.
+fn collect_types(v: serde_json::Value) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(&v, &mut out);
+    fn walk(v: &serde_json::Value, out: &mut Vec<String>) {
+        match v {
+            serde_json::Value::Object(map) => {
+                if let Some(t) = map.get("@type").and_then(|t| t.as_str()) {
+                    out.push(t.to_owned());
+                }
+                if let Some(graph) = map.get("@graph") {
+                    walk(graph, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}

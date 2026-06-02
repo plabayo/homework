@@ -6,9 +6,11 @@ use rama::http::Request;
 use rama::http::html::{IntoHtml, div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{ExerciseInfo, exercise_scaffold, time_mode_fieldset};
+use crate::service::exercises::{
+    ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
+};
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
 const INFO: ExerciseInfo = ExerciseInfo {
     id: "mathbox",
@@ -21,10 +23,12 @@ const INFO: ExerciseInfo = ExerciseInfo {
 
 crate::inline_style!(STYLE, "mathbox.css", EXERCISES_MATHBOX_CSS_HASH_B64);
 crate::inline_module_script!(SCRIPT, "mathbox.js", EXERCISES_MATHBOX_JS_HASH_B64);
+crate::inline_ld_json!(LD_JSON, "mathbox.jsonld", EXERCISES_MATHBOX_JSONLD_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
+        exercise_breadcrumb(INFO),
         page_header("rekendoos"),
         exercise_scaffold(
             INFO,
@@ -41,10 +45,13 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             og_path: "/1/mathbox".into(),
             favicon_emoji: "🔢",
         },
-        Some(&STYLE),
+        PageInlines {
+            style: Some(&STYLE),
+            module_script: Some(&SCRIPT),
+            ld_json: Some(&LD_JSON),
+            ..Default::default()
+        },
         body,
-        Some(&SCRIPT),
-        None,
         banner,
     )
 }

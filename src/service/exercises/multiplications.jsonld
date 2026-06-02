@@ -1,0 +1,35 @@
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "LearningResource",
+            "@id": "https://elementary.training/1/multiplications#resource",
+            "url": "https://elementary.training/1/multiplications",
+            "name": "maaltafels",
+            "description": "Oefen de maaltafels van 1 tot en met 10.",
+            "inLanguage": "nl-BE",
+            "isAccessibleForFree": true,
+            "learningResourceType": "Exercise",
+            "educationalLevel": "Niveau 1",
+            "audience": {
+                "@type": "EducationalAudience",
+                "educationalRole": "student"
+            },
+            "license": "https://github.com/plabayo/homework/blob/main/LICENSE",
+            "isPartOf": { "@id": "https://elementary.training/#site" }
+        },
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                { "@type": "ListItem", "position": 1, "name": "home", "item": "https://elementary.training/" },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Niveau 1",
+                    "item": "https://elementary.training/#niveau-1"
+                },
+                { "@type": "ListItem", "position": 3, "name": "maaltafels" }
+            ]
+        }
+    ]
+}
