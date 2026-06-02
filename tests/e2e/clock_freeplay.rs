@@ -177,3 +177,120 @@ async fn freeplay_shows_both_phrase_variants_for_ambiguous_time() -> TestResult<
     driver.clone().quit().await?;
     Ok(())
 }
+
+/// End-to-end check that the new 1-minute Dutch phrasing is wired all the
+/// way to the live phrase element: one click on min-inc moves 06:00 →
+/// 06:01 and the readout (after the debounce settles) reads "een over
+/// zes". Complements the JS unit tests that lock in the phrase table.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn freeplay_minute_step_shows_one_minute_phrase() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    open_freeplay(driver, &app).await?;
+    wait_for_css(driver, "#freeplay-clock .clock.interactive", TIMEOUT).await?;
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
+
+    click(driver, "#freeplay-min-inc").await?;
+    wait_for_text(driver, "#freeplay-digital", "06:01", TIMEOUT).await?;
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
+
+    // 06:01 has two readings — canonical "een over zes" and the Flemish
+    // "een na zes" — so the phrase-flip widget renders BOTH; which face
+    // shows up first is randomised. Read innerHTML to see both at once.
+    let phrase_html = driver
+        .execute(
+            "return document.getElementById('freeplay-phrase').innerHTML",
+            vec![],
+        )
+        .await?
+        .json()
+        .as_str()
+        .unwrap_or("")
+        .to_owned();
+    assert!(
+        phrase_html.contains("een over zes"),
+        "expected 1-minute phrase 'een over zes' after one min-inc, got: {phrase_html:?}"
+    );
+    assert!(
+        phrase_html.contains("een na zes"),
+        "expected Flemish alt 'een na zes' after one min-inc, got: {phrase_html:?}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Locks in the anti-strobe debounce: rapid ± clicks must keep the phrase
+/// element marked `.is-updating` (CSS dims it) until the user pauses, and
+/// the digital readout must keep ticking instantly throughout. Without the
+/// debounce the phrase text would rewrite on every click, which is the
+/// epileptic-trigger pattern we shipped to prevent.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn freeplay_phrase_swap_is_debounced_during_rapid_clicks() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    open_freeplay(driver, &app).await?;
+    wait_for_css(driver, "#freeplay-clock .clock.interactive", TIMEOUT).await?;
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
+
+    // Rapid burst: 4 clicks back-to-back. Debounce is 180ms; the bundled
+    // chromedriver dispatches each click in well under that, so right
+    // after the burst the class must still be present (= debounce timer
+    // pending, dim still applied).
+    for _ in 0..4 {
+        click(driver, "#freeplay-min-inc").await?;
+    }
+    // Digital readout updates instantly each click — independent of the
+    // phrase debounce. After 4 +1-min clicks from 06:00 → 06:04.
+    wait_for_text(driver, "#freeplay-digital", "06:04", TIMEOUT).await?;
+    let is_updating_during_burst = driver
+        .execute(
+            "return document.getElementById('freeplay-phrase').classList.contains('is-updating')",
+            vec![],
+        )
+        .await?
+        .json()
+        .as_bool()
+        .unwrap_or(false);
+    assert!(
+        is_updating_during_burst,
+        "phrase must carry `.is-updating` while the debounce timer is pending — without it rapid clicks would strobe the phrase text",
+    );
+
+    // After the debounce window passes, the class must go away and the
+    // phrase must reflect the *final* time (06:04), not any of the
+    // intermediate values it passed through. 06:04 also has the Flemish
+    // "vier na zes" alt → both faces of the flip widget land in innerHTML.
+    wait_for_css(driver, "#freeplay-phrase:not(.is-updating)", TIMEOUT).await?;
+    let final_phrase_html = driver
+        .execute(
+            "return document.getElementById('freeplay-phrase').innerHTML",
+            vec![],
+        )
+        .await?
+        .json()
+        .as_str()
+        .unwrap_or("")
+        .to_owned();
+    assert!(
+        final_phrase_html.contains("vier over zes"),
+        "settled phrase must be the final 06:04 reading 'vier over zes', got: {final_phrase_html:?}"
+    );
+    // Confirm we didn't land on an intermediate time (xx:01 / xx:02 / xx:03)
+    // — proves the debounce dropped the in-flight updates.
+    for stale in ["een over zes", "twee over zes", "drie over zes"] {
+        assert!(
+            !final_phrase_html.contains(stale),
+            "settled phrase must not contain the intermediate reading {stale:?}, got: {final_phrase_html:?}"
+        );
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
