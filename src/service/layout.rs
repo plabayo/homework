@@ -311,7 +311,26 @@ pub fn page(
     res
 }
 
-/// Standard page header with a 🏠 home link, centered title, and theme toggle.
+/// The dark/light theme toggle. Shared between the wide page header (used
+/// on home, about, privacy) and the compact exercise breadcrumb bar (used
+/// on every exercise page). The IDs are load-bearing — `homework.js`
+/// wires events on them by id, so the same toggle works wherever it
+/// renders.
+pub fn theme_toggle_button() -> impl IntoHtml {
+    button!(
+        class = "theme-toggle",
+        id = "theme-toggle",
+        r#type = "button",
+        "aria-label" = "Licht thema — klik voor donker",
+        span!(id = "theme-toggle-icon", "aria-hidden" = "true", "☀️"),
+    )
+}
+
+/// Standard page header with a 🏠 home link, centered title, and theme
+/// toggle. Used on the home / about / privacy pages where vertical space
+/// is plentiful and a big title carries weight. Exercise pages skip this
+/// in favour of the compact breadcrumb bar from
+/// [`crate::service::exercises::exercise_breadcrumb`].
 pub fn page_header(title_text: impl IntoHtml) -> impl IntoHtml {
     header!(
         class = "page-header",
@@ -322,12 +341,6 @@ pub fn page_header(title_text: impl IntoHtml) -> impl IntoHtml {
             "🏠",
         ),
         h1!(title_text),
-        button!(
-            class = "theme-toggle",
-            id = "theme-toggle",
-            r#type = "button",
-            "aria-label" = "Licht thema — klik voor donker",
-            span!(id = "theme-toggle-icon", "aria-hidden" = "true", "☀️"),
-        ),
+        theme_toggle_button(),
     )
 }

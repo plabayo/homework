@@ -10,7 +10,7 @@ use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageInlines, PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page};
 
 const INFO: ExerciseInfo = ExerciseInfo {
     id: "multiplications",
@@ -41,7 +41,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
         exercise_breadcrumb(INFO),
-        page_header("maaltafels"),
         exercise_scaffold(
             INFO,
             "Oefen hier de maaltafels. Kies hoeveel oefeningen en welke tafels.",

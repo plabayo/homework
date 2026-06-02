@@ -3,8 +3,11 @@
 // Source-available; non-commercial use only.
 
 use rama::http::html::{
-    IntoHtml, a, button, div, fieldset, form, input, label, legend, li, nav, ol, p, section, span,
+    IntoHtml, a, button, div, fieldset, form, h1, header, input, label, legend, li, nav, ol, p,
+    section, span,
 };
+
+use crate::service::layout::theme_toggle_button;
 
 pub mod clock;
 pub mod digital_clock;
@@ -112,28 +115,40 @@ pub fn breadcrumb_level_label(level: u8) -> &'static str {
     }
 }
 
-/// Visible breadcrumb shown on every exercise page, above the `<h1>`:
+/// The header bar shown at the top of every exercise page — one row,
+/// breadcrumb on the left and the theme toggle on the right. Replaces
+/// the wider `page_header` (🏠 + centered title + toggle) so the screen
+/// area below stays free for the exercise itself.
 ///
-///   🏠 home › Niveau 2 › analoge klok
+///   🏠 start › Niveau 2 › **analoge klok**                    🌙
 ///
-/// The middle item anchors back to the level section on the home page
-/// (`/#niveau-2`); the leaf carries `aria-current="page"` so screen
-/// readers announce it as the current location, not a link.
+/// The leaf item wraps the page's `<h1>` (kept for SEO/a11y — a page
+/// without one is a structural smell) and carries `aria-current="page"`
+/// on the `<li>` so screen readers announce it as the current location.
+/// The first anchor keeps the `home-link` class for selector parity with
+/// `page_header` — keyboard-flow tests that click `.home-link` work on
+/// both page styles unchanged.
 pub fn exercise_breadcrumb(info: ExerciseInfo) -> impl IntoHtml {
     let niveau_anchor = format!("/#niveau-{}", info.level);
     let niveau_label = breadcrumb_level_label(info.level);
-    nav!(
-        class = "breadcrumb",
-        "aria-label" = "kruimelpad",
-        ol!(
-            li!(a!(
-                href = "/",
-                span!(class = "icon", "aria-hidden" = "true", "🏠 "),
-                "home"
-            )),
-            li!(a!(href = niveau_anchor, niveau_label)),
-            li!("aria-current" = "page", info.label),
+    header!(
+        class = "exercise-bar",
+        nav!(
+            class = "breadcrumb",
+            "aria-label" = "kruimelpad",
+            ol!(
+                li!(a!(
+                    class = "home-link",
+                    href = "/",
+                    "aria-label" = "thuispagina",
+                    span!(class = "icon", "aria-hidden" = "true", "🏠 "),
+                    "start",
+                )),
+                li!(a!(href = niveau_anchor, niveau_label)),
+                li!("aria-current" = "page", h1!(info.label)),
+            ),
         ),
+        theme_toggle_button(),
     )
 }
 

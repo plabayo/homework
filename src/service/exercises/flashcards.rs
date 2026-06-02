@@ -12,7 +12,7 @@ use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageInlines, PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page};
 
 pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "flashcards",
@@ -63,7 +63,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
 
     let body = (
         exercise_breadcrumb(INFO),
-        page_header("flitskaarten"),
         exercise_scaffold(
             INFO,
             "Maak je eigen kaartjes en oefen ze. Kies een deck hieronder of maak een nieuw deck aan.",

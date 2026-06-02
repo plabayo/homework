@@ -1557,14 +1557,31 @@
             grid-template-columns: repeat(2, 1fr);
         }
     }
-    /* ---------- exercise breadcrumb ---------- */
-    /* Sits above the exercise `<h1>`. Visually unobtrusive — we want the
-       kid's attention on the exercise itself, not the navigation chrome.
-       Uses logical properties so RTL flips for free if/when we localise. */
+    /* ---------- exercise bar ----------
+       Single header row on every exercise page: breadcrumb left, theme
+       toggle right. Replaces the wider page_header — exercise screens
+       benefit from every vertical pixel for the actual exercise UI, and
+       the breadcrumb already names the current page (its leaf wraps the
+       `<h1>`). Uses logical properties so RTL flips for free. */
+    .exercise-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-block-end: calc(var(--space) * 0.75);
+        padding-block-end: 8px;
+        border-block-end: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+    }
+    .exercise-bar .breadcrumb {
+        flex: 1;
+        min-width: 0;
+    }
+    .exercise-bar .theme-toggle {
+        flex: 0 0 auto;
+    }
     .breadcrumb ol {
         list-style: none;
         padding: 0;
-        margin-block: 0 12px;
+        margin-block: 0;
         margin-inline: 0;
         display: flex;
         flex-wrap: wrap;
@@ -1598,6 +1615,17 @@
     .breadcrumb [aria-current="page"] {
         color: var(--fg);
         font-weight: 600;
+    }
+    /* The leaf `<li>` wraps an `<h1>` (kept for SEO/a11y) — strip the
+       default browser heading margins and force-inherit its display
+       behaviour so the heading sits inline like any other breadcrumb item
+       instead of breaking onto its own line. */
+    .breadcrumb [aria-current="page"] h1 {
+        font-size: inherit;
+        font-weight: inherit;
+        margin: 0;
+        display: inline;
+        line-height: inherit;
     }
     .breadcrumb .icon {
         margin-inline-end: -2px;

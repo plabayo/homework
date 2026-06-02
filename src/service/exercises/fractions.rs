@@ -10,7 +10,7 @@ use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageInlines, PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page};
 
 pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "fractions",
@@ -33,7 +33,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
         exercise_breadcrumb(INFO),
-        page_header("breukendoos"),
         exercise_scaffold(
             INFO,
             "Oefen met breuken: een breuk van een getal nemen, optellen, aftrekken, vermenigvuldigen en delen.",

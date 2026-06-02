@@ -10,7 +10,7 @@ use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageInlines, PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page};
 
 pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "percentages",
@@ -33,7 +33,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
         exercise_breadcrumb(INFO),
-        page_header("procenten"),
         exercise_scaffold(
             INFO,
             "Oefen met procenten: breuk naar procent, procent naar breuk, procent van een getal, en hoeveel procent.",

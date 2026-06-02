@@ -10,7 +10,7 @@ use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
-use crate::service::layout::{PageInlines, PageMeta, page, page_header};
+use crate::service::layout::{PageInlines, PageMeta, page};
 
 const INFO: ExerciseInfo = ExerciseInfo {
     id: "mathbox",
@@ -29,7 +29,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = (
         exercise_breadcrumb(INFO),
-        page_header("rekendoos"),
         exercise_scaffold(
             INFO,
             "De digitale rekendoos: optellen, aftrekken, splitsen, vermenigvuldigen en delen.",
