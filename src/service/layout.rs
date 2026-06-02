@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use rama::http::headers::{
-    CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceList,
+    CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceExpression, SourceList,
 };
 use rama::http::html::{
     IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
@@ -14,7 +14,7 @@ use rama::http::html::{
 use rama::http::service::web::response::IntoResponse;
 use rama::net::Protocol;
 
-use crate::service::csp::{self, InlineModuleScript, InlineStyle};
+use crate::service::csp::{self, InlineModuleScript, InlineSpeculationRules, InlineStyle};
 use crate::utils::info::ASSET_VERSION;
 
 #[derive(Debug, Clone)]
@@ -61,12 +61,18 @@ fn apple_pwa_metas(apple_touch_icon_url: &str) -> impl IntoHtml {
     )
 }
 
-/// Open Graph metadata block used for link previews when the URL is shared
-/// in messaging apps and social networks. Grouped for the same reason as
-/// `apple_pwa_metas`. Takes ownership of `og_url` because the html macros
+/// Link-preview metadata for the URL when shared in messaging apps and
+/// social networks. Open Graph (Facebook / iMessage / WhatsApp / Discord
+/// / Mastodon) plus Twitter Card (X). Same data on both — Twitter's parser
+/// also reads OG, but `summary_large_image` requires the explicit
+/// `twitter:card` declaration. Grouped for the same arity reason as
+/// `apple_pwa_metas`; takes ownership of `og_url` because the html macros
 /// move per-page strings into the rendered output.
-fn open_graph_metas(meta_data: &PageMeta, og_url: String) -> impl IntoHtml {
+const SOCIAL_PREVIEW_IMAGE: &str = "https://elementary.training/img/social_preview.jpeg";
+
+fn share_preview_metas(meta_data: &PageMeta, og_url: String) -> impl IntoHtml {
     (
+        // Open Graph
         meta!("property" = "og:title", content = meta_data.title),
         meta!("property" = "og:locale", content = "nl_BE"),
         meta!("property" = "og:type", content = "website"),
@@ -79,10 +85,31 @@ fn open_graph_metas(meta_data: &PageMeta, og_url: String) -> impl IntoHtml {
             content = "Oefeningen Basisschool"
         ),
         meta!("property" = "og:url", content = og_url),
+        meta!("property" = "og:image", content = SOCIAL_PREVIEW_IMAGE),
+        // Twitter Card
+        meta!(name = "twitter:card", content = "summary_large_image"),
+        meta!(name = "twitter:title", content = meta_data.title),
         meta!(
-            "property" = "og:image",
-            content = "https://elementary.training/img/social_preview.jpeg",
+            name = "twitter:description",
+            content = meta_data.description
         ),
+        meta!(name = "twitter:image", content = SOCIAL_PREVIEW_IMAGE),
+    )
+}
+
+/// Tell the browser to start fetching the always-needed render-blocking /
+/// module-graph assets in parallel with HTML parsing. `preload` for the
+/// stylesheet, `modulepreload` for the JS entry-point — both shave an
+/// RTT off LCP on cold loads. `as="style"` is mandatory on preload links
+/// or browsers warn and refuse to use the prefetched bytes.
+///
+/// Takes owned `String`s because the html macros move the values into the
+/// markup, and the caller still needs the same URLs further down `head!`
+/// (for the actual `<link rel="stylesheet">` / `<script src=...>` tags).
+fn preload_links(theme_css_url: String, shared_js_url: String) -> impl IntoHtml {
+    (
+        link!(rel = "preload", href = theme_css_url, r#as = "style"),
+        link!(rel = "modulepreload", href = shared_js_url),
     )
 }
 
@@ -115,9 +142,14 @@ fn build_csp(
     extra_style: Option<&InlineStyle>,
     extra_script: Option<&InlineModuleScript>,
 ) -> ContentSecurityPolicy {
+    // `'inline-speculation-rules'` is scoped to `<script type="speculationrules">`
+    // blocks only — adding it doesn't loosen what other inlines may execute.
+    // Cheap to add unconditionally so pages can grow speculation rules later
+    // without revisiting CSP.
     let mut script_src = SourceList::self_origin()
         .with_hash(HashAlgorithm::Sha256, csp::THEME_INIT.hash_b64())
-        .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64());
+        .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64())
+        .with(SourceExpression::InlineSpeculationRules);
     if let Some(s) = extra_script {
         script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
     }
@@ -152,6 +184,7 @@ pub fn page(
     extra_style: Option<&'static InlineStyle>,
     body_content: impl IntoHtml,
     extra_module_script: Option<&'static InlineModuleScript>,
+    extra_speculation_rules: Option<&'static InlineSpeculationRules>,
     banner: impl IntoHtml,
 ) -> impl IntoResponse {
     let favicon_data = format!(
@@ -199,9 +232,10 @@ pub fn page(
             link!(rel = "canonical", href = og_url.clone()),
             link!(rel = "icon", href = favicon_data),
             apple_pwa_metas(&apple_touch_icon_url),
+            preload_links(theme_css_url.clone(), shared_js_url.clone()),
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
-            open_graph_metas(&meta_data, og_url),
+            share_preview_metas(&meta_data, og_url),
             extra_style.map(InlineStyle::render),
             // Apply stored theme override before first paint to avoid flash.
             // Body lives in `assets/theme-init.js` so its SHA-256 (and the
@@ -236,6 +270,7 @@ pub fn page(
             csp::IMPORTMAP.render(),
             script!(r#type = "module", src = shared_js_url),
             extra_module_script.map(InlineModuleScript::render),
+            extra_speculation_rules.map(InlineSpeculationRules::render),
         ),
     );
     let mut res = markup.into_response();

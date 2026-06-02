@@ -45,6 +45,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         Some(&STYLE),
         body,
         Some(&SCRIPT),
+        None,
         banner,
     )
 }

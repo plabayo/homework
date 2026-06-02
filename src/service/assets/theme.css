@@ -1511,3 +1511,30 @@
         }
     }
 } /* end @layer base */
+
+/* ---------- cross-document View Transitions ----------
+   Opt every same-origin navigation (home ↔ exercise, exercise ↔ exercise,
+   etc.) into the View Transitions API. The default cross-fade gives the
+   PWA a native app feel. `@view-transition` is a top-level at-rule
+   (CSS Conditional Rules § 2.5 forbids nesting it inside @media), so the
+   reduced-motion gate lives separately on the pseudo-elements below.
+
+   Browser support: Chromium 125+, Safari 18.2+. Older browsers ignore
+   the at-rule and fall back to instant navigation — pure progressive
+   enhancement, nothing breaks. */
+@view-transition {
+    navigation: auto;
+}
+
+/* Honour the user's motion preference: keep the snapshot/swap machinery
+   running (so the navigation completes as fast as a default one) but
+   disable every animation on the transition pseudo-elements. End result
+   under `prefers-reduced-motion: reduce`: indistinguishable from a plain
+   navigation. */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}

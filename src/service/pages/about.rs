@@ -22,6 +22,7 @@ pub async fn about(req: Request) -> impl IntoResponse {
         None,
         page_body(),
         None,
+        None,
         banner,
     )
 }

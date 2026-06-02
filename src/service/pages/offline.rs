@@ -47,6 +47,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
             ),
         ),
         None,
+        None,
         banner,
     )
     .into_response();
@@ -76,6 +77,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
                 " om een oefening te kiezen.",
             ),
         ),
+        None,
         None,
         banner,
     )

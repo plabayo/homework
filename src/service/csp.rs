@@ -199,6 +199,38 @@ impl InlineImportmap {
     }
 }
 
+/// Inline `<script type="speculationrules">` for the [Speculation Rules
+/// API](https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API)
+/// — tells the browser which links to prefetch/prerender from the current
+/// page. Bodies vary per page (each page recommends different "what
+/// comes next" routes), so we don't hash them; instead the page's CSP
+/// adds the dedicated `'inline-speculation-rules'` keyword which the
+/// browser scopes to this script type specifically.
+#[derive(Debug)]
+pub struct InlineSpeculationRules {
+    body: &'static str,
+}
+
+impl InlineSpeculationRules {
+    pub(crate) const fn new(body: &'static str) -> Self {
+        Self { body }
+    }
+
+    pub fn render(&self) -> impl IntoHtml {
+        script!(r#type = "speculationrules", PreEscaped(self.body))
+    }
+}
+
+/// Declare a `pub static` speculation-rules block. JSON body is
+/// `include_str!`'d from `$path`, no hashing involved (see the type docs).
+#[macro_export]
+macro_rules! inline_speculation_rules {
+    ($name:ident, $path:literal) => {
+        pub static $name: $crate::service::csp::InlineSpeculationRules =
+            $crate::service::csp::InlineSpeculationRules::new(include_str!($path));
+    };
+}
+
 // Always-on inline: the theme-flash prevention script lives on every
 // page (emitted unconditionally by `layout::page()`), so its hash is
 // always in every page's `script-src`.

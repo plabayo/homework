@@ -14,8 +14,8 @@ use rama::{
             StrictTransportSecurity, XContentTypeOptions, exotic::XClacksOverhead,
         },
         layer::{
-            error_handling::ErrorHandlerLayer, map_response_body::MapResponseBodyLayer,
-            match_redirect::UriMatchRedirectLayer,
+            compression::CompressionLayer, error_handling::ErrorHandlerLayer,
+            map_response_body::MapResponseBodyLayer, match_redirect::UriMatchRedirectLayer,
             required_header::AddRequiredResponseHeadersLayer, set_header::SetResponseHeaderLayer,
             trace::TraceLayer,
         },
@@ -45,6 +45,13 @@ fn apply_common_middleware(
                 HeaderValue::from_static("fly.io"),
             ),
             SetResponseHeaderLayer::if_not_present_typed(XContentTypeOptions::nosniff()),
+            // Compress text/* responses (HTML, CSS, JS, SVG, JSON, XML)
+            // for clients that advertise it. Fly's edge proxy may already
+            // re-compress with Brotli; this layer guarantees we ship at
+            // least gzip everywhere — meaningful on dev (no Fly in front)
+            // and a no-op-or-better in prod. `DefaultPredicate` skips
+            // already-compressed media (PNG/WebP/AVIF/WOFF2/etc.).
+            CompressionLayer::new(),
             // No CorsLayer: this app is intentionally same-origin only. The
             // PWA manifest, icons, JS, and HTML are all loaded from this
             // origin; opening it up with `Access-Control-Allow-Origin: *`

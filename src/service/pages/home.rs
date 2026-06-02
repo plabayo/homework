@@ -10,6 +10,13 @@ use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, ni
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageMeta, page, page_header};
 
+// Prefetch every exercise route from the home page. Bodies stay in the
+// browser's per-document in-memory cache, so when the kid taps through
+// to an exercise the HTML is already there. `eagerness: moderate` waits
+// for hover / pointerdown — kid-friendly latency without burning data on
+// just-scanning-the-page visits.
+crate::inline_speculation_rules!(SPECULATION, "home_speculation.json");
+
 pub async fn home(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
     let body = page_body();
@@ -24,6 +31,7 @@ pub async fn home(req: Request) -> impl IntoResponse {
         None,
         body,
         None,
+        Some(&SPECULATION),
         banner,
     )
 }
