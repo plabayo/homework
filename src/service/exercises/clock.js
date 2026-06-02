@@ -7,10 +7,11 @@ import {
     dutchTimePhrase,
     dutchTimePhraseVariants,
     escapeHtml,
+    formatHHMM,
     loadFields,
+    makeFillValidator,
     minutesForStep,
     optionListHtml,
-    pad,
     parseStrictInt,
     phraseFlipHtml,
     pickRandom,
@@ -421,10 +422,9 @@ function attachInteractive(root, q, opts = {}) {
     };
 }
 
-function timeLabel(h, m) {
-    const hh = h === 0 ? 12 : h;
-    return `${pad(hh)}:${pad(m)}`;
-}
+// Always render in 12-hour mode here — the analog face has no AM/PM, so the
+// digital twin shown alongside it follows the same convention.
+const timeLabel = (h, m) => formatHHMM(h, m);
 
 /** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
 function renderZetFeedback(feedbackEl, q) {
@@ -498,14 +498,16 @@ function renderClockLees(q, root, minStep) {
         initClockHands(root);
         const hh = root.querySelector("#answer-h");
         const mm = root.querySelector("#answer-m");
-        return () => {
-            if (!hh.value || mm.value === "") return null;
-            let h = parseStrictInt(hh.value);
-            const m = parseStrictInt(mm.value);
-            if (h === null || m === null) return null;
-            if (h === 12) h = 0;
-            return { h, m };
-        };
+        // Shared validator handles range validation, aria-describedby wiring,
+        // invalid-state styling, and the clear-on-input listeners — same
+        // accessible treatment digital_clock.js's fill mode gets. The analog
+        // clock has no AM/PM, so we always run in 12-hour mode.
+        return makeFillValidator({
+            hourInput: hh,
+            minuteInput: mm,
+            use24h: false,
+            feedbackEl: document.getElementById("exercise-feedback"),
+        });
     }
     const wordChoices = q.choiceStyle === "words" && !!dutchTimePhrase(q.h, q.m);
     const options = wordChoices

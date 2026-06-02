@@ -2,7 +2,15 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
+import {
+    FRACTION_INPUT_HTML,
+    fractionHtml as frac,
+    loadFields,
+    parseStrictInt,
+    pickRandom,
+    readFields,
+    runExercise,
+} from "@homework";
 
 // ---------- Fraction pools ----------
 
@@ -62,11 +70,9 @@ function maxWholeForDifficulty(difficulty) {
 
 // ---------- HTML helpers ----------
 
-function frac(num, den) {
-    return `<span class="fraction"><span class="frac-num">${num}</span><span class="frac-bar"></span><span class="frac-den">${den}</span></span>`;
-}
-
-const FRAC_INPUT = `<span class="fraction-input"><input inputmode="numeric" pattern="[0-9]+" id="answer-num" min="0" max="10000" required><span class="frac-bar"></span><input inputmode="numeric" pattern="[0-9]+" id="answer-den" min="1" max="10000" required></span>`;
+// `frac` and `FRAC_INPUT` come from @homework so the markup stays in lock-step
+// with the other exercises that render stacked fractions (fractions.js).
+const FRAC_INPUT = FRACTION_INPUT_HTML;
 
 // ---------- Question generators ----------
 

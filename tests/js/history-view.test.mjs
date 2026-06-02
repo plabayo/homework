@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { partitionForHistoryView, weeklyBuckets } from "./history-harness.mjs";
+import { isoWeekStart, partitionForHistoryView, weeklyBuckets } from "./history-harness.mjs";
 
 // --- helpers ---------------------------------------------------------------
 
@@ -197,4 +197,123 @@ test("weeklyBuckets: monday is week start (school week convention)", () => {
     assert.equal(out[0].sessionCount, 2);
     // unused — just here so node doesn't complain about an unused binding
     void sundaySession;
+});
+
+// --- isoWeekStart -----------------------------------------------------------
+//
+// These tests pin behaviour at the awkward calendar boundaries: DST
+// transitions (EU/Brussels: last Sunday of March → +1h, last Sunday of
+// October → -1h) and year boundaries where the Monday-anchored week spans
+// December → January. `isoWeekStart` runs in *local time* (so the bucket
+// matches what a Brussels-based kid would call "deze week") — we assert
+// every Monday→Sunday in a target week maps to the same Monday-00:00 key.
+//
+// We use a helper that constructs a local-time Date by component so the
+// tests don't depend on the test runner's TZ honouring a UTC ms literal.
+// `process.env.TZ` is "UTC" by default on CI; we still want the assertions
+// to express "all 7 days of week X collapse to the same key" which is
+// timezone-agnostic.
+
+/** Build a local-time Date at the given Y-M-D H:M and return its ms. */
+function localTs(y, mo, d, h = 12, mi = 0) {
+    return new Date(y, mo - 1, d, h, mi, 0, 0).getTime();
+}
+
+test("isoWeekStart: Monday of the same week maps to itself (idempotent)", () => {
+    // Monday 2026-06-01 12:00 local → Monday 2026-06-01 00:00 local.
+    const mon = localTs(2026, 6, 1, 12);
+    const ws = isoWeekStart(mon);
+    const out = new Date(ws);
+    assert.equal(out.getFullYear(), 2026);
+    assert.equal(out.getMonth(), 5); // June (0-indexed)
+    assert.equal(out.getDate(), 1);
+    assert.equal(out.getHours(), 0);
+    assert.equal(out.getMinutes(), 0);
+});
+
+test("isoWeekStart: every day Mon..Sun in same week → same key", () => {
+    // Week containing 2026-06-01 .. 2026-06-07 (all Mon..Sun).
+    const anchor = isoWeekStart(localTs(2026, 6, 1));
+    for (let offset = 0; offset < 7; offset++) {
+        const ts = localTs(2026, 6, 1 + offset, 9 + offset, 30);
+        assert.equal(
+            isoWeekStart(ts),
+            anchor,
+            `day +${offset} (2026-06-${String(1 + offset).padStart(2, "0")}) should land in the same bucket`,
+        );
+    }
+});
+
+test("isoWeekStart: Sunday → previous Monday (not next)", () => {
+    // Sunday 2026-06-07 23:55 local must bucket into the Monday that opened
+    // the week (2026-06-01), not the next one (2026-06-08). Regression for
+    // the off-by-one that the `(getDay()+6) % 7` shift exists to prevent.
+    const sun = localTs(2026, 6, 7, 23, 55);
+    const ws = new Date(isoWeekStart(sun));
+    assert.equal(ws.getDate(), 1, `Sunday should bucket to Mon Jun 1, got ${ws}`);
+});
+
+test("isoWeekStart: DST spring-forward (CET→CEST) week stays one bucket", () => {
+    // EU DST 2026: clocks jump 02:00 → 03:00 on Sunday 2026-03-29. The
+    // surrounding ISO week is Mon 2026-03-23 .. Sun 2026-03-29. Every day
+    // in that week — including the short Sunday — must collapse to the
+    // same Monday-00:00 key. (If `isoWeekStart` ever started doing UTC
+    // arithmetic, this test fails on machines whose local TZ observes DST.)
+    const monday = isoWeekStart(localTs(2026, 3, 23));
+    for (let d = 23; d <= 29; d++) {
+        const ts = localTs(2026, 3, d, 12);
+        assert.equal(
+            isoWeekStart(ts),
+            monday,
+            `Mar ${d} (DST week) must bucket to Mon Mar 23, got ${new Date(isoWeekStart(ts))}`,
+        );
+    }
+});
+
+test("isoWeekStart: DST fall-back (CEST→CET) week stays one bucket", () => {
+    // EU DST 2026: clocks fall back 03:00 → 02:00 on Sunday 2026-10-25. The
+    // surrounding ISO week is Mon 2026-10-19 .. Sun 2026-10-25. The 25-hour
+    // Sunday is the trap — all 7 days must still produce the same Monday.
+    const monday = isoWeekStart(localTs(2026, 10, 19));
+    for (let d = 19; d <= 25; d++) {
+        const ts = localTs(2026, 10, d, 12);
+        assert.equal(
+            isoWeekStart(ts),
+            monday,
+            `Oct ${d} (fall-back week) must bucket to Mon Oct 19, got ${new Date(isoWeekStart(ts))}`,
+        );
+    }
+});
+
+test("isoWeekStart: year boundary — Dec 31 in week of the next year", () => {
+    // 2025-12-29 is a Monday; the week it opens runs Mon 2025-12-29 ..
+    // Sun 2026-01-04. So a session on Thu 2026-01-01 must bucket to the
+    // 2025-12-29 Monday, NOT to the next week (2026-01-05) and NOT to
+    // 2025-12-22. Locks the "no off-by-7-on-year-roll" invariant.
+    const monday = isoWeekStart(localTs(2025, 12, 29));
+    assert.equal(new Date(monday).getFullYear(), 2025);
+    assert.equal(new Date(monday).getMonth(), 11); // December
+    assert.equal(new Date(monday).getDate(), 29);
+    for (const [y, mo, d] of [
+        [2025, 12, 29],
+        [2025, 12, 31],
+        [2026, 1, 1],
+        [2026, 1, 4],
+    ]) {
+        assert.equal(
+            isoWeekStart(localTs(y, mo, d, 10)),
+            monday,
+            `${y}-${mo}-${d} should bucket to Mon 2025-12-29`,
+        );
+    }
+});
+
+test("isoWeekStart: year boundary — Jan 1 falling on a Sunday", () => {
+    // 2023-01-01 was a Sunday. The week containing it opened on Mon
+    // 2022-12-26 and the Sunday closes it. So Jan 1 2023 must bucket
+    // backward into 2022, not forward into 2023's first Monday.
+    const ws = new Date(isoWeekStart(localTs(2023, 1, 1, 14)));
+    assert.equal(ws.getFullYear(), 2022);
+    assert.equal(ws.getMonth(), 11); // December
+    assert.equal(ws.getDate(), 26);
 });

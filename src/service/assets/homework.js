@@ -249,6 +249,112 @@ export function pad(n) {
 }
 
 /**
+ * Render an `HH:MM` clock label. In 12-hour mode (`use24h=false`, default)
+ * hour 0 is rendered as 12 so noon / midnight show "12:xx". In 24-hour mode
+ * the hour is kept as-is so midnight shows "00:xx". Shared between clock.js
+ * (analog-face exercise) and digital_clock.js so the display stays uniform.
+ */
+export function formatHHMM(h, m, { use24h = false } = {}) {
+    const display = !use24h && h === 0 ? 12 : h;
+    return `${pad(display)}:${pad(m)}`;
+}
+
+/**
+ * Build a getter for a paired `hh:mm` fill-in (two `<input>` elements). The
+ * returned function reads both fields, validates the ranges, surfaces an
+ * accessible error message via the shared feedback element, and returns either
+ * `{ h, m }` (with `h` normalised to 0..23 — i.e. 12-hour input "12" becomes
+ * `0`) or `null` when the inputs are blank or out-of-range.
+ *
+ * Side effects on every call:
+ *   * toggles `is-invalid` + `aria-invalid` on each input,
+ *   * once per mount, wires `aria-describedby` from each input to `feedbackEl`
+ *     so screen-readers hear the validation message when the focus lands on
+ *     the input,
+ *   * rewrites `feedbackEl.textContent` to a Dutch validation prompt when the
+ *     entry is invalid (stashing the previous assignment in `dataset.assignment`
+ *     so input listeners can restore it).
+ *
+ * Used by clock.js (lees-uu-mm) and digital_clock.js (fill-in answer mode).
+ */
+export function makeFillValidator({ hourInput, minuteInput, use24h, feedbackEl, autoFocusNext = true }) {
+    if (feedbackEl?.id) {
+        // describedby is cumulative — only add the link the first time so we
+        // don't accumulate duplicates on re-render of the same fields.
+        for (const el of [hourInput, minuteInput]) {
+            const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+            if (!ids.includes(feedbackEl.id)) {
+                ids.push(feedbackEl.id);
+                el.setAttribute("aria-describedby", ids.join(" "));
+            }
+        }
+    }
+
+    const showInvalidFeedback = () => {
+        if (!feedbackEl) return;
+        // Use a dedicated flag so we don't stomp wrong-attempt feedback (which
+        // also flips `is-bad` + writes `dataset.assignment`).
+        if (feedbackEl.dataset.invalidInput !== "1") {
+            feedbackEl.dataset.assignment = feedbackEl.textContent;
+            feedbackEl.dataset.invalidInput = "1";
+        }
+        const hourRange = use24h ? "0–23" : "1–12";
+        feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59).`;
+        feedbackEl.classList.add("is-bad");
+    };
+
+    const clearInvalidFeedback = () => {
+        if (feedbackEl?.dataset.invalidInput !== "1") return;
+        feedbackEl.dataset.invalidInput = "";
+        const assignment = feedbackEl.dataset.assignment;
+        if (assignment) feedbackEl.textContent = assignment;
+        feedbackEl.classList.remove("is-bad");
+    };
+
+    const setInvalid = (el, invalid) => {
+        el.classList.toggle("is-invalid", invalid);
+        if (invalid) el.setAttribute("aria-invalid", "true");
+        else el.removeAttribute("aria-invalid");
+    };
+
+    // Clear invalid styling + validation message as the kid corrects their
+    // typing; auto-advance focus from hh→mm once two digits are in.
+    hourInput.addEventListener("input", () => {
+        setInvalid(hourInput, false);
+        clearInvalidFeedback();
+        if (autoFocusNext && hourInput.value.length >= 2) minuteInput.focus();
+    });
+    minuteInput.addEventListener("input", () => {
+        setInvalid(minuteInput, false);
+        clearInvalidFeedback();
+    });
+
+    return () => {
+        setInvalid(hourInput, false);
+        setInvalid(minuteInput, false);
+        if (!hourInput.value || minuteInput.value === "") return null;
+        const rawH = parseStrictInt(hourInput.value);
+        const rawM = parseStrictInt(minuteInput.value);
+        const maxHour = use24h ? 23 : 12;
+        const minHour = use24h ? 0 : 1;
+        let invalid = false;
+        if (rawH === null || rawH < minHour || rawH > maxHour) {
+            setInvalid(hourInput, true);
+            invalid = true;
+        }
+        if (rawM === null || rawM < 0 || rawM > 59) {
+            setInvalid(minuteInput, true);
+            invalid = true;
+        }
+        if (invalid) {
+            showInvalidFeedback();
+            return null;
+        }
+        return { h: use24h ? rawH : rawH % 12, m: rawM };
+    };
+}
+
+/**
  * Read typed values out of a form.
  *   read.number(form, 'num-exercises')                  → Number
  *   read['optional-number'](form, 'max-whole')          → Number | null (null when blank)
@@ -405,6 +511,26 @@ export function escapeHtml(s) {
 export function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
+
+/**
+ * Render a fraction `num/den` as the shared `.fraction` markup. Used by both
+ * the fractions and percentages exercises (and any future exercise that needs
+ * to display a stacked fraction). The accompanying CSS lives in `theme.css`
+ * under `.fraction` / `.frac-num` / `.frac-bar` / `.frac-den` so all callers
+ * get the same look for free. Caller is responsible for escaping when the
+ * numerator/denominator are not trusted; current callers pass plain integers.
+ */
+export function fractionHtml(num, den) {
+    return `<span class="fraction"><span class="frac-num">${num}</span><span class="frac-bar"></span><span class="frac-den">${den}</span></span>`;
+}
+
+/**
+ * HTML snippet for a two-input fraction answer (numerator on top, denominator
+ * on the bottom). Inputs use ids `answer-num` and `answer-den` so callers can
+ * `querySelector` them after innerHTML insertion. Shared between fractions and
+ * percentages so the visual + a11y treatment stays in lock-step.
+ */
+export const FRACTION_INPUT_HTML = `<span class="fraction-input"><input inputmode="numeric" pattern="[0-9]+" id="answer-num" min="0" max="10000" required><span class="frac-bar"></span><input inputmode="numeric" pattern="[0-9]+" id="answer-den" min="1" max="10000" required></span>`;
 
 /**
  * Strict non-negative integer parser. Returns `null` for anything other
@@ -1196,8 +1322,11 @@ export function partitionForHistoryView(
 /**
  * Return the timestamp of the Monday 00:00 (local time) for the ISO week
  * containing `ts`. Used as the bucket key for weekly history aggregation.
+ *
+ * Exported so the JS unit tests can pin DST and year-boundary behaviour
+ * directly; production code reaches it via `weeklyBuckets`.
  */
-function isoWeekStart(ts) {
+export function isoWeekStart(ts) {
     const d = new Date(ts);
     d.setHours(0, 0, 0, 0);
     // 0 = Sunday in JS; we want Monday=0 so kid's week aligns with school week.
@@ -1321,6 +1450,25 @@ function renderTrickyList(session) {
  *   onBeforeReset?: () => void               — called before returning to setup (e.g. to clean up exercise-specific state)
  * }
  */
+
+// Module-level trampoline for the `visibilitychange` listener.
+//
+// `runExercise` used to register its own per-run `_onVisibilityChange`
+// closure directly on `document`; in normal usage that runs exactly once
+// per page load, so no accumulation. But it WOULD accumulate if anything
+// ever called `runExercise` twice on the same document (e.g. a future
+// in-page "reset and restart" affordance), each pile-up retaining a stale
+// per-run `state` closure. The trampoline below binds the global listener
+// exactly once and delegates to whichever run is currently mounted —
+// later runs replace the slot, earlier ones go silent.
+let _activeVisibilityHandler = () => {};
+let _visibilityListenerBound = false;
+function _bindVisibilityListenerOnce() {
+    if (_visibilityListenerBound) return;
+    _visibilityListenerBound = true;
+    document.addEventListener("visibilitychange", (e) => _activeVisibilityHandler(e));
+}
+
 export function runExercise(spec) {
     const leaveGuardId = Symbol(`leave-guard:${spec.id}`);
     const setup = document.getElementById("page-setup");
@@ -1445,27 +1593,70 @@ export function runExercise(spec) {
         return `${m}:${String(r).padStart(2, "0")}`;
     }
 
-    // Reusable deadline span — the earlier implementation appended a fresh
-    // <span> every 250ms and never cleared the prior ones, accumulating
-    // ~1200 stale nodes over a 5-minute session. Now we keep one node and
-    // update its text/class.
+    // Reusable nodes + memoized last-rendered state. The earlier implementation
+    // appended a fresh <span> every 250ms and never cleared the prior ones,
+    // accumulating ~1200 stale nodes over a 5-minute session. Now we keep two
+    // text nodes + one deadline span, and we early-return when the visible
+    // strings haven't changed — `formatDuration` rounds to whole seconds, so
+    // ~3 of every 4 ticks at 250ms skip the DOM write entirely.
+    let _elapsedTextNode = null;
     let _deadlineSpan = null;
-    function updateClock() {
-        if (!clockEl) return;
-        const elapsed = formatDuration(Date.now() - state.startedAt);
-        while (clockEl.firstChild) clockEl.removeChild(clockEl.firstChild);
-        clockEl.appendChild(document.createTextNode(`⏱️ ${elapsed}`));
-        if (deadlineSec()) {
-            const remain = Math.max(0, deadlineSec() * 1000 - (Date.now() - state.questionStartedAt));
-            const danger = remain < deadlineSec() * 250;
-            if (!_deadlineSpan) _deadlineSpan = document.createElement("span");
-            _deadlineSpan.className = danger ? "deadline danger" : "deadline";
-            _deadlineSpan.textContent = `⏰ ${formatDuration(remain)}`;
+    let _lastElapsed = "";
+    let _lastDeadlineText = "";
+    let _lastDeadlineDanger = null;
+    function _writeElapsed(elapsedStr) {
+        if (!_elapsedTextNode) {
+            while (clockEl.firstChild) clockEl.removeChild(clockEl.firstChild);
+            _elapsedTextNode = document.createTextNode(`⏱️ ${elapsedStr}`);
+            clockEl.appendChild(_elapsedTextNode);
+        } else if (elapsedStr !== _lastElapsed) {
+            _elapsedTextNode.nodeValue = `⏱️ ${elapsedStr}`;
+        }
+        _lastElapsed = elapsedStr;
+    }
+    function _writeDeadline(deadlineText, danger) {
+        if (!_deadlineSpan) {
+            _deadlineSpan = document.createElement("span");
             clockEl.appendChild(document.createTextNode("  "));
             clockEl.appendChild(_deadlineSpan);
-        } else {
-            _deadlineSpan = null;
         }
+        if (danger !== _lastDeadlineDanger) {
+            _deadlineSpan.className = danger ? "deadline danger" : "deadline";
+        }
+        if (deadlineText !== _lastDeadlineText) {
+            _deadlineSpan.textContent = deadlineText;
+        }
+        _lastDeadlineDanger = danger;
+        _lastDeadlineText = deadlineText;
+    }
+    function _dropDeadline(elapsedStr) {
+        // Deadline disappeared mid-run — rebuild cleanly so the stale NBSP
+        // separator + span don't dangle after the elapsed text.
+        while (clockEl.firstChild) clockEl.removeChild(clockEl.firstChild);
+        _elapsedTextNode = document.createTextNode(`⏱️ ${elapsedStr}`);
+        clockEl.appendChild(_elapsedTextNode);
+        _deadlineSpan = null;
+        _lastDeadlineText = "";
+        _lastDeadlineDanger = null;
+    }
+    function updateClock() {
+        if (!clockEl) return;
+        const elapsedStr = formatDuration(Date.now() - state.startedAt);
+        const ds = deadlineSec();
+        const remain = ds ? Math.max(0, ds * 1000 - (Date.now() - state.questionStartedAt)) : 0;
+        const deadlineText = ds ? `⏰ ${formatDuration(remain)}` : "";
+        const danger = ds ? remain < ds * 250 : false;
+
+        const unchanged =
+            _elapsedTextNode &&
+            elapsedStr === _lastElapsed &&
+            deadlineText === _lastDeadlineText &&
+            danger === _lastDeadlineDanger;
+        if (unchanged) return;
+
+        _writeElapsed(elapsedStr);
+        if (ds) _writeDeadline(deadlineText, danger);
+        else if (_deadlineSpan) _dropDeadline(elapsedStr);
     }
 
     // Pause the 250ms timer while the tab is hidden — mobile browsers throttle
@@ -1482,7 +1673,10 @@ export function runExercise(spec) {
             updateClock();
         }
     }
-    document.addEventListener("visibilitychange", _onVisibilityChange);
+    // Route the global listener through the module-level trampoline so we never
+    // accumulate multiple `visibilitychange` callbacks across successive runs.
+    _activeVisibilityHandler = _onVisibilityChange;
+    _bindVisibilityListenerOnce();
 
     function startSessionTimer() {
         if (!timeModeOn() || !clockEl) return;

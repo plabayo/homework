@@ -47,6 +47,11 @@ const ctx = createContext({
     loadFields: () => {},
     readFields: () => ({}),
     runExercise: () => {},
+    // Pure-logic tests don't assert on fraction markup, just on the
+    // surrounding text — a noop stub is enough to satisfy the module-top
+    // `import { fractionHtml as frac, FRACTION_INPUT_HTML }` references.
+    fractionHtml: () => "",
+    FRACTION_INPUT_HTML: "",
     // DOM stub — pure functions never call these.
     document: { getElementById: () => null, querySelector: () => null },
 });

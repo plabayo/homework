@@ -37,6 +37,16 @@ const ctx = createContext({
     loadFields: () => {},
     readFields: () => ({}),
     runExercise: () => {},
+    parseStrictInt: (s) => {
+        if (typeof s !== "string" && typeof s !== "number") return null;
+        const str = String(s).trim();
+        if (!/^-?\d+$/.test(str)) return null;
+        return Number(str);
+    },
+    // Module-top references that the real file imports from @homework; we
+    // don't render HTML in pure-logic tests, so these are inert stubs.
+    fractionHtml: () => "",
+    FRACTION_INPUT_HTML: "",
     // DOM stub — pure functions never call these.
     document: { getElementById: () => null, querySelector: () => null },
 });

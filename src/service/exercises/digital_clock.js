@@ -7,11 +7,12 @@ import {
     dutchTimePhrase,
     dutchTimePhraseVariants,
     escapeHtml,
+    formatHHMM,
     loadFields,
+    makeFillValidator,
     minutesForStep,
     normalizePhrase,
     optionListHtml,
-    pad,
     parseStrictInt,
     phraseFlipHtml,
     pickRandom,
@@ -56,12 +57,9 @@ function sizeQuestionFlip(root) {
 //   :20  tien voor half :50  tien voor (X+1)
 //   :25  vijf voor half :55  vijf voor (X+1)
 
-function digitalLabel(h, m, use24h) {
-    // In 12-hour mode render h=0 as 12 (noon/midnight shows "12:xx").
-    // In 24-hour mode keep the raw value so midnight shows "00:xx".
-    const display = !use24h && h === 0 ? 12 : h;
-    return `${pad(display)}:${pad(m)}`;
-}
+// `digitalLabel(h, m, use24h)` is just `formatHHMM` with a positional
+// `use24h` arg — kept as an alias so call sites stay readable.
+const digitalLabel = (h, m, use24h) => formatHHMM(h, m, { use24h });
 
 // Maps granularity config keys to minute step sizes.
 const GRAN_STEP = { uur: 60, half: 30, kwart: 15, vijf: 5 };
@@ -175,66 +173,19 @@ function renderDigitalClockReview(q, root, mode) {
     `;
 }
 
+// Returns a per-render getter that reads `hh:mm` from two inputs, validates
+// the ranges with full a11y feedback (`makeFillValidator` does the heavy
+// lifting), and serialises to the JSON shape that `isCorrect` expects.
 function makeClockFillGetter(hh, mm, q, feedbackEl) {
-    // Tie each invalid field to the live feedback element so screen-readers
-    // hear the validation message when they navigate onto the input. This
-    // and `aria-invalid` are cleared from the input event listener.
-    if (feedbackEl?.id) {
-        // Use describedby (cumulative) rather than overwriting; only add
-        // the link the first time so we don't accumulate duplicates on
-        // re-render.
-        for (const el of [hh, mm]) {
-            const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
-            if (!ids.includes(feedbackEl.id)) {
-                ids.push(feedbackEl.id);
-                el.setAttribute("aria-describedby", ids.join(" "));
-            }
-        }
-    }
-
-    const showInvalidFeedback = () => {
-        if (!feedbackEl) return;
-        // Stash the assignment text on first switch into the bad state so the
-        // input-listeners can restore it when the child fixes their typing.
-        // Use a dedicated flag to avoid stomping on wrong-attempt feedback
-        // (which also uses is-bad + dataset.assignment).
-        if (feedbackEl.dataset.invalidInput !== "1") {
-            feedbackEl.dataset.assignment = feedbackEl.textContent;
-            feedbackEl.dataset.invalidInput = "1";
-        }
-        const hourRange = q.use24h ? "0–23" : "1–12";
-        feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59).`;
-        feedbackEl.classList.add("is-bad");
-    };
-
-    const setInvalid = (el, invalid) => {
-        el.classList.toggle("is-invalid", invalid);
-        if (invalid) el.setAttribute("aria-invalid", "true");
-        else el.removeAttribute("aria-invalid");
-    };
-
+    const validate = makeFillValidator({
+        hourInput: hh,
+        minuteInput: mm,
+        use24h: q.use24h,
+        feedbackEl,
+    });
     return () => {
-        setInvalid(hh, false);
-        setInvalid(mm, false);
-        if (!hh.value || mm.value === "") return null;
-        const rawH = parseStrictInt(hh.value);
-        const rawM = parseStrictInt(mm.value);
-        const maxHour = q.use24h ? 23 : 12;
-        const minHour = q.use24h ? 0 : 1;
-        let invalid = false;
-        if (rawH === null || rawH < minHour || rawH > maxHour) {
-            setInvalid(hh, true);
-            invalid = true;
-        }
-        if (rawM === null || rawM < 0 || rawM > 59) {
-            setInvalid(mm, true);
-            invalid = true;
-        }
-        if (invalid) {
-            showInvalidFeedback();
-            return null;
-        }
-        return JSON.stringify({ h: q.use24h ? rawH : rawH % 12, m: rawM });
+        const v = validate();
+        return v ? JSON.stringify(v) : null;
     };
 }
 
@@ -332,27 +283,9 @@ runExercise({
                 const hh = root.querySelector("#answer-h");
                 const mm = root.querySelector("#answer-m");
                 const feedbackEl = document.getElementById("exercise-feedback");
-                // Only clear the validation message, not wrong-attempt feedback —
-                // the latter is its own user-visible signal and shouldn't vanish
-                // the moment the child starts retyping.
-                const clearInvalidFeedback = () => {
-                    if (feedbackEl?.dataset.invalidInput !== "1") return;
-                    feedbackEl.dataset.invalidInput = "";
-                    const assignment = feedbackEl.dataset.assignment;
-                    if (assignment) feedbackEl.textContent = assignment;
-                    feedbackEl.classList.remove("is-bad");
-                };
-                hh.addEventListener("input", () => {
-                    hh.classList.remove("is-invalid");
-                    hh.removeAttribute("aria-invalid");
-                    clearInvalidFeedback();
-                    if (hh.value.length >= 2) mm.focus();
-                });
-                mm.addEventListener("input", () => {
-                    mm.classList.remove("is-invalid");
-                    mm.removeAttribute("aria-invalid");
-                    clearInvalidFeedback();
-                });
+                // `makeFillValidator` (via makeClockFillGetter) takes care of
+                // describedby + the clear-on-input listener + autofocus from
+                // hh→mm, so this branch only has to wire the JSON return shape.
                 return makeClockFillGetter(hh, mm, q, feedbackEl);
             }
             const distractors = buildDistractors(q, 3);
