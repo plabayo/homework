@@ -749,11 +749,11 @@ async fn manifest_advertises_required_pwa_fields() -> TestResult<()> {
     let (status, body, _csp) = fetch_csp(driver, &app.url("/manifest.webmanifest")).await?;
     assert_eq!(status, 200, "/manifest.webmanifest must serve 200");
 
-    let manifest: serde_json::Value =
-        serde_json::from_str(&body).expect("/manifest.webmanifest must parse as JSON");
+    let manifest: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("/manifest.webmanifest must parse as JSON: {e}"))?;
     let obj = manifest
         .as_object()
-        .expect("manifest top-level must be an object");
+        .ok_or("manifest top-level must be a JSON object")?;
 
     for required in [
         "id",
@@ -780,7 +780,7 @@ async fn manifest_advertises_required_pwa_fields() -> TestResult<()> {
 
     let categories = obj["categories"]
         .as_array()
-        .expect("manifest categories must be a JSON array");
+        .ok_or("manifest `categories` must be a JSON array")?;
     let cat_strs: Vec<&str> = categories.iter().filter_map(|c| c.as_str()).collect();
     assert!(
         cat_strs.contains(&"education"),
@@ -789,7 +789,7 @@ async fn manifest_advertises_required_pwa_fields() -> TestResult<()> {
 
     let icons = obj["icons"]
         .as_array()
-        .expect("manifest icons must be a JSON array");
+        .ok_or("manifest `icons` must be a JSON array")?;
     assert!(!icons.is_empty(), "manifest must declare at least one icon");
     for (i, icon) in icons.iter().enumerate() {
         let purpose = icon["purpose"]
@@ -897,9 +897,7 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
 
         // Middle item links to the home-page niveau anchor.
         let middle_href = driver
-            .find(By::Css(
-                "nav.breadcrumb ol > li:nth-child(2) > a[href]",
-            ))
+            .find(By::Css("nav.breadcrumb ol > li:nth-child(2) > a[href]"))
             .await?
             .attr("href")
             .await?
@@ -925,12 +923,7 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
     // Also the home-page anchors the breadcrumbs link into.
     driver.goto(app.url("/")).await?;
     for anchor in ["niveau-1", "niveau-2", "niveau-10"] {
-        wait_for_css(
-            driver,
-            &format!("h2#{anchor}"),
-            Duration::from_secs(10),
-        )
-        .await?;
+        wait_for_css(driver, &format!("h2#{anchor}"), Duration::from_secs(10)).await?;
     }
 
     driver.clone().quit().await?;
