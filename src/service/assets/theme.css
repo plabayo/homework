@@ -124,7 +124,12 @@
 
     /* ---------- base layout (mobile first) ---------- */
     body {
-        padding: 12px;
+        /* 16px of edge padding on small screens — 12px felt cramped for
+           text-heavy pages (about, privacy) where lines run right up to
+           the device bezel. Exercise screens still have their own inner
+           padding inside `#exercise.box`, so this extra 4px/side doesn't
+           shrink the play area noticeably. Tablet+ keeps its 28px below. */
+        padding: 16px;
     }
     /* Skip-to-content link. Off-screen until focused via Tab; bringing it
        into view as a regular focus ring lets keyboard users bypass the
@@ -222,6 +227,48 @@
     }
     .page-intro + form {
         margin-block-start: var(--space);
+    }
+
+    /* ---------- reading sections (about / privacy) ----------
+       Long-form text pages used to inherit raw browser margins which
+       collapsed paragraphs and bullet lists too tightly together on
+       mobile. These rules add deliberate vertical rhythm: more line-
+       height for paragraphs, breathing room after headings, a small
+       gap between siblings <li>s so a parent can scan the policy
+       points without optical noise. */
+    .about-section h2 {
+        font-size: 1.1rem;
+        margin-block: 0 calc(var(--space) * 0.6);
+    }
+    .about-section p {
+        line-height: 1.6;
+        margin-block: 0;
+    }
+    .about-section p + p,
+    .about-section p + ul,
+    .about-section p + ol,
+    .about-section ul + p,
+    .about-section ol + p {
+        margin-block-start: calc(var(--space) * 0.85);
+    }
+    .about-section ul,
+    .about-section ol {
+        margin-block: 0;
+        padding-inline-start: 1.5em;
+        line-height: 1.55;
+    }
+    .about-section li + li {
+        margin-block-start: 8px;
+    }
+    /* Inline `<code>` references (e.g. IndexedDB, Cache Storage on the
+       privacy page) need a tiny visual lift so they don't blend into
+       the surrounding prose. */
+    .about-section code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.92em;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--fg) 8%, transparent);
     }
 
     /* ---------- forms ---------- */
