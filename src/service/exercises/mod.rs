@@ -87,18 +87,33 @@ pub fn all_exercises() -> &'static [ExerciseInfo] {
 
 /// Level values in the order they are displayed on the home page.
 ///
-/// NOTE: when a new level is added, add it here AND add a matching arm to
-/// `niveau_label()` below.
+/// NOTE: when a new level is added, add it here AND add a matching row to
+/// `LEVEL_LABELS` below. The `niveau_label` / `breadcrumb_level_label`
+/// accessors both source from that single table.
 pub const EXERCISE_LEVELS: &[u8] = &[1, 2, 10];
 
-pub fn niveau_label(level: u8) -> &'static str {
-    match level {
-        1 => "Niveau 1️⃣",
-        2 => "Niveau 2️⃣",
-        3 => "Niveau 3️⃣",
-        10 => "Extra ✨",
-        _ => "Niveau",
+/// Single source of truth for level naming: `(level, plain, with_emoji)`.
+/// Each row pairs the plain form used in `<title>`/breadcrumb/JSON-LD with
+/// the emoji-suffixed form used on the home page sectioning. Add a row here
+/// whenever you add a new level to `EXERCISE_LEVELS`.
+const LEVEL_LABELS: &[(u8, &str, &str)] = &[
+    (1, "Niveau 1", "Niveau 1️⃣"),
+    (2, "Niveau 2", "Niveau 2️⃣"),
+    (3, "Niveau 3", "Niveau 3️⃣"),
+    (10, "Extra", "Extra ✨"),
+];
+
+fn level_entry(level: u8) -> (&'static str, &'static str) {
+    for (k, plain, emoji) in LEVEL_LABELS {
+        if *k == level {
+            return (plain, emoji);
+        }
     }
+    ("Niveau", "Niveau")
+}
+
+pub fn niveau_label(level: u8) -> &'static str {
+    level_entry(level).1
 }
 
 /// Plain-text breadcrumb label for the middle item ("Niveau 1" / "Niveau 2"
@@ -106,13 +121,7 @@ pub fn niveau_label(level: u8) -> &'static str {
 /// it can be paired with the per-exercise BreadcrumbList JSON-LD bodies
 /// (which use the same plain wording).
 pub fn breadcrumb_level_label(level: u8) -> &'static str {
-    match level {
-        1 => "Niveau 1",
-        2 => "Niveau 2",
-        3 => "Niveau 3",
-        10 => "Extra",
-        _ => "Niveau",
-    }
+    level_entry(level).0
 }
 
 /// The header bar shown at the top of every exercise page — one row,
