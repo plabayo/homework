@@ -124,11 +124,12 @@ async fn freeplay_shows_both_phrase_variants_for_ambiguous_time() -> TestResult<
     wait_for_css(driver, "#freeplay-clock .clock.interactive", TIMEOUT).await?;
 
     // Navigate to 11:20 — a time with two valid Dutch phrases.
-    // Starting at 06:00: 5 hour-inc → 11:00, then 4 min-inc (×5 min each) → 11:20.
+    // Starting at 06:00: 5 hour-inc → 11:00, then 20 min-inc (×1 min each
+    // since freeplay runs at 1-minute granularity) → 11:20.
     for _ in 0..5 {
         click(driver, "#freeplay-hour-inc").await?;
     }
-    for _ in 0..4 {
+    for _ in 0..20 {
         click(driver, "#freeplay-min-inc").await?;
     }
     wait_for_text(driver, "#freeplay-digital", "11:20", TIMEOUT).await?;

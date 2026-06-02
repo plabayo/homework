@@ -561,7 +561,12 @@ function mountFreeplay() {
 
     attachInteractive(
         clockDiv,
-        { granularity: "five" },
+        // Free-mode runs at 1-minute precision: drag snaps to the nearest
+        // whole minute and the ± buttons step by 1. Coarser granularities
+        // are useful in the structured exercise modes (where they shape
+        // the problem space) but unhelpful when a parent wants to point
+        // at "13 over 7" while teaching.
+        { granularity: "one" },
         {
             onSet(h, m) {
                 digitalEl.textContent = timeLabel(h, m);
