@@ -356,6 +356,7 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
     for path in [
         "/",
         "/about",
+        "/privacy",
         "/2/clock",
         "/1/multiplications",
         "/extra/flashcards",
@@ -470,6 +471,7 @@ async fn rendered_html_has_no_inline_style_attributes() -> TestResult<()> {
     for path in [
         "/",
         "/about",
+        "/privacy",
         "/offline",
         "/1/mathbox",
         "/2/clock",

@@ -128,6 +128,107 @@ async fn privacy_page_reachable_from_home_and_renders_sections() -> TestResult<(
     Ok(())
 }
 
+/// /privacy must also be reachable from the /about footer — the footer
+/// is duplicated across pages today, so a regression on one of the two
+/// definitions can leave the policy visible from one entry point but not
+/// the other.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn privacy_page_reachable_from_about_footer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/about")).await?;
+    wait_for_css(
+        driver,
+        ".site-footer a[href='/privacy']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(driver, ".site-footer a[href='/privacy']").await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// /privacy carries the substantive disclosures — Fly.io's 7-day log
+/// retention with a link to the source doc, plus a contact mailto. The
+/// audit doc says these are policy-required; a regression dropping
+/// either makes the page accurate-by-coincidence at best.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn privacy_page_discloses_log_retention_and_contact() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/privacy")).await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+
+    // Fly.io citation: text must mention "7 dagen" AND there must be a
+    // canonical link to Fly's logging docs.
+    let body = driver.find(By::Tag("main")).await?.text().await?;
+    assert!(
+        body.contains("7 dagen"),
+        "privacy page must disclose the 7-day log-retention window in plain Dutch, got: {body:?}"
+    );
+    let fly_link_count = driver
+        .find_all(By::Css(
+            "main a[href='https://fly.io/docs/monitoring/logging-overview/']",
+        ))
+        .await?
+        .len();
+    assert!(
+        fly_link_count >= 1,
+        "privacy page must link to Fly.io's logging docs as the source for the retention claim"
+    );
+
+    // Contact mailto must be present.
+    let mailto_count = driver
+        .find_all(By::Css("main a[href^='mailto:']"))
+        .await?
+        .len();
+    assert!(
+        mailto_count >= 1,
+        "privacy page must include a mailto: contact link for policy questions"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// /privacy is in the service-worker PRECACHE list so it stays reachable
+/// after the server goes away. Mirrors the home_page_survives_server_shutdown
+/// test but for the policy page — proves the "linked from every page,
+/// always reachable" promise survives an outage.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn privacy_page_survives_server_shutdown() -> TestResult<()> {
+    let mut app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Visit /privacy first so the SW gets it into PAGES_CACHE on top of
+    // the install-time PRECACHE.
+    driver.goto(app.url("/privacy")).await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+    wait_for_service_worker(driver, Duration::from_secs(10)).await?;
+    driver.refresh().await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    app.stop();
+
+    // After server shutdown, refreshing must still show the policy.
+    driver.refresh().await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 /// Waits until the service worker is active for the current origin.
 /// Returns an error if the SW doesn't activate within the timeout.
 async fn wait_for_service_worker(driver: &WebDriver, timeout: Duration) -> TestResult<()> {
