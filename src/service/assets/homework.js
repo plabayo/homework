@@ -116,10 +116,72 @@ async function withStore(mode, fn) {
     });
 }
 
+/** Hard upper bound on stored sessions per exercise. Defence-in-depth —
+ *  a real kid will never approach this. IndexedDB quotas are orders of
+ *  magnitude larger than 200×3KB; the cap exists so a long-running PWA
+ *  doesn't end up with thousands of dead-data rows clogging cursor scans. */
+const SESSION_RETENTION_CAP = 200;
+
 async function saveSession(session) {
     try {
         await withStore("readwrite", (store) => store.put(session));
+        await evictBeyondCap(session.exerciseId, SESSION_RETENTION_CAP);
     } catch (_err) {}
+}
+
+/** Delete oldest sessions for `exerciseId` beyond `cap`. Cursor-prev on the
+ *  `by_exercise` index sorts by *primary key* (the session id string), NOT
+ *  by `finishedAt` — all rows for one exercise share the same index key, so
+ *  cursor direction falls back to the keyPath, which is lexicographic and
+ *  decoupled from time. We instead collect everything, sort by finishedAt
+ *  in JS (mirroring `listSessions`), and delete the chronological tail.
+ *  Two transactions (read + delete) — benign race for this use case.
+ *  Exported so e2e tests can drive it directly without spelunking privates. */
+export async function evictBeyondCap(exerciseId, cap) {
+    try {
+        const all = await withStore("readonly", (store) => {
+            return new Promise((resolve, reject) => {
+                const out = [];
+                const idx = store.index("by_exercise");
+                const req = idx.openCursor(IDBKeyRange.only(exerciseId));
+                req.onsuccess = (e) => {
+                    const c = e.target.result;
+                    if (!c) return resolve(out);
+                    out.push({ id: c.primaryKey, finishedAt: c.value.finishedAt || 0 });
+                    c.continue();
+                };
+                req.onerror = () => reject(req.error);
+            });
+        });
+        if (!all || all.length <= cap) return;
+        all.sort((a, b) => b.finishedAt - a.finishedAt);
+        const toDelete = all.slice(cap).map((s) => s.id);
+        await withStore("readwrite", (store) => {
+            for (const id of toDelete) store.delete(id);
+        });
+    } catch (_err) {
+        // Eviction is best-effort. A failure here doesn't break saveSession;
+        // the cap stays soft until the next save.
+    }
+}
+
+/** Cheap total-session count for an exercise — used by the history summary
+ *  line. Cursor-counts via the by_exercise index. */
+async function countSessions(exerciseId) {
+    try {
+        return (
+            (await withStore("readonly", (store) => {
+                return new Promise((resolve, reject) => {
+                    const idx = store.index("by_exercise");
+                    const req = idx.count(IDBKeyRange.only(exerciseId));
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            })) ?? 0
+        );
+    } catch {
+        return 0;
+    }
 }
 
 async function listSessions(exerciseId, limit = 20) {
@@ -1098,6 +1160,102 @@ function splitQuestionOutcomes(session) {
     };
 }
 
+const RECENT_DETAIL_MAX = 10;
+const RECENT_DETAIL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+
+/**
+ * Split a newest-first list of sessions into two buckets:
+ *
+ *   - `individual`: rendered as full detail cards. Bounded by BOTH a hard
+ *     count cap (default 10) AND a recency window (default 14 days) —
+ *     whichever excludes a session first wins.
+ *   - `aggregated`: rendered as weekly summary cards via `weeklyBuckets`.
+ *
+ * Sessions input is assumed newest-first (the order `listSessions` returns).
+ * `now` is injectable so unit tests can pin time.
+ */
+export function partitionForHistoryView(
+    sessions,
+    { maxRecent = RECENT_DETAIL_MAX, windowMs = RECENT_DETAIL_WINDOW_MS, now = Date.now() } = {},
+) {
+    const individual = [];
+    const aggregated = [];
+    const cutoff = now - windowMs;
+    for (let i = 0; i < sessions.length; i++) {
+        const s = sessions[i];
+        const ts = s.finishedAt || s.startedAt || 0;
+        if (individual.length < maxRecent && ts >= cutoff) {
+            individual.push(s);
+        } else {
+            aggregated.push(s);
+        }
+    }
+    return { individual, aggregated };
+}
+
+/**
+ * Return the timestamp of the Monday 00:00 (local time) for the ISO week
+ * containing `ts`. Used as the bucket key for weekly history aggregation.
+ */
+function isoWeekStart(ts) {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    // 0 = Sunday in JS; we want Monday=0 so kid's week aligns with school week.
+    const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow);
+    return d.getTime();
+}
+
+/**
+ * Group sessions (newest-first) into weekly buckets. Each bucket carries
+ *   - `weekStart`: ms timestamp of the Monday 00:00 that opens the week,
+ *   - `sessionCount`: number of sessions in the week,
+ *   - `totalQuestions`, `totalCorrect`: across all sessions,
+ *   - `accuracy`: 0..1, NaN if totalQuestions == 0,
+ *   - `topMistakes`: up to `topMistakesLimit` most-frequent question labels
+ *     missed in the week, in `{ label, count }` shape.
+ *
+ * Buckets are returned newest-week-first. Pure — no DOM, no IDB.
+ */
+export function weeklyBuckets(sessions, { topMistakesLimit = 3 } = {}) {
+    const buckets = new Map();
+    for (const s of sessions) {
+        const ts = s.finishedAt || s.startedAt || 0;
+        const key = isoWeekStart(ts);
+        let bucket = buckets.get(key);
+        if (!bucket) {
+            bucket = {
+                weekStart: key,
+                sessionCount: 0,
+                totalQuestions: 0,
+                totalCorrect: 0,
+                accuracy: Number.NaN,
+                _mistakeCounts: new Map(),
+                topMistakes: [],
+            };
+            buckets.set(key, bucket);
+        }
+        bucket.sessionCount += 1;
+        bucket.totalQuestions += s.total ?? (s.questions || []).length;
+        bucket.totalCorrect += s.correct || 0;
+        for (const q of s.questions || []) {
+            if (!isPracticeMistake(q)) continue;
+            const label = q.label || JSON.stringify(q.question);
+            bucket._mistakeCounts.set(label, (bucket._mistakeCounts.get(label) || 0) + 1);
+        }
+    }
+    const out = [...buckets.values()].sort((a, b) => b.weekStart - a.weekStart);
+    for (const b of out) {
+        b.accuracy = b.totalQuestions > 0 ? b.totalCorrect / b.totalQuestions : Number.NaN;
+        b.topMistakes = [...b._mistakeCounts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, topMistakesLimit)
+            .map(([label, count]) => ({ label, count }));
+        delete b._mistakeCounts;
+    }
+    return out;
+}
+
 function renderOutcomeItem(q, kind) {
     const desc = q.label ? escapeHtml(q.label) : escapeHtml(JSON.stringify(q.question));
     if (kind === "wrong") {
@@ -2074,10 +2232,20 @@ async function setupHistoryView() {
         root.querySelector(".history-content").appendChild(list);
     }
 
+    // Default count of individual session cards shown on first render.
+    // Clicking "toon meer" reveals 3 more per click, capped at the
+    // partition's `individual` length (≤ RECENT_DETAIL_MAX).
+    const RECENT_INITIAL = 3;
+    const RECENT_STEP = 3;
+    let recentShown = RECENT_INITIAL;
+
     async function refresh() {
         const exerciseId = root.dataset.exerciseId;
         if (!exerciseId) return;
-        const sessions = await listSessions(exerciseId, 20);
+        // Fetch up to the retention cap so the partition + weekly aggregation
+        // sees everything available; cheap (~600KB worst case).
+        const sessions = await listSessions(exerciseId, SESSION_RETENTION_CAP);
+        const totalSessions = await countSessions(exerciseId);
         const mistakes = await recentMistakes(exerciseId, 1);
 
         const practiceBtn = root.querySelector("[data-action='practice-mistakes']");
@@ -2089,38 +2257,124 @@ async function setupHistoryView() {
             list.innerHTML = '<p class="history-empty">Nog geen oefeningen gemaakt.</p>';
             return;
         }
-        list.innerHTML = sessions
-            .map((s) => {
-                const { wrong, tricky } = splitQuestionOutcomes(s);
-                const hasMistakes = wrong.length > 0 || tricky.length > 0;
-                const items = renderOutcomeItems({ wrong, tricky });
 
-                const scoreParts = [`${s.correct} / ${s.total}`];
-                if (s.timeMode && s.durationMs) scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
-                if (s.config?.deadlineSeconds) scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
-                if (s.mode === "mistakes") scoreParts.push("foutenmodus");
+        const { individual, aggregated } = partitionForHistoryView(sessions);
+        const visibleRecent = individual.slice(0, recentShown);
+        const hiddenRecent = Math.max(0, individual.length - visibleRecent.length);
+        const buckets = weeklyBuckets(aggregated);
 
-                return `
-                    <article class="history-session">
-                        <div class="history-session-header">
-                            <span>${formatDate(s.finishedAt || s.startedAt)}</span>
-                            <span>${scoreParts.join(" · ")}</span>
-                        </div>
-                        ${
-                            hasMistakes
-                                ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
-                                : `<p class="history-perfect">✨ alles vlekkeloos</p>`
-                        }
-                    </article>
-                `;
-            })
-            .join("");
+        // Summary line: aggregate stats across ALL stored sessions (not
+        // just rendered) so the parent gets a true "are we improving" feel.
+        const totalQuestions = sessions.reduce((acc, s) => acc + (s.total || 0), 0);
+        const totalCorrect = sessions.reduce((acc, s) => acc + (s.correct || 0), 0);
+        const avgPct = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : null;
+        const summaryParts = [`${totalSessions} ${totalSessions === 1 ? "sessie" : "sessies"}`];
+        if (avgPct !== null) summaryParts.push(`${avgPct}% goed gemiddeld`);
+
+        const moreBtn =
+            hiddenRecent > 0
+                ? `<button type="button" class="default-button history-show-more"
+                            data-action="show-more">
+                       📂 toon ${Math.min(hiddenRecent, RECENT_STEP)} meer ${hiddenRecent === 1 ? "sessie" : "sessies"}
+                   </button>`
+                : "";
+
+        const weeksBlock =
+            buckets.length > 0
+                ? `<section class="history-weeks" aria-label="oudere weken samengevat">
+                       <h3 class="history-weeks-title">Eerdere weken</h3>
+                       ${buckets.map(renderWeeklyBucket).join("")}
+                   </section>`
+                : "";
+
+        list.innerHTML = `
+            <p class="history-summary">${summaryParts.join(" · ")}</p>
+            <div class="history-recent">
+                ${visibleRecent.map(renderSessionCard).join("")}
+            </div>
+            ${moreBtn}
+            ${weeksBlock}
+        `;
+    }
+
+    /** Build the inner HTML for one detailed session card. Shared between the
+     *  recent-cards list and the expand-on-click body of a weekly bucket. */
+    function renderSessionCard(s) {
+        const { wrong, tricky } = splitQuestionOutcomes(s);
+        const hasMistakes = wrong.length > 0 || tricky.length > 0;
+        const items = renderOutcomeItems({ wrong, tricky });
+
+        const scoreParts = [`${s.correct} / ${s.total}`];
+        if (s.timeMode && s.durationMs) scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
+        if (s.config?.deadlineSeconds) scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
+        if (s.mode === "mistakes") scoreParts.push("foutenmodus");
+
+        return `
+            <article class="history-session">
+                <div class="history-session-header">
+                    <span>${formatDate(s.finishedAt || s.startedAt)}</span>
+                    <span>${scoreParts.join(" · ")}</span>
+                </div>
+                ${
+                    hasMistakes
+                        ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
+                        : `<p class="history-perfect">✨ alles vlekkeloos</p>`
+                }
+            </article>
+        `;
+    }
+
+    /** Render a weekly aggregation card. Uses `<details>` so disclosure
+     *  behaviour is keyboard-/screen-reader-native — no custom JS. */
+    function renderWeeklyBucket(bucket) {
+        const start = new Date(bucket.weekStart);
+        const weekLabel = `${start.getDate()} ${
+            ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"][start.getMonth()]
+        } ${start.getFullYear()}`;
+        const accPct = Number.isFinite(bucket.accuracy) ? `${Math.round(bucket.accuracy * 100)}% gemiddeld` : "";
+        const summary = [
+            `Week van ${weekLabel}`,
+            `${bucket.sessionCount} ${bucket.sessionCount === 1 ? "sessie" : "sessies"}`,
+            accPct,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+        const mistakes =
+            bucket.topMistakes.length > 0
+                ? `<p class="history-week-detail-title">Vaakste struikelblokken:</p>
+                   <ul class="history-week-mistakes">
+                       ${bucket.topMistakes
+                           .map(
+                               (m) =>
+                                   `<li><span class="item-desc">${escapeHtml(m.label)}</span>
+                                        <span class="item-meta">${m.count}× fout</span></li>`,
+                           )
+                           .join("")}
+                   </ul>`
+                : `<p class="history-week-detail-empty">Geen herhaalde struikelblokken — ✨ goed bezig!</p>`;
+        return `
+            <details class="history-week">
+                <summary>${summary}</summary>
+                ${mistakes}
+            </details>
+        `;
     }
 
     refresh();
 
     if (root.dataset.bound === "true") return;
     root.dataset.bound = "true";
+
+    // "toon meer" lives inside `.history-list` which `refresh()` rewrites,
+    // so we delegate from the stable parent. Each click reveals `RECENT_STEP`
+    // more cards (capped at the partition's individual-bucket size); after
+    // that the button is gone on the next refresh.
+    list.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action='show-more']");
+        if (!btn) return;
+        recentShown += RECENT_STEP;
+        refresh();
+    });
 
     const practiceBtn = root.querySelector("[data-action='practice-mistakes']");
     practiceBtn?.addEventListener("click", () => {
@@ -2147,6 +2401,8 @@ async function setupHistoryView() {
                 });
             });
         } catch {}
+        // Reset pagination so a fresh history starts back at 3-of-N.
+        recentShown = RECENT_INITIAL;
         refresh();
     });
 }

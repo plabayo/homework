@@ -1012,6 +1012,110 @@
         gap: 4px;
         font-size: 0.9rem;
     }
+    /* Summary line above the recent session cards — a quick "are we
+       improving" pulse so the parent doesn't have to scan every card. */
+    .history-summary {
+        font-size: 0.95rem;
+        color: var(--muted);
+        margin-block-end: 2px;
+    }
+    .history-recent {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    /* "Toon meer" button — visually lighter than the primary action buttons
+       above (oefen recente fouten / geschiedenis wissen) so it reads as
+       progressive disclosure, not a primary CTA. */
+    .history-show-more {
+        align-self: center;
+        background: transparent;
+        border: 1px dashed color-mix(in srgb, var(--fg) 35%, transparent);
+        color: var(--muted);
+        font-size: 0.9rem;
+        padding: 6px 14px;
+    }
+    .history-show-more:hover {
+        color: var(--fg);
+        border-color: color-mix(in srgb, var(--fg) 55%, transparent);
+    }
+    /* Weekly aggregation block: collapsed <details> rows for older sessions
+       that no longer warrant a full card each. Native disclosure widget so
+       keyboard + screen reader users get the right semantics for free. */
+    .history-weeks {
+        margin-block-start: var(--space);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .history-weeks-title {
+        font-size: 0.95rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin: 0 0 2px;
+    }
+    .history-week {
+        border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+        border-radius: var(--radius);
+        padding: 8px 12px;
+    }
+    .history-week > summary {
+        cursor: pointer;
+        font-size: 0.92rem;
+        color: var(--fg);
+        list-style: none;
+    }
+    .history-week > summary::-webkit-details-marker {
+        display: none;
+    }
+    .history-week > summary::before {
+        content: "▸ ";
+        display: inline-block;
+        margin-inline-end: 4px;
+        transition: transform 120ms ease;
+    }
+    .history-week[open] > summary::before {
+        transform: rotate(90deg);
+    }
+    .history-week[open] > summary {
+        margin-block-end: 6px;
+    }
+    .history-week-detail-title {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin: 4px 0;
+    }
+    .history-week-detail-empty {
+        font-size: 0.9rem;
+        color: var(--good);
+        margin: 4px 0;
+    }
+    .history-week-mistakes {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    .history-week-mistakes li {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--fg) 6%, transparent);
+        font-size: 0.9rem;
+    }
+    .history-week-mistakes .item-meta {
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .history-week > summary::before {
+            transition: none;
+        }
+    }
     .badge {
         display: inline-block;
         padding: 1px 7px;

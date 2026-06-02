@@ -20,6 +20,7 @@ mod flashcards_decks;
 mod flashcards_play;
 mod fractions;
 mod helpers;
+mod history_view;
 mod language_banner;
 mod percentages;
 mod review_context;
