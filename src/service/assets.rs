@@ -3,9 +3,8 @@
 // Source-available; non-commercial use only.
 
 use rama::http::{
-    HeaderValue,
-    header::CONTENT_TYPE,
-    headers::{CacheControl, ContentSecurityPolicy, HeaderMapExt, SourceList},
+    headers::{CacheControl, ContentSecurityPolicy, ContentType, HeaderMapExt, SourceList},
+    mime,
     service::web::response::{Css, IntoResponse, Script},
 };
 
@@ -118,10 +117,7 @@ pub async fn service_worker_js() -> impl IntoResponse {
 pub async fn manifest() -> impl IntoResponse {
     let mut res = MANIFEST_VERSIONED.into_response();
     let headers = res.headers_mut();
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("application/manifest+json"),
-    );
+    headers.typed_insert(ContentType::manifest_json());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -129,7 +125,7 @@ pub async fn manifest() -> impl IntoResponse {
 pub async fn favicon_svg() -> impl IntoResponse {
     let mut res = FAVICON_SVG.into_response();
     let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+    headers.typed_insert(ContentType::new(mime::IMAGE_SVG));
     headers.typed_insert(cache_immutable());
     res
 }
@@ -137,7 +133,7 @@ pub async fn favicon_svg() -> impl IntoResponse {
 pub async fn icon_svg() -> impl IntoResponse {
     let mut res = ICON_SVG.into_response();
     let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+    headers.typed_insert(ContentType::new(mime::IMAGE_SVG));
     headers.typed_insert(cache_immutable());
     res
 }
@@ -145,7 +141,7 @@ pub async fn icon_svg() -> impl IntoResponse {
 pub async fn apple_touch_icon_png() -> impl IntoResponse {
     let mut res = APPLE_TOUCH_ICON_PNG.into_response();
     let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    headers.typed_insert(ContentType::png());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -153,7 +149,7 @@ pub async fn apple_touch_icon_png() -> impl IntoResponse {
 pub async fn icon_192_png() -> impl IntoResponse {
     let mut res = ICON_192_PNG.into_response();
     let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    headers.typed_insert(ContentType::png());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -161,7 +157,7 @@ pub async fn icon_192_png() -> impl IntoResponse {
 pub async fn icon_512_png() -> impl IntoResponse {
     let mut res = ICON_512_PNG.into_response();
     let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    headers.typed_insert(ContentType::png());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -169,10 +165,7 @@ pub async fn icon_512_png() -> impl IntoResponse {
 pub async fn robots_txt() -> impl IntoResponse {
     let mut res = ROBOTS_TXT.into_response();
     let headers = res.headers_mut();
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("text/plain; charset=utf-8"),
-    );
+    headers.typed_insert(ContentType::text_utf8());
     headers.typed_insert(cache_short_revalidate());
     res
 }
@@ -180,10 +173,7 @@ pub async fn robots_txt() -> impl IntoResponse {
 pub async fn security_txt() -> impl IntoResponse {
     let mut res = SECURITY_TXT.into_response();
     let headers = res.headers_mut();
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("text/plain; charset=utf-8"),
-    );
+    headers.typed_insert(ContentType::text_utf8());
     headers.typed_insert(cache_short_revalidate());
     res
 }
@@ -219,10 +209,18 @@ fn build_sitemap_xml() -> String {
 pub async fn sitemap_xml() -> impl IntoResponse {
     let mut res = build_sitemap_xml().into_response();
     let headers = res.headers_mut();
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("application/xml; charset=utf-8"),
-    );
+    // `ContentType::xml()` is `text/xml`; the sitemaps.org spec also accepts
+    // `application/xml; charset=utf-8`, and that's what we used to emit. Pin
+    // to the explicit, charset-bearing form via `ContentType::new` so the
+    // generated XML's encoding declaration matches what we tell the crawler.
+    #[expect(
+        clippy::expect_used,
+        reason = "static mime literal; if this ever fails the binary is unshippable"
+    )]
+    let xml_utf8: mime::Mime = "application/xml; charset=utf-8"
+        .parse()
+        .expect("static mime literal parses");
+    headers.typed_insert(ContentType::new(xml_utf8));
     headers.typed_insert(cache_short_revalidate());
     res
 }
