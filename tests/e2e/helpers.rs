@@ -130,6 +130,22 @@ pub(crate) async fn wait_for_css(
     .await
 }
 
+/// Wait until `selector` matches at least `min` elements. Used by tests that
+/// need to react to the *number* of elements changing (e.g. clicking a "toon
+/// meer" button reveals new cards) — `wait_for_css` only proves ≥1 is there.
+pub(crate) async fn wait_for_css_count(
+    driver: &WebDriver,
+    selector: &str,
+    min: usize,
+    timeout: Duration,
+) -> TestResult<()> {
+    poll_until(timeout, || async {
+        let matches = driver.find_all(By::Css(selector)).await?;
+        Ok(matches.len() >= min)
+    })
+    .await
+}
+
 pub(crate) async fn wait_for_text(
     driver: &WebDriver,
     selector: &str,

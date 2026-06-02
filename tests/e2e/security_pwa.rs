@@ -388,6 +388,17 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
             script_src.contains("'sha256-"),
             "{path} script-src should whitelist at least one inline by hash, got {script_src:?}"
         );
+        // `'inline-speculation-rules'` is added unconditionally by
+        // `layout::build_csp` so any page can grow a `<script type="speculationrules">`
+        // block (home.rs already does). Drift would silently disable
+        // pre-rendering — assert it's present on every HTML route so we
+        // catch a regression that would otherwise only show up as a
+        // performance loss.
+        assert!(
+            script_src.contains("'inline-speculation-rules'"),
+            "{path} script-src must keep 'inline-speculation-rules' so speculationrules \
+             blocks can be added without revisiting CSP; got {script_src:?}"
+        );
         // style-src always names 'self'; the hash list is empty for pages
         // without inline CSS (home, about, offline) and non-empty for
         // exercise pages.

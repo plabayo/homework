@@ -10,7 +10,7 @@
 // We seed the DB via `driver.execute_async` and then call the existing
 // refresh hook (`homework:refresh-history` custom event) and assert DOM.
 
-use super::helpers::{click, wait_for_css};
+use super::helpers::{click, wait_for_css, wait_for_css_count};
 use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
 
 /// Open the multiplications page and wait until homework.js has wired
@@ -43,10 +43,18 @@ async fn open_with_clean_history(driver: &WebDriver, app: &TestApp) -> TestResul
 /// Insert N synthetic sessions for the given exercise. Each session has the
 /// supplied `daysAgo` offset and a constant 10/10 score with no question
 /// detail (the rendered card just shows "✨ alles vlekkeloos").
+///
+/// `wait_for_min_recent` is the smallest number of `.history-recent
+/// .history-session` cards we expect to see after the refresh — that's the
+/// signal that the dispatched `homework:refresh-history` actually re-read
+/// the DB and rendered. Pass `0` if you only seeded out-of-window rows (the
+/// refresh still has to land but no recent cards are expected); in that case
+/// we wait for `.history-week` instead.
 async fn seed_sessions(
     driver: &WebDriver,
     exercise_id: &str,
     sessions: &[(i64, &str)],
+    wait_for_min_recent: usize,
 ) -> TestResult<()> {
     // Build a JSON array literal so we can pass everything in one execute call.
     let rows: Vec<String> = sessions
@@ -88,8 +96,19 @@ async fn seed_sessions(
             vec![],
         )
         .await?;
-    // Give the async refresh a beat to land.
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    // Wait for the async refresh to land instead of sleeping. The IDB read is
+    // typically <50ms but can be longer under WebDriver load — poll up to 5s.
+    if wait_for_min_recent > 0 {
+        wait_for_css_count(
+            driver,
+            ".history-recent .history-session",
+            wait_for_min_recent,
+            Duration::from_secs(5),
+        )
+        .await?;
+    } else {
+        wait_for_css(driver, ".history-week", Duration::from_secs(5)).await?;
+    }
     Ok(())
 }
 
@@ -116,6 +135,7 @@ async fn history_renders_three_by_default_and_paginates() -> TestResult<()> {
             (4, "5×5"),
             (5, "4×4"),
         ],
+        3,
     )
     .await?;
 
@@ -131,7 +151,16 @@ async fn history_renders_three_by_default_and_paginates() -> TestResult<()> {
     assert_eq!(more_btn.len(), 1, "expected one 'toon meer' button");
 
     click(driver, "[data-action='show-more']").await?;
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    // Wait for the post-click rerender — 6 recent cards visible — instead of
+    // blanket-sleeping. setupHistoryView re-renders synchronously after the
+    // click, but the re-attachment to the DOM still lands on the next tick.
+    wait_for_css_count(
+        driver,
+        ".history-recent .history-session",
+        6,
+        Duration::from_secs(5),
+    )
+    .await?;
 
     let after_first_click = driver
         .find_all(By::Css(".history-recent .history-session"))
@@ -171,6 +200,7 @@ async fn history_aggregates_older_than_two_weeks_into_weekly_buckets() -> TestRe
         driver,
         "multiplications",
         &[(0, "7×8"), (20, "9×7"), (25, "9×7"), (30, "6×6")],
+        1,
     )
     .await?;
 
@@ -188,9 +218,16 @@ async fn history_aggregates_older_than_two_weeks_into_weekly_buckets() -> TestRe
 
     // Expand the first week and verify the top-mistakes block surfaces — the
     // actionable bit ("vaakste struikelblok"). 9×7 appears twice in the seed
-    // so it should rank above 6×6.
+    // so it should rank above 6×6. Wait for the `[open]` selector to match
+    // rather than relying on a fixed sleep — clicking <summary> only flips
+    // the attribute after the browser's next event-loop turn.
     click(driver, ".history-week > summary").await?;
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    wait_for_css(
+        driver,
+        ".history-week[open] .history-week-mistakes",
+        Duration::from_secs(5),
+    )
+    .await?;
     let mistakes_html = driver
         .find(By::Css(".history-week[open] .history-week-mistakes"))
         .await?
@@ -225,7 +262,7 @@ async fn history_retention_cap_evicts_oldest_beyond_200() -> TestResult<()> {
         seeds.push((i, "filler"));
     }
     let seed_refs: Vec<(i64, &str)> = seeds.iter().map(|(d, l)| (*d, *l)).collect();
-    seed_sessions(driver, "multiplications", &seed_refs).await?;
+    seed_sessions(driver, "multiplications", &seed_refs, 3).await?;
 
     let stats = driver
         .execute_async(

@@ -75,6 +75,13 @@ test-js:
 test-e2e *ARGS:
 	cargo test --test e2e -- --ignored --test-threads=4 {{ARGS}}
 
+# Mirror what CI runs: single-threaded so port allocation and browser-driver
+# startup never race. Use this before pushing if a `just test-e2e` pass on
+# `--test-threads=4` looks fine — flakiness that only appears in CI almost
+# always reproduces here.
+test-e2e-ci *ARGS:
+	cargo test --test e2e -- --ignored --test-threads=1 {{ARGS}}
+
 # Lighthouse accessibility audit — requires the server to be running (`just run` in another terminal)
 [unix]
 lighthouse URL="http://localhost:8080":
