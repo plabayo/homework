@@ -83,8 +83,12 @@ fn section_didactiek() -> impl IntoHtml {
                  Het scherm is een hulpmiddel, niet een opvoeder."),
             li!("Na elke oefenronde zie je welke vragen moeilijk waren. \
                  Met één klik oefen je precies die vragen opnieuw."),
-            li!("Privacy by design: geen database, geen analytics, \
-                 geen gegevens die het toestel verlaten."),
+            li!(
+                "Privacy by design: geen database, geen analytics, \
+                 geen gegevens die het toestel verlaten — zie de ",
+                a!(href = "/privacy", "volledige privacyverklaring"),
+                ".",
+            ),
         ),
     )
 }
@@ -186,6 +190,8 @@ fn site_footer() -> impl IntoHtml {
             a!(href = "https://plabayo.tech", "Plabayo"),
             " · ",
             a!(href = "/", "Startpagina"),
+            " · ",
+            a!(href = "/privacy", "Privacy"),
         )),
     )
 }

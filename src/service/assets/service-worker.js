@@ -38,6 +38,8 @@ const PRECACHE = [
     versionedAsset("/icon-512.png"),
     "/offline",
     "/",
+    "/about",
+    "/privacy",
     "/extra/flashcards",
     "/1/mathbox",
     "/1/multiplications",

@@ -56,6 +56,8 @@ fn site_footer() -> impl IntoHtml {
             a!(href = "https://plabayo.tech", "Plabayo"),
             " · door ouders, voor ouders · ",
             a!(href = "/about", "Over ons"),
+            " · ",
+            a!(href = "/privacy", "Privacy"),
         )),
     )
 }

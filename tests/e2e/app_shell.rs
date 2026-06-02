@@ -75,6 +75,59 @@ async fn home_page_and_all_exercise_routes_render() -> TestResult<()> {
     Ok(())
 }
 
+/// `/privacy` is a `[Required]` policy page (audit's Wave 3): it must be a
+/// real route, reachable from the global footer, and structurally
+/// recognisable (heading + the four content sections). Catches the
+/// likeliest regression — someone deletes the footer link or removes a
+/// section, and the policy disappears from the navigable surface.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn privacy_page_reachable_from_home_and_renders_sections() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // Reach /privacy by clicking the footer link from /, not by typing the
+    // URL — proves the global discoverability story works end-to-end.
+    driver.goto(app.url("/")).await?;
+    wait_for_css(
+        driver,
+        ".site-footer a[href='/privacy']",
+        Duration::from_secs(10),
+    )
+    .await?;
+    click(driver, ".site-footer a[href='/privacy']").await?;
+    wait_for_css(driver, "h1", Duration::from_secs(10)).await?;
+    wait_for_text(driver, "h1", "Privacyverklaring", Duration::from_secs(10)).await?;
+
+    // All four substantive sections must be present (their headings live
+    // inside `<section class="about-section">` blocks).
+    let section_headings = driver
+        .find_all(By::Css(".about-section h2"))
+        .await?
+        .into_iter();
+    let mut titles = Vec::new();
+    for h in section_headings {
+        titles.push(h.text().await?);
+    }
+    for expected in [
+        "Wat we niet verzamelen",
+        "Wat op het toestel blijft",
+        "Wat de server wél ziet",
+        "Wijzigingen en contact",
+    ] {
+        assert!(
+            titles.iter().any(|t| t.contains(expected)),
+            "expected /privacy section heading {expected:?}, got {titles:?}"
+        );
+    }
+
+    check_a11y(driver).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 /// Waits until the service worker is active for the current origin.
 /// Returns an error if the SW doesn't activate within the timeout.
 async fn wait_for_service_worker(driver: &WebDriver, timeout: Duration) -> TestResult<()> {

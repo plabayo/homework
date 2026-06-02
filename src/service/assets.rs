@@ -194,7 +194,7 @@ pub async fn security_txt() -> impl IntoResponse {
 fn build_sitemap_xml() -> String {
     // Static, indexable HTML routes. `/offline` is excluded because it's
     // a fallback page (also marked noindex via X-Robots-Tag).
-    const STATIC_PATHS: &[&str] = &["/", "/about"];
+    const STATIC_PATHS: &[&str] = &["/", "/about", "/privacy"];
 
     let mut xml = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
