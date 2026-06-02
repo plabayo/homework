@@ -930,6 +930,54 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
     Ok(())
 }
 
+/// `<script type="importmap">` must appear in the document *before* any
+/// module loading is triggered — `<link rel="modulepreload">`,
+/// `<script type="module" src=...>`, or inline `<script type="module">`.
+/// Once the parser moves past the "before import maps" phase, spec-strict
+/// browsers (Firefox) reject any later importmap and bare specifiers
+/// (`import x from "@homework"`) fail with a generic-looking type error.
+/// Chrome is more lenient — so this ordering bug used to slip past CI on
+/// Chromium-only e2e runs. The byte-position check below catches it on
+/// every page that ships a `modulepreload` link.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn importmap_precedes_any_module_loading() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    for path in ["/", "/about", "/privacy", "/1/mathbox", "/extra/flashcards"] {
+        let (_status, body, _csp) = fetch_csp(driver, &app.url(path)).await?;
+        let importmap = body
+            .find(r#"<script type="importmap">"#)
+            .ok_or_else(|| format!("{path}: missing <script type=\"importmap\"> tag"))?;
+
+        // Module-loading triggers that must come AFTER the importmap.
+        // Not every page has every trigger — page handlers add inline
+        // module scripts conditionally — so we only assert ordering for
+        // the triggers that actually appear in the response.
+        for needle in [
+            r#"<link rel="modulepreload""#,
+            r#"<script type="module" src="#,
+            r#"<script type="module">"#,
+        ] {
+            if let Some(pos) = body.find(needle) {
+                assert!(
+                    importmap < pos,
+                    "{path}: <script type=\"importmap\"> (byte {importmap}) must appear \
+                     before {needle:?} (byte {pos}) — Firefox rejects late importmaps and \
+                     bare specifiers like `@homework` then fail to resolve"
+                );
+            }
+        }
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 /// Helper: collect every inline JSON-LD body on the current document, in
 /// source order. Strips the `<script>` wrapper, returns raw JSON strings.
 async fn ld_json_bodies(driver: &WebDriver) -> TestResult<Vec<String>> {

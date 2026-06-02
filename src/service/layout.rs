@@ -252,6 +252,13 @@ pub fn page(
             link!(rel = "canonical", href = og_url.clone()),
             link!(rel = "icon", href = favicon_data),
             apple_pwa_metas(&apple_touch_icon_url),
+            // Importmap MUST be emitted before the modulepreload link
+            // below (and before any `<script type="module">` further down)
+            // — once module loading starts the document leaves the "before
+            // import maps" phase, after which any later importmap is
+            // rejected by spec-strict browsers (Firefox refuses, the
+            // bare-specifier `@homework` then fails to resolve).
+            csp::IMPORTMAP.render(),
             preload_links(theme_css_url.clone(), shared_js_url.clone()),
             link!(rel = "stylesheet", href = theme_css_url),
             link!(rel = "manifest", href = manifest_url),
@@ -294,7 +301,8 @@ pub fn page(
                 class = "box bad",
                 "Deze website heeft JavaScript nodig om de oefeningen te doen.",
             )),
-            csp::IMPORTMAP.render(),
+            // Importmap is in the head (see comment there) — it MUST be
+            // declared before any module loading is triggered.
             script!(r#type = "module", src = shared_js_url),
             inlines.module_script.map(InlineModuleScript::render),
             inlines
