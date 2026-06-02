@@ -86,30 +86,49 @@ making the best of the web platform in its beautiful vanilla form.
 
 ### Adding a new exercise
 
-Each exercise is a trio of files: a Rust handler, a CSS file, and a JS file.
-When you add one, there are **three places** that must all be updated together —
-the project will compile and run if any of them is missing, but the behaviour
-will be wrong (broken routing, missing offline support, or invisible exercise):
+Each exercise is a small bundle of files — a Rust handler, a CSS file, a JS
+file, and a JSON-LD body — that have to stay in lock-step. The project will
+compile and run if any one is missing, but the behaviour will be wrong
+(broken routing, missing offline support, invisible exercise, missing schema
+markup). Walk through this checklist:
 
 1. **`src/service/exercises/<name>.rs`** — Rust handler + `ExerciseInfo` const.
-   Follow the pattern of an existing exercise (e.g. `mathbox.rs`).
+   Follow the pattern of an existing exercise (e.g. `mathbox.rs`). The
+   handler wires `PageInlines` and includes the per-exercise JSON-LD via
+   `crate::inline_ld_json!`:
+   ```rust
+   inlines: PageInlines {
+       style: Some(crate::inline_style!("exercises/name.css")),
+       module_script: Some(crate::inline_module_script!("exercises/name.js")),
+       ld_json: Some(crate::inline_ld_json!("exercises/name.jsonld")),
+       ..PageInlines::default()
+   },
+   ```
 
-2. **`src/service/mod.rs`** — register the route in `load_https_app_service()`.
+2. **`src/service/exercises/name.jsonld`** — schema.org `LearningResource`
+   body for this exercise. Copy `fractions.jsonld` as a template and adapt
+   the `name`, `description`, `educationalLevel`, etc. The build.rs hashes
+   the file at compile time and emits its SHA-256 into the CSP allowlist
+   automatically — no manual hash bookkeeping.
+
+3. **`src/service/mod.rs`** — register the route in `load_https_app_service()`.
    ```rust
    .with_get("/level/name", exercises::name::handler)
    ```
 
-3. **`src/service/assets/service-worker.js`** — add the path to `PRECACHE`
+4. **`src/service/assets/service-worker.js`** — add the path to `PRECACHE`
    so the page works offline.
    ```js
    "/level/name",
    ```
 
-4. **`src/service/exercises/mod.rs`** — add an `ExerciseInfo` entry to the
-   `ALL_EXERCISES` static so the exercise appears in the home-page catalogue.
-   If the new exercise belongs to a level that does not yet exist, also add
-   that level value to `EXERCISE_LEVELS` and add a matching arm to
-   `niveau_label()`.
+5. **`src/service/exercises/mod.rs`** — add an `ExerciseInfo` entry to the
+   `ALL_EXERCISES` static so the exercise appears in the home-page catalogue
+   and in the auto-generated `/sitemap.xml`. If the new exercise belongs to
+   a level that does not yet exist, also add that level value to
+   `EXERCISE_LEVELS` and add a matching row to `LEVEL_LABELS` (both the
+   plain and emoji-suffixed forms — `niveau_label()` and
+   `breadcrumb_level_label()` read from the same table).
 
 ### Testing
 
