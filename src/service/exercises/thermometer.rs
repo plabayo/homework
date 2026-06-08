@@ -10,7 +10,7 @@ use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaf
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
-const INFO: ExerciseInfo = ExerciseInfo {
+pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "thermometer",
     path: "/1/thermometer",
     label: "thermometer",
@@ -43,7 +43,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         PageMeta {
             title: "thermometer — Oefeningen Basisschool",
             description: "Oefen het lezen en kleuren van een analoge thermometer.",
-            og_path: "/1/thermometer".into(),
+            og_path: INFO.path.into(),
             favicon_emoji: "🌡️",
         },
         PageInlines {

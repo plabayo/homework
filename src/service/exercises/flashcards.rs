@@ -55,10 +55,10 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             .uri()
             .path_and_query()
             .map(|pq| pq.as_str())
-            .unwrap_or("/extra/flashcards");
+            .unwrap_or(INFO.path);
         Cow::Owned(path_and_query.to_owned())
     } else {
-        Cow::Borrowed("/extra/flashcards")
+        Cow::Borrowed(INFO.path)
     };
 
     let body = (

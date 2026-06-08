@@ -5,6 +5,7 @@
 use std::io::IsTerminal as _;
 
 use rama::{
+    error::{BoxError, ErrorContext as _},
     http::client::EasyHttpWebClient,
     net::client::pool::http::HttpPooledConnectorConfig,
     rt::Executor,
@@ -56,7 +57,7 @@ fn init_default(default_directive: impl Into<Directive>) {
         .init();
 }
 
-fn init_structured(default_directive: impl Into<Directive>) -> Result<(), String> {
+fn init_structured(default_directive: impl Into<Directive>) -> Result<(), BoxError> {
     let svc = EasyHttpWebClient::connector_builder()
         .with_default_transport_connector()
         .without_tls_proxy_support()
@@ -64,10 +65,10 @@ fn init_structured(default_directive: impl Into<Directive>) -> Result<(), String
         .with_tls_support_using_boringssl(None)
         .with_default_http_connector(Executor::default())
         .try_with_connection_pool(HttpPooledConnectorConfig::default())
-        .map_err(|err| format!("build http exporter client service: {err}"))?
+        .context("build http exporter client service")?
         .build_client();
-    let exporter = OtelExporter::from_env_http(svc)
-        .map_err(|err| format!("build OTLP HTTP span exporter: {err}"))?;
+    let exporter =
+        OtelExporter::from_env_http(svc).context("build OTLP HTTP span exporter")?;
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)

@@ -32,50 +32,20 @@ pub struct ExerciseInfo {
 
 /// All exercises in catalogue order.
 ///
+/// Each entry references the single `INFO` constant owned by the exercise's
+/// own module — that module is the one source of truth for an exercise's
+/// id/path/label/icon/level, so the catalogue can't drift out of sync with
+/// the page that renders it.
+///
 /// NOTE: every entry here must also have a matching route in
 /// `src/service/mod.rs::load_https_app_service()` and an entry in the
 /// PRECACHE list in `src/service/assets/service-worker.js`.
 static ALL_EXERCISES: &[ExerciseInfo] = &[
-    ExerciseInfo {
-        id: "mathbox",
-        path: "/1/mathbox",
-        label: "rekendoos",
-        icon: "🔢",
-        code_label: "➕➖✖️➗🟰",
-        level: 1,
-    },
-    ExerciseInfo {
-        id: "multiplications",
-        path: "/1/multiplications",
-        label: "maaltafels",
-        icon: "✖️",
-        code_label: "✖️",
-        level: 1,
-    },
-    ExerciseInfo {
-        id: "thermometer",
-        path: "/1/thermometer",
-        label: "thermometer",
-        icon: "🌡️",
-        code_label: "🌡️",
-        level: 1,
-    },
-    ExerciseInfo {
-        id: "clock",
-        path: "/2/clock",
-        label: "analoge klok",
-        icon: "🕐",
-        code_label: "🕐",
-        level: 2,
-    },
-    ExerciseInfo {
-        id: "digital-clock",
-        path: "/2/digital-clock",
-        label: "digitale klok",
-        icon: "⏰",
-        code_label: "⏰",
-        level: 2,
-    },
+    mathbox::INFO,
+    multiplications::INFO,
+    thermometer::INFO,
+    clock::INFO,
+    digital_clock::INFO,
     fractions::INFO,
     percentages::INFO,
     flashcards::INFO,
@@ -88,7 +58,7 @@ pub fn all_exercises() -> &'static [ExerciseInfo] {
 /// Level values in the order they are displayed on the home page.
 ///
 /// NOTE: when a new level is added, add it here AND add a matching row to
-/// `LEVEL_LABELS` below. The `niveau_label` / `breadcrumb_level_label`
+/// `LEVEL_LABELS` below. The `level_label` / `breadcrumb_level_label`
 /// accessors both source from that single table.
 pub const EXERCISE_LEVELS: &[u8] = &[1, 2, 10];
 
@@ -109,15 +79,22 @@ fn level_entry(level: u8) -> (&'static str, &'static str) {
             return (plain, emoji);
         }
     }
+    // Every `ExerciseInfo::level` in use should have a `LEVEL_LABELS` row;
+    // a miss means a level was added to an exercise but not to the table.
+    // Fail loud in debug/tests, degrade gracefully in release.
+    debug_assert!(false, "level {level} missing from LEVEL_LABELS");
     ("Niveau", "Niveau")
 }
 
-pub fn niveau_label(level: u8) -> &'static str {
+/// Home-page level label, with the trailing emoji digit ("Niveau 1️⃣" /
+/// "Extra ✨"). For the plain breadcrumb/JSON-LD form use
+/// [`breadcrumb_level_label`].
+pub fn level_label(level: u8) -> &'static str {
     level_entry(level).1
 }
 
 /// Plain-text breadcrumb label for the middle item ("Niveau 1" / "Niveau 2"
-/// / "Extra"). Mirrors `niveau_label()` minus the trailing emoji digit, so
+/// / "Extra"). Mirrors [`level_label`] minus the trailing emoji digit, so
 /// it can be paired with the per-exercise BreadcrumbList JSON-LD bodies
 /// (which use the same plain wording).
 pub fn breadcrumb_level_label(level: u8) -> &'static str {
@@ -158,6 +135,43 @@ pub fn exercise_breadcrumb(info: ExerciseInfo) -> impl IntoHtml {
             ),
         ),
         theme_toggle_button(),
+    )
+}
+
+/// Whether a checkbox or radio renders pre-checked. A named alternative to
+/// a bare `bool` argument so call sites read `Checked::Yes` instead of a
+/// `true`/`false` whose meaning isn't clear without checking the signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Checked {
+    Yes,
+    No,
+}
+
+impl Checked {
+    /// The `checked` attribute value for the html macros: `Some("")` renders
+    /// the bare attribute, `None` omits it.
+    fn attr(self) -> Option<&'static str> {
+        match self {
+            Checked::Yes => Some(""),
+            Checked::No => None,
+        }
+    }
+}
+
+/// A `name="practice"` checkbox row — an `<input type=checkbox>` followed by
+/// its label text. Shared by every exercise whose setup form offers a
+/// "what do you want to practice?" multi-select (rekendoos, breukendoos,
+/// procenten), which previously each carried an identical copy.
+pub fn practice_checkbox(value: &'static str, text: &'static str, checked: Checked) -> impl IntoHtml {
+    label!(
+        input!(
+            r#type = "checkbox",
+            name = "practice",
+            value = value,
+            checked? = checked.attr(),
+        ),
+        " ",
+        text,
     )
 }
 

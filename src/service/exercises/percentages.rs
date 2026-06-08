@@ -7,7 +7,8 @@ use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend}
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
-    ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
+    Checked, ExerciseInfo, exercise_breadcrumb, exercise_scaffold, practice_checkbox,
+    time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
@@ -45,7 +46,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         PageMeta {
             title: "procenten — Oefeningen Basisschool",
             description: "Oefen met procenten: breuk naar procent, procent naar breuk, procent van een getal, en hoeveel procent.",
-            og_path: "/2/percentages".into(),
+            og_path: INFO.path.into(),
             favicon_emoji: "💯",
         },
         PageInlines {
@@ -59,28 +60,13 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     )
 }
 
-fn difficulty_radio(value: &'static str, text: &'static str, default_on: bool) -> impl IntoHtml {
-    let checked: Option<&'static str> = if default_on { Some("") } else { None };
+fn difficulty_radio(value: &'static str, text: &'static str, checked: Checked) -> impl IntoHtml {
     label!(
         input!(
             r#type = "radio",
             name = "difficulty",
             value = value,
-            checked? = checked,
-        ),
-        " ",
-        text,
-    )
-}
-
-fn kind_checkbox(value: &'static str, text: &'static str, default_on: bool) -> impl IntoHtml {
-    let checked: Option<&'static str> = if default_on { Some("") } else { None };
-    label!(
-        input!(
-            r#type = "checkbox",
-            name = "practice",
-            value = value,
-            checked? = checked,
+            checked? = checked.attr(),
         ),
         " ",
         text,
@@ -93,9 +79,9 @@ fn config_fields() -> impl IntoHtml {
             legend!("Moeilijkheidsgraad"),
             div!(
                 class = "kinds",
-                difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%)", true),
-                difficulty_radio("gemiddeld", "gemiddeld (ook 30%, 60%, 75%, 90%…)", false),
-                difficulty_radio("moeilijk", "moeilijk (ook 5%, 15%, 35%…)", false),
+                difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%)", Checked::Yes),
+                difficulty_radio("gemiddeld", "gemiddeld (ook 30%, 60%, 75%, 90%…)", Checked::No),
+                difficulty_radio("moeilijk", "moeilijk (ook 5%, 15%, 35%…)", Checked::No),
             ),
         ),
         div!(
@@ -116,10 +102,10 @@ fn config_fields() -> impl IntoHtml {
             legend!("Wat wil je oefenen?"),
             div!(
                 class = "kinds",
-                kind_checkbox("breuk-naar-procent", "breuk → procent 📊", true),
-                kind_checkbox("procent-naar-breuk", "procent → breuk 🔣", true),
-                kind_checkbox("procent-van-getal", "procent van een getal 🔢", true),
-                kind_checkbox("wat-procent", "hoeveel procent?", false),
+                practice_checkbox("breuk-naar-procent", "breuk → procent 📊", Checked::Yes),
+                practice_checkbox("procent-naar-breuk", "procent → breuk 🔣", Checked::Yes),
+                practice_checkbox("procent-van-getal", "procent van een getal 🔢", Checked::Yes),
+                practice_checkbox("wat-procent", "hoeveel procent?", Checked::No),
             ),
         ),
         fieldset!(

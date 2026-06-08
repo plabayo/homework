@@ -7,12 +7,13 @@ use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend}
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
-    ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
+    Checked, ExerciseInfo, exercise_breadcrumb, exercise_scaffold, practice_checkbox,
+    time_mode_fieldset,
 };
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
-const INFO: ExerciseInfo = ExerciseInfo {
+pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "mathbox",
     path: "/1/mathbox",
     label: "rekendoos",
@@ -41,7 +42,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         PageMeta {
             title: "rekendoos — Oefeningen Basisschool",
             description: "Oefen rekenkunde: som, verschil, splitsen, vermenigvuldigen, delen.",
-            og_path: "/1/mathbox".into(),
+            og_path: INFO.path.into(),
             favicon_emoji: "🔢",
         },
         PageInlines {
@@ -52,20 +53,6 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         },
         body,
         banner,
-    )
-}
-
-fn kind_checkbox(value: &'static str, text: &'static str, default_on: bool) -> impl IntoHtml {
-    let checked: Option<&'static str> = if default_on { Some("") } else { None };
-    label!(
-        input!(
-            r#type = "checkbox",
-            name = "practice",
-            value = value,
-            checked? = checked,
-        ),
-        " ",
-        text,
     )
 }
 
@@ -103,11 +90,11 @@ fn config_fields() -> impl IntoHtml {
             legend!("Wat wil je oefenen?"),
             div!(
                 class = "kinds",
-                kind_checkbox("som", "optellen ➕", true),
-                kind_checkbox("verschil", "aftrekken ➖", true),
-                kind_checkbox("splitsen", "splitsen 🔼", true),
-                kind_checkbox("vermenigvuldigen", "vermenigvuldigen ✖️", false),
-                kind_checkbox("delen", "delen ➗", false),
+                practice_checkbox("som", "optellen ➕", Checked::Yes),
+                practice_checkbox("verschil", "aftrekken ➖", Checked::Yes),
+                practice_checkbox("splitsen", "splitsen 🔼", Checked::Yes),
+                practice_checkbox("vermenigvuldigen", "vermenigvuldigen ✖️", Checked::No),
+                practice_checkbox("delen", "delen ➗", Checked::No),
             ),
         ),
         time_mode_fieldset(),

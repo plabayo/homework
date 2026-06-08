@@ -6,7 +6,7 @@ use rama::http::Request;
 use rama::http::protocols::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
 use rama::http::service::web::response::IntoResponse;
 
-use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, niveau_label};
+use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, level_label};
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 
@@ -76,7 +76,7 @@ fn levels() -> impl IntoHtml {
                 // exercises/*.jsonld breadcrumb URL.
                 let anchor = format!("niveau-{lvl}");
                 (
-                    h2!(id = anchor, niveau_label(lvl)),
+                    h2!(id = anchor, level_label(lvl)),
                     ul!(
                         class = "exercise-list",
                         items

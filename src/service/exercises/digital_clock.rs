@@ -10,7 +10,7 @@ use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaf
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
-const INFO: ExerciseInfo = ExerciseInfo {
+pub const INFO: ExerciseInfo = ExerciseInfo {
     id: "digital-clock",
     path: "/2/digital-clock",
     label: "digitale klok",
@@ -51,7 +51,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
         PageMeta {
             title: "digitale klok — Oefeningen Basisschool",
             description: "Oefen Nederlandse tijduitdrukkingen: kwart over, half, kwart voor.",
-            og_path: "/2/digital-clock".into(),
+            og_path: INFO.path.into(),
             favicon_emoji: "⏰",
         },
         PageInlines {

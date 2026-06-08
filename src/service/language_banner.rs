@@ -228,6 +228,11 @@ fn accepts_nl(accept_lang: &str) -> bool {
 }
 
 fn find_translation(accept_lang: &str) -> &'static BannerLang {
+    // English is the catalogue's first entry and serves as the infallible
+    // fallback when no `accept-language` tag matches a known translation.
+    // The `english_is_the_default_fallback` test pins that ordering, so the
+    // fallback needs no runtime search (and no `expect`).
+    let default = &LANGS[0];
     for range in accept_lang.split(',') {
         let tag = range
             .split(';')
@@ -243,14 +248,7 @@ fn find_translation(accept_lang: &str) -> &'static BannerLang {
             }
         }
     }
-    #[expect(
-        clippy::expect_used,
-        reason = "EN is always present; this is an invariant"
-    )]
-    LANGS
-        .iter()
-        .find(|l| l.tag == "en")
-        .expect("English must be in LANGS")
+    default
 }
 
 // `role=status` (polite) instead of `role=alert`: this is informational
@@ -352,6 +350,14 @@ mod tests {
     fn find_translation_returns_english_for_unknown_lang() {
         let t = find_translation("xx-YY");
         assert_eq!(t.tag, "en");
+    }
+
+    #[test]
+    fn english_is_the_default_fallback() {
+        // `find_translation` returns `&LANGS[0]` when nothing matches, so
+        // English must stay first. This guards against an accidental
+        // reshuffle silently changing the fallback language.
+        assert_eq!(LANGS[0].tag, "en");
     }
 
     #[test]

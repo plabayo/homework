@@ -27,7 +27,7 @@ use crate::utils::info::ASSET_VERSION;
 /// ```ignore
 /// page(meta, PageInlines { style: Some(&STYLE), module_script: Some(&SCRIPT), ..Default::default() }, body, banner)
 /// ```
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct PageInlines {
     pub style: Option<&'static InlineStyle>,
     pub module_script: Option<&'static InlineModuleScript>,
