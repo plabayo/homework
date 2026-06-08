@@ -162,7 +162,11 @@ impl Checked {
 /// its label text. Shared by every exercise whose setup form offers a
 /// "what do you want to practice?" multi-select (rekendoos, breukendoos,
 /// procenten), which previously each carried an identical copy.
-pub fn practice_checkbox(value: &'static str, text: &'static str, checked: Checked) -> impl IntoHtml {
+pub fn practice_checkbox(
+    value: &'static str,
+    text: &'static str,
+    checked: Checked,
+) -> impl IntoHtml {
     label!(
         input!(
             r#type = "checkbox",

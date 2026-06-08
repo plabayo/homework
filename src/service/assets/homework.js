@@ -2066,12 +2066,23 @@ export function runExercise(spec) {
             return;
         }
 
+        // Snapshot the assignment (the prompt that lives in the feedback
+        // line) once per question, then re-show it above the "probeer het
+        // nog eens" hint on every wrong attempt. Capture *innerHTML*, not
+        // textContent: the analog/digital clock word-mode prompt embeds a
+        // `.phrase-flip` widget (two stacked phrasings, only one visible,
+        // tap to swap). Flattening it to text collapses both faces into a
+        // single run — e.g. "tien voor half tien" + "twintig over negen" →
+        // "tien voor half tientwintig over negen". The widget's click
+        // handler is delegated on `document` and its sized faces live in
+        // the markup, so restoring the HTML keeps it working with one
+        // visible face (whichever was showing when the answer was given).
         if (!feedbackEl.classList.contains("is-bad")) {
-            feedbackEl.dataset.assignment = feedbackEl.textContent;
+            feedbackEl.dataset.assignmentHtml = feedbackEl.innerHTML;
         }
-        const assignment = (feedbackEl.dataset.assignment || "").trim();
-        if (assignment) {
-            feedbackEl.textContent = assignment;
+        const assignmentHtml = (feedbackEl.dataset.assignmentHtml || "").trim();
+        if (assignmentHtml) {
+            feedbackEl.innerHTML = assignmentHtml;
             const hint = document.createElement("small");
             hint.textContent = `${randomAnimal()} probeer het nog eens.`;
             feedbackEl.append(document.createElement("br"), hint);

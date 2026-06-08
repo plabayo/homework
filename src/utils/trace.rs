@@ -67,8 +67,7 @@ fn init_structured(default_directive: impl Into<Directive>) -> Result<(), BoxErr
         .try_with_connection_pool(HttpPooledConnectorConfig::default())
         .context("build http exporter client service")?
         .build_client();
-    let exporter =
-        OtelExporter::from_env_http(svc).context("build OTLP HTTP span exporter")?;
+    let exporter = OtelExporter::from_env_http(svc).context("build OTLP HTTP span exporter")?;
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)

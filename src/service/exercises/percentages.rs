@@ -80,7 +80,11 @@ fn config_fields() -> impl IntoHtml {
             div!(
                 class = "kinds",
                 difficulty_radio("makkelijk", "makkelijk (10%, 20%, 25%, 50%)", Checked::Yes),
-                difficulty_radio("gemiddeld", "gemiddeld (ook 30%, 60%, 75%, 90%…)", Checked::No),
+                difficulty_radio(
+                    "gemiddeld",
+                    "gemiddeld (ook 30%, 60%, 75%, 90%…)",
+                    Checked::No
+                ),
                 difficulty_radio("moeilijk", "moeilijk (ook 5%, 15%, 35%…)", Checked::No),
             ),
         ),
@@ -104,7 +108,11 @@ fn config_fields() -> impl IntoHtml {
                 class = "kinds",
                 practice_checkbox("breuk-naar-procent", "breuk → procent 📊", Checked::Yes),
                 practice_checkbox("procent-naar-breuk", "procent → breuk 🔣", Checked::Yes),
-                practice_checkbox("procent-van-getal", "procent van een getal 🔢", Checked::Yes),
+                practice_checkbox(
+                    "procent-van-getal",
+                    "procent van een getal 🔢",
+                    Checked::Yes
+                ),
                 practice_checkbox("wat-procent", "hoeveel procent?", Checked::No),
             ),
         ),

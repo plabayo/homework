@@ -15,6 +15,7 @@ pub(crate) type TestResult<T> = Result<T, BoxError>;
 mod a11y;
 mod app_shell;
 mod clock_freeplay;
+mod clock_play;
 mod exercise_flows;
 mod flashcards_decks;
 mod flashcards_play;
