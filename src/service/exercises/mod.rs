@@ -2,7 +2,7 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-use rama::http::html::{
+use rama::http::protocols::html::{
     IntoHtml, a, button, div, fieldset, form, h1, header, input, label, legend, li, nav, ol, p,
     section, span,
 };

@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::HeaderMap;
-use rama::http::html::{IntoHtml, a, button, div, p};
+use rama::http::protocols::html::{IntoHtml, a, button, div, p};
 
 struct BannerLang {
     /// BCP-47 primary language subtag (e.g. "fr", "de", "zh").

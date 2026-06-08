@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::html::{IntoHtml, a, code, footer, h2, li, p, section, small, ul};
+use rama::http::protocols::html::{IntoHtml, a, code, footer, h2, li, p, section, small, ul};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::language_banner::lang_banner;

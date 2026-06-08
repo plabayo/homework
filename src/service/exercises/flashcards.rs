@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use rama::http::Request;
-use rama::http::html::{div, input};
+use rama::http::protocols::html::{div, input};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
@@ -89,7 +89,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     )
 }
 
-fn config_fields() -> impl rama::http::html::IntoHtml {
+fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
     (
         // Hidden input populated by JS when a deck is selected.
         input!(

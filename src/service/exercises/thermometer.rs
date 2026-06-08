@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::html::{div, fieldset, input, label, legend};
+use rama::http::protocols::html::{div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaffold};
@@ -57,7 +57,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     )
 }
 
-fn config_fields() -> impl rama::http::html::IntoHtml {
+fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
     (
         div!(
             class = "field",

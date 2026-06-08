@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
+use rama::http::protocols::html::{IntoHtml, a, footer, h2, li, p, section, small, span, ul};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{EXERCISE_LEVELS, ExerciseInfo, all_exercises, niveau_label};

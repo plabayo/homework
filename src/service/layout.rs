@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use rama::http::headers::{
     CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceExpression, SourceList,
 };
-use rama::http::html::{
+use rama::http::protocols::html::{
     IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
     noscript, p, script, span, title,
 };

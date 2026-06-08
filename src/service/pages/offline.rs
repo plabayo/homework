@@ -6,7 +6,7 @@ use rama::http::headers::{HeaderMapExt, XRobotsTag, x_robots_tag::RobotsTag};
 use rama::http::service::web::response::IntoResponse;
 use rama::http::{
     Request, Response, StatusCode,
-    html::{a, p},
+    protocols::html::{a, p},
 };
 
 use crate::service::language_banner::lang_banner;

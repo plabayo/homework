@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::html::{IntoHtml, div, fieldset, input, label, legend, span};
+use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend, span};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{

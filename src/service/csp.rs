@@ -24,7 +24,7 @@
 //! violation in dev; mismatching the hash const name is caught by the
 //! compiler.
 
-use rama::http::html::{IntoHtml, PreEscaped, script, style};
+use rama::http::protocols::html::{IntoHtml, PreEscaped, script, style};
 
 /// All build-script outputs live behind this namespace so the csp module's
 /// public surface stays the typed struct interface (`THEME_INIT`,
