@@ -12,9 +12,16 @@ sort:
 	@cargo install cargo-sort
 	cargo sort --grouped
 
+sort-check:
+	@cargo install cargo-sort
+	cargo sort --grouped --check
+
 # Auto-format JS and CSS (writes in place)
 fmt-web:
 	npx --yes @biomejs/biome format --write src/service
+
+fmt-check:
+	cargo fmt --all --check
 
 # Lint JS and CSS (report only, no writes)
 lint-web:
@@ -103,11 +110,49 @@ lighthouse URL="http://localhost:8080":
 	$r = npx --yes lighthouse@12 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
 	Write-Host "score: $($r.categories.accessibility.score) ($($r.categories.accessibility.title))"
 
-qq: lint check clippy doc check-web check-copyright
+# build, boot the server, and assert the
+# Lighthouse a11y score is >= 0.9 on the home page and a representative
+# exercise — exactly what the `lighthouse` CI job enforces. Unlike the
+# `lighthouse` recipe above it manages the server itself, so it runs
+# unattended as part of `qa-full`.
+[unix]
+lighthouse-ci:
+	#!/usr/bin/env sh
+	set -eu
+	cargo build
+	./target/debug/homework --http 127.0.0.1:8080 &
+	pid=$!
+	trap 'kill "$pid" 2>/dev/null || true' EXIT
+	for _ in $(seq 1 20); do
+	    if curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1; then break; fi
+	    sleep 0.5
+	done
+	for path in / /1/multiplications; do
+	    score=$(npx --yes lighthouse@12 "http://127.0.0.1:8080${path}" \
+	        --only-categories=accessibility --output=json \
+	        --chrome-flags="--headless=new" --quiet 2>/dev/null \
+	        | python3 -c "import json,sys; print(json.load(sys.stdin)['categories']['accessibility']['score'])")
+	    echo "a11y ${path}: ${score}"
+	    python3 -c "import sys; sys.exit(0 if float('${score}') >= 0.9 else 1)"
+	done
+	echo "Lighthouse accessibility >= 0.9 on / and /1/multiplications"
+
+# `qq`/`qa`/`qa-full` mirror CI: they *check* formatting and dependency
+# order — they never rewrite files. Run `just lint` first to auto-fix.
+# This preserves the invariant that a green `just qa-full` means green CI.
+qq: fmt-check sort-check check clippy doc check-web check-copyright
 
 qa: qq test test-js
 
-qa-full: qa test-e2e
+# Full pre-push gate. Uses CI's single-threaded e2e cadence and the
+# Lighthouse a11y audit so it covers every gate CI runs before deploy.
+[unix]
+qa-full: qa test-e2e-ci lighthouse-ci
+
+# Windows skips the self-managed Lighthouse gate (run `just lighthouse`
+# against a `just run` server instead); everything else mirrors CI.
+[windows]
+qa-full: qa test-e2e-ci
 
 run *ARGS:
 	cargo run -- \
