@@ -151,7 +151,7 @@ fn preload_links(theme_css_url: String, shared_js_url: String) -> impl IntoHtml 
 // noticeably more aggressive about this than Safari, which made stale CSS
 // look like a "Firefox-only" bug.
 fn html_cache_control() -> CacheControl {
-    CacheControl::new().with_no_cache()
+    CacheControl::no_cache()
 }
 
 /// Build a `Content-Security-Policy` whose `script-src` / `style-src`

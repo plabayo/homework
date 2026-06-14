@@ -4,7 +4,6 @@
 
 use rama::http::{
     headers::{CacheControl, ContentSecurityPolicy, ContentType, HeaderMapExt, SourceList},
-    mime,
     service::web::response::{Css, IntoResponse, Script},
 };
 
@@ -55,17 +54,14 @@ const MANIFEST_VERSIONED: &str = const_format::str_replace!(
 // aggressive there than Safari and can hold on to the old HTML (with its
 // old `?v=` references) for hours, so the cache-bust never gets a chance.
 fn cache_immutable() -> CacheControl {
-    CacheControl::new()
-        .with_public()
-        .with_immutable()
-        .with_max_age_seconds(31_536_000)
+    CacheControl::immutable_one_year()
 }
 
 // The service worker script bootstraps everything else, so it must always be
 // revalidated against the server — otherwise an update would be invisible
 // until the browser's own SW-update heuristic fires.
 fn cache_revalidate() -> CacheControl {
-    CacheControl::new().with_no_cache()
+    CacheControl::no_cache()
 }
 
 // Discovery files (robots.txt, sitemap.xml, security.txt) are not
@@ -73,10 +69,7 @@ fn cache_revalidate() -> CacheControl {
 // cache lets the CDN absorb crawler bursts without making content
 // updates invisible for long.
 fn cache_short_revalidate() -> CacheControl {
-    CacheControl::new()
-        .with_public()
-        .with_max_age_seconds(3600)
-        .with_must_revalidate()
+    CacheControl::short_shared_revalidate(3600)
 }
 
 pub async fn theme_css() -> impl IntoResponse {
@@ -125,7 +118,7 @@ pub async fn manifest() -> impl IntoResponse {
 pub async fn favicon_svg() -> impl IntoResponse {
     let mut res = FAVICON_SVG.into_response();
     let headers = res.headers_mut();
-    headers.typed_insert(ContentType::new(mime::IMAGE_SVG));
+    headers.typed_insert(ContentType::svg());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -133,7 +126,7 @@ pub async fn favicon_svg() -> impl IntoResponse {
 pub async fn icon_svg() -> impl IntoResponse {
     let mut res = ICON_SVG.into_response();
     let headers = res.headers_mut();
-    headers.typed_insert(ContentType::new(mime::IMAGE_SVG));
+    headers.typed_insert(ContentType::svg());
     headers.typed_insert(cache_immutable());
     res
 }
@@ -210,17 +203,10 @@ pub async fn sitemap_xml() -> impl IntoResponse {
     let mut res = build_sitemap_xml().into_response();
     let headers = res.headers_mut();
     // `ContentType::xml()` is `text/xml`; the sitemaps.org spec also accepts
-    // `application/xml; charset=utf-8`, and that's what we used to emit. Pin
-    // to the explicit, charset-bearing form via `ContentType::new` so the
-    // generated XML's encoding declaration matches what we tell the crawler.
-    #[expect(
-        clippy::expect_used,
-        reason = "static mime literal; if this ever fails the binary is unshippable"
-    )]
-    let xml_utf8: mime::Mime = "application/xml; charset=utf-8"
-        .parse()
-        .expect("static mime literal parses");
-    headers.typed_insert(ContentType::new(xml_utf8));
+    // `application/xml; charset=utf-8`, and that's what we emit. The explicit,
+    // charset-bearing form keeps the generated XML's encoding declaration in
+    // sync with what we tell the crawler.
+    headers.typed_insert(ContentType::xml_utf8());
     headers.typed_insert(cache_short_revalidate());
     res
 }
