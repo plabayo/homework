@@ -15,6 +15,10 @@ rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features 
     "http-full",
     "boring",
     "haproxy",
+    # grpc is required for the OTLP exporter used in src/utils/trace.rs: rama
+    # now ships both the HTTP and gRPC OtelExporter from rama-grpc, so the
+    # `collector` module (and the HTTP exporter) is gated behind this feature.
+    "grpc",
     "opentelemetry",
 ] }
 tokio = { version = "1.52", features = ["rt-multi-thread", "macros"] }
