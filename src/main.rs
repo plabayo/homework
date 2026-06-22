@@ -10,12 +10,11 @@ use rama::{
     combinators::Either,
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
-    http::{server::HttpServer, tls::CertIssuerHttpClient},
+    http::{BodyLimitLayer, server::HttpServer, tls::CertIssuerHttpClient},
     layer::AddInputExtensionLayer,
     net::{
         Protocol,
         address::SocketAddress,
-        stream::layer::http::BodyLimitLayer,
         tls::{
             ApplicationProtocol,
             server::{CacheKind, ServerAuth, ServerCertIssuerData, ServerConfig},

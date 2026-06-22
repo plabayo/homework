@@ -9,10 +9,14 @@ use std::path::{Path, PathBuf};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use sha2::{Digest, Sha256};
-use vergen_gitcl::{Emitter, GitclBuilder};
+use vergen_gitcl::{Emitter, Gitcl};
 
 fn main() {
-    let git = GitclBuilder::default().sha(true).build().unwrap();
+    // vergen-gitcl 10 replaced `GitclBuilder` with a `bon`-style `Gitcl`
+    // builder whose `build()` is infallible. `.sha(true)` still selects the
+    // short SHA (`git rev-parse --short HEAD`) and, with no other options
+    // set, only `VERGEN_GIT_SHA` is emitted — same as before.
+    let git = Gitcl::builder().sha(true).build();
 
     Emitter::new()
         .add_instructions(&git)

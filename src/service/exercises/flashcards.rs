@@ -33,10 +33,13 @@ crate::inline_ld_json!(
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
+    // rama's native `Uri` parses the query into key/value pairs (WHATWG /
+    // form-urlencoded semantics), so we match the `import` key by name
+    // rather than substring-scanning the raw query string.
     let is_import = req
         .uri()
         .query()
-        .is_some_and(|q| q.split('&').any(|p| p.starts_with("import=")));
+        .is_some_and(|q| q.pairs().any(|p| p.name_raw() == "import"));
 
     let (title, description) = if is_import {
         (
@@ -51,12 +54,17 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     };
 
     let og_path: Cow<'static, str> = if is_import {
-        let path_and_query = req
-            .uri()
-            .path_and_query()
-            .map(|pq| pq.as_str())
-            .unwrap_or(INFO.path);
-        Cow::Owned(path_and_query.to_owned())
+        // Reconstruct the origin-form path+query from the native `Uri`
+        // (`path_and_query()` is gone). `is_import` already guarantees a
+        // non-empty query here; the empty-query arm keeps the original
+        // `INFO.path` fallback defensively.
+        let uri = req.uri();
+        let query = uri.query_or_empty();
+        if query.is_empty() {
+            Cow::Borrowed(INFO.path)
+        } else {
+            Cow::Owned(format!("{}?{}", uri.path_or_root(), query))
+        }
     } else {
         Cow::Borrowed(INFO.path)
     };

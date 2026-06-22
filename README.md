@@ -83,7 +83,7 @@ checklist of files to touch when adding a new exercise.
 ## Running locally
 
 Requirements:
-- **Rust 1.93+** (the project uses edition 2024).
+- **Rust 1.95+** (the project uses edition 2024).
 - **[just](https://just.systems/)** is the task runner. Without it,
   read `justfile` and run the underlying `cargo` commands directly.
 
