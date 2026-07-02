@@ -60,7 +60,7 @@ fn config_fields() -> impl IntoHtml {
     (
         div!(
             class = "field",
-            label!(r#for = "count-until", "Tot hoeveel kan het kind al tellen?"),
+            label!(r#for = "count-until", "Rekenen tot welk getal?"),
             input!(
                 inputmode = "numeric",
                 pattern = "[0-9]+",
