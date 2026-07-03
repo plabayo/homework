@@ -135,7 +135,7 @@ runExercise({
     validateConfig(cfg) {
         if (cfg.kinds.length === 0) return "Gelieve minstens één soort oefening te selecteren.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Gelieve een geldig aantal oefeningen op te geven.";
-        if (!cfg.countUntil || cfg.countUntil < 3) return "Tot hoeveel kan het kind tellen? Minimum 3.";
+        if (!cfg.countUntil || cfg.countUntil < 3) return "Tot hoeveel kan het kind rekenen? Minimum 3.";
         return null;
     },
     buildDeck,
