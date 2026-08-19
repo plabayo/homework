@@ -18,9 +18,7 @@ use rama::{
     tcp::server::TcpListener,
     telemetry::tracing,
     tls::{
-        boring::server::{
-            BoringServerConfigExt as _, CacheKind, ServerCertIssuerData, TlsAcceptorLayer,
-        },
+        boring::server::{BoringServerConfigExt as _, ServerCertIssuerData, TlsAcceptorLayer},
         server::TlsServerConfig,
     },
 };
@@ -126,10 +124,7 @@ async fn spawn_service_https(
     }
 
     let tls_server_config = TlsServerConfig::new()
-        .with_cert_issuer(ServerCertIssuerData {
-            kind: issuer.into(),
-            cache_kind: CacheKind::default(),
-        })
+        .with_cert_issuer(ServerCertIssuerData::new(issuer))
         .with_alpn_http_auto();
 
     let svc = AddInputExtensionLayer::new(Protocol::HTTPS)
