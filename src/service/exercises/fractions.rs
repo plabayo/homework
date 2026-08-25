@@ -10,6 +10,7 @@ use crate::service::exercises::{
     Checked, ExerciseInfo, exercise_breadcrumb, exercise_scaffold, practice_checkbox,
     time_mode_fieldset,
 };
+use crate::service::json_ld;
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
@@ -21,14 +22,11 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     code_label: "➕➖✖️➗",
     level: 2,
 };
+const DESCRIPTION: &str =
+    "Oefen met breuken: van een getal nemen, optellen, aftrekken, vermenigvuldigen en delen.";
 
 crate::inline_style!(STYLE, "fractions.css", EXERCISES_FRACTIONS_CSS_HASH_B64);
 crate::inline_module_script!(SCRIPT, "fractions.js", EXERCISES_FRACTIONS_JS_HASH_B64);
-crate::inline_ld_json!(
-    LD_JSON,
-    "fractions.jsonld",
-    EXERCISES_FRACTIONS_JSONLD_HASH_B64
-);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -45,14 +43,14 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     page(
         PageMeta {
             title: "breukendoos — Oefeningen Basisschool",
-            description: "Oefen met breuken: van een getal nemen, optellen, aftrekken, vermenigvuldigen en delen.",
+            description: DESCRIPTION,
             og_path: INFO.path.into(),
             favicon_emoji: "🔣",
+            structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
         },
         PageInlines {
             style: Some(&STYLE),
             module_script: Some(&SCRIPT),
-            ld_json: Some(&LD_JSON),
             ..Default::default()
         },
         body,

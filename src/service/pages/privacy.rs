@@ -19,6 +19,7 @@ pub async fn privacy(req: Request) -> impl IntoResponse {
                           Alle oefendata blijft op het toestel van het kind.",
             og_path: "/privacy".into(),
             favicon_emoji: "🔒",
+            structured_data: None,
         },
         PageInlines::default(),
         page_body(),

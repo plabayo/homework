@@ -18,6 +18,7 @@ pub async fn about(req: Request) -> impl IntoResponse {
             description: "Over het project: onze missie, didactische aanpak en hoe je de app gebruikt.",
             og_path: "/about".into(),
             favicon_emoji: "🏫",
+            structured_data: None,
         },
         PageInlines::default(),
         page_body(),

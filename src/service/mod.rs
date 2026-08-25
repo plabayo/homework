@@ -27,6 +27,7 @@ use rama::{
 mod assets;
 pub mod csp;
 mod exercises;
+mod json_ld;
 mod language_banner;
 mod layout;
 mod pages;

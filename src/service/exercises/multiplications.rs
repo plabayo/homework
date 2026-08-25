@@ -9,6 +9,7 @@ use rama::http::service::web::response::IntoResponse;
 use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
+use crate::service::json_ld;
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
@@ -20,6 +21,7 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     code_label: "✖️",
     level: 1,
 };
+const DESCRIPTION: &str = "Oefen de maaltafels van 1 tot en met 10.";
 
 crate::inline_style!(
     STYLE,
@@ -30,11 +32,6 @@ crate::inline_module_script!(
     SCRIPT,
     "multiplications.js",
     EXERCISES_MULTIPLICATIONS_JS_HASH_B64
-);
-crate::inline_ld_json!(
-    LD_JSON,
-    "multiplications.jsonld",
-    EXERCISES_MULTIPLICATIONS_JSONLD_HASH_B64
 );
 
 pub async fn handler(req: Request) -> impl IntoResponse {
@@ -52,14 +49,14 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     page(
         PageMeta {
             title: "maaltafels — Oefeningen Basisschool",
-            description: "Oefen de maaltafels van 1 tot en met 10.",
+            description: DESCRIPTION,
             og_path: INFO.path.into(),
             favicon_emoji: "✖️",
+            structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
         },
         PageInlines {
             style: Some(&STYLE),
             module_script: Some(&SCRIPT),
-            ld_json: Some(&LD_JSON),
             ..Default::default()
         },
         body,

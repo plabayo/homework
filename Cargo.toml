@@ -21,6 +21,7 @@ rama = { git = "https://github.com/plabayo/rama.git", branch = "main", features 
     "grpc",
     "opentelemetry",
 ] }
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros"] }
 
 [target.'cfg(unix)'.dependencies]

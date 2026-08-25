@@ -11,6 +11,7 @@ use rama::http::service::web::response::IntoResponse;
 use crate::service::exercises::{
     ExerciseInfo, exercise_breadcrumb, exercise_scaffold, time_mode_fieldset,
 };
+use crate::service::json_ld;
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
@@ -22,14 +23,10 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     code_label: "🃏",
     level: 10,
 };
+const DESCRIPTION: &str = "Maak je eigen flitskaartjes en oefen ze.";
 
 crate::inline_style!(STYLE, "flashcards.css", EXERCISES_FLASHCARDS_CSS_HASH_B64);
 crate::inline_module_script!(SCRIPT, "flashcards.js", EXERCISES_FLASHCARDS_JS_HASH_B64);
-crate::inline_ld_json!(
-    LD_JSON,
-    "flashcards.jsonld",
-    EXERCISES_FLASHCARDS_JSONLD_HASH_B64
-);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -47,10 +44,7 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             "Klik om een gedeeld deck met flitskaartjes in de app te importeren.",
         )
     } else {
-        (
-            "flitskaarten — Oefeningen Basisschool",
-            "Maak je eigen flitskaartjes en oefen ze.",
-        )
+        ("flitskaarten — Oefeningen Basisschool", DESCRIPTION)
     };
 
     let og_path: Cow<'static, str> = if is_import {
@@ -85,11 +79,11 @@ pub async fn handler(req: Request) -> impl IntoResponse {
             description,
             og_path,
             favicon_emoji: "🃏",
+            structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
         },
         PageInlines {
             style: Some(&STYLE),
             module_script: Some(&SCRIPT),
-            ld_json: Some(&LD_JSON),
             ..Default::default()
         },
         body,

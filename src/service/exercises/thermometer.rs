@@ -7,6 +7,7 @@ use rama::http::protocols::html::{div, fieldset, input, label, legend};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaffold};
+use crate::service::json_ld;
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
@@ -18,14 +19,10 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     code_label: "🌡️",
     level: 1,
 };
+const DESCRIPTION: &str = "Oefen het lezen en kleuren van een analoge thermometer.";
 
 crate::inline_style!(STYLE, "thermometer.css", EXERCISES_THERMOMETER_CSS_HASH_B64);
 crate::inline_module_script!(SCRIPT, "thermometer.js", EXERCISES_THERMOMETER_JS_HASH_B64);
-crate::inline_ld_json!(
-    LD_JSON,
-    "thermometer.jsonld",
-    EXERCISES_THERMOMETER_JSONLD_HASH_B64
-);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -42,14 +39,14 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     page(
         PageMeta {
             title: "thermometer — Oefeningen Basisschool",
-            description: "Oefen het lezen en kleuren van een analoge thermometer.",
+            description: DESCRIPTION,
             og_path: INFO.path.into(),
             favicon_emoji: "🌡️",
+            structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
         },
         PageInlines {
             style: Some(&STYLE),
             module_script: Some(&SCRIPT),
-            ld_json: Some(&LD_JSON),
             ..Default::default()
         },
         body,

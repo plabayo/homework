@@ -27,6 +27,7 @@ pub async fn home(req: Request) -> impl IntoResponse {
             description: "Gratis huiswerk middel voor de basisschool.",
             og_path: "/".into(),
             favicon_emoji: "🏫",
+            structured_data: None,
         },
         PageInlines {
             speculation_rules: Some(&SPECULATION),
@@ -71,9 +72,8 @@ fn levels() -> impl IntoHtml {
             let items: Vec<_> = exercises.iter().filter(|e| e.level == lvl).collect();
             (!items.is_empty()).then(|| {
                 // `id="niveau-N"` is the anchor target for the matching
-                // exercise-page breadcrumbs (and the BreadcrumbList JSON-LD
-                // `item` URL); changing this format means updating every
-                // exercises/*.jsonld breadcrumb URL.
+                // exercise-page breadcrumbs and the typed BreadcrumbList
+                // JSON-LD builder; both derive the same level value.
                 let anchor = format!("niveau-{lvl}");
                 (
                     h2!(id = anchor, level_label(lvl)),

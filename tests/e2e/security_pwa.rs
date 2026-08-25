@@ -353,13 +353,13 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 
     // HTML pages: per-page CSP with hashes.
-    for path in [
-        "/",
-        "/about",
-        "/privacy",
-        "/2/clock",
-        "/1/multiplications",
-        "/extra/flashcards",
+    for (path, expected_script_hashes) in [
+        ("/", 2),
+        ("/about", 2),
+        ("/privacy", 2),
+        ("/2/clock", 3),
+        ("/1/multiplications", 3),
+        ("/extra/flashcards", 3),
     ] {
         let (status, _body, csp) = fetch_csp(driver, &app.url(path)).await?;
         assert_eq!(status, 200, "{path} should serve 200");
@@ -387,6 +387,15 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
         assert!(
             script_src.contains("'sha256-"),
             "{path} script-src should whitelist at least one inline by hash, got {script_src:?}"
+        );
+        // Only executable inlines need hashes: theme-init + importmap on
+        // every page, plus the exercise module where present. Rama's
+        // application/ld+json blocks are data, not scripts, and must not
+        // inflate script-src.
+        assert_eq!(
+            script_src.matches("'sha256-").count(),
+            expected_script_hashes,
+            "{path} script-src should hash executable inlines only, got {script_src:?}"
         );
         // `'inline-speculation-rules'` is added unconditionally by
         // `layout::build_csp` so any page can grow a `<script type="speculationrules">`

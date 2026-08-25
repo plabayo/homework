@@ -86,43 +86,50 @@ making the best of the web platform in its beautiful vanilla form.
 
 ### Adding a new exercise
 
-Each exercise is a small bundle of files — a Rust handler, a CSS file, a JS
-file, and a JSON-LD body — that have to stay in lock-step. The project will
-compile and run if any one is missing, but the behaviour will be wrong
-(broken routing, missing offline support, invisible exercise, missing schema
-markup). Walk through this checklist:
+Each exercise is a small bundle of files — a Rust handler, a CSS file, and a
+JS file — plus route, catalogue, and offline registration that have to stay in
+lock-step. The project will compile and run if a registration is missing, but
+the behaviour will be wrong (broken routing, missing offline support, or an
+invisible exercise). Walk through this checklist:
 
 1. **`src/service/exercises/<name>.rs`** — Rust handler + `ExerciseInfo` const.
-   Follow the pattern of an existing exercise (e.g. `mathbox.rs`). The
-   handler wires `PageInlines` and includes the per-exercise JSON-LD via
-   `crate::inline_ld_json!`:
+   Follow the pattern of an existing exercise (e.g. `mathbox.rs`). Keep the
+   page description in one constant and use the typed JSON-LD builder from
+   `service::json_ld`; Rama serializes it as valid, script-data-safe JSON and
+   renders the resulting non-executable data block:
    ```rust
-   inlines: PageInlines {
-       style: Some(crate::inline_style!("exercises/name.css")),
-       module_script: Some(crate::inline_module_script!("exercises/name.js")),
-       ld_json: Some(crate::inline_ld_json!("exercises/name.jsonld")),
+   const DESCRIPTION: &str = "Oefen ...";
+
+   crate::inline_style!(STYLE, "name.css", EXERCISES_NAME_CSS_HASH_B64);
+   crate::inline_module_script!(SCRIPT, "name.js", EXERCISES_NAME_JS_HASH_B64);
+
+   let meta_data = PageMeta {
+       description: DESCRIPTION,
+       structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
+       // ...
+   };
+
+   let inlines = PageInlines {
+       style: Some(&STYLE),
+       module_script: Some(&SCRIPT),
        ..PageInlines::default()
-   },
+   };
    ```
+   JSON-LD data blocks are not executable scripts, so they do not need a
+   `script-src` CSP hash.
 
-2. **`src/service/exercises/name.jsonld`** — schema.org `LearningResource`
-   body for this exercise. Copy `fractions.jsonld` as a template and adapt
-   the `name`, `description`, `educationalLevel`, etc. The build.rs hashes
-   the file at compile time and emits its SHA-256 into the CSP allowlist
-   automatically — no manual hash bookkeeping.
-
-3. **`src/service/mod.rs`** — register the route in `load_https_app_service()`.
+2. **`src/service/mod.rs`** — register the route in `load_https_app_service()`.
    ```rust
    .with_get("/level/name", exercises::name::handler)
    ```
 
-4. **`src/service/assets/service-worker.js`** — add the path to `PRECACHE`
+3. **`src/service/assets/service-worker.js`** — add the path to `PRECACHE`
    so the page works offline.
    ```js
    "/level/name",
    ```
 
-5. **`src/service/exercises/mod.rs`** — add an `ExerciseInfo` entry to the
+4. **`src/service/exercises/mod.rs`** — add an `ExerciseInfo` entry to the
    `ALL_EXERCISES` static so the exercise appears in the home-page catalogue
    and in the auto-generated `/sitemap.xml`. If the new exercise belongs to
    a level that does not yet exist, also add that level value to

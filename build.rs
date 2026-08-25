@@ -116,10 +116,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
             walk(&path, out)?;
         } else if matches!(
             path.extension().and_then(|s| s.to_str()),
-            // `.json` covers speculation-rules bodies, `.jsonld` covers
-            // JSON-LD blocks — both get inlined into pages and need a
-            // CSP hash apiece.
-            Some("js" | "css" | "json" | "jsonld")
+            Some("js" | "css")
         ) {
             out.push(path);
         }

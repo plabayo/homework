@@ -11,12 +11,12 @@ use rama::http::protocols::html::{
     IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
     noscript, p, script, span, title,
 };
+use rama::http::protocols::json_ld::JsonLd;
 use rama::http::service::web::response::IntoResponse;
 use rama::net::Protocol;
 
-use crate::service::csp::{
-    self, InlineLdJson, InlineModuleScript, InlineSpeculationRules, InlineStyle,
-};
+use crate::service::csp::{self, InlineModuleScript, InlineSpeculationRules, InlineStyle};
+use crate::service::json_ld;
 use crate::utils::info::ASSET_VERSION;
 
 /// All the optional inline-asset slots a page can fill. Bundled into one
@@ -32,10 +32,6 @@ pub struct PageInlines {
     pub style: Option<&'static InlineStyle>,
     pub module_script: Option<&'static InlineModuleScript>,
     pub speculation_rules: Option<&'static InlineSpeculationRules>,
-    /// Per-page JSON-LD (`LearningResource`, `BreadcrumbList`, …). Site-wide
-    /// `WebSite` / `EducationalOrganization` data is emitted unconditionally
-    /// from `csp::SITE_LD_JSON` and doesn't go here.
-    pub ld_json: Option<&'static InlineLdJson>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +43,9 @@ pub struct PageMeta {
     /// and pass an owned `String` via `Cow::Owned`.
     pub og_path: Cow<'static, str>,
     pub favicon_emoji: &'static str,
+    /// Optional page-specific structured data. Rama renders this as a safe
+    /// non-executable `application/ld+json` data block.
+    pub structured_data: Option<JsonLd>,
 }
 
 impl Default for PageMeta {
@@ -56,6 +55,7 @@ impl Default for PageMeta {
             description: "Gratis huiswerk middel voor de basisschool.",
             og_path: Cow::Borrowed("/"),
             favicon_emoji: "🏫",
+            structured_data: None,
         }
     }
 }
@@ -167,15 +167,10 @@ fn build_csp(inlines: &PageInlines) -> ContentSecurityPolicy {
     let mut script_src = SourceList::self_origin()
         .with_hash(HashAlgorithm::Sha256, csp::THEME_INIT.hash_b64())
         .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64())
-        .with_hash(HashAlgorithm::Sha256, csp::SITE_LD_JSON.hash_b64())
         .with(SourceExpression::InlineSpeculationRules);
     if let Some(s) = inlines.module_script {
         script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
     }
-    if let Some(s) = inlines.ld_json {
-        script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
-    }
-
     let mut style_src = SourceList::self_origin();
     if let Some(s) = inlines.style {
         style_src = style_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
@@ -267,10 +262,10 @@ pub fn page(
             // Site-wide schema.org structured data (WebSite +
             // EducationalOrganization). Emitted unconditionally so
             // crawlers see the same publisher identity on every page.
-            csp::SITE_LD_JSON.render(),
+            json_ld::site().script(),
             // Per-page schema.org JSON-LD (LearningResource +
             // BreadcrumbList on exercise pages).
-            inlines.ld_json.map(InlineLdJson::render),
+            meta_data.structured_data.as_ref().map(JsonLd::script),
             // Apply stored theme override before first paint to avoid flash.
             // Body lives in `assets/theme-init.js` so its SHA-256 (and the
             // matching CSP source) is computed by build.rs.

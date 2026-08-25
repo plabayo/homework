@@ -31,6 +31,7 @@ pub async fn offline(req: Request) -> impl IntoResponse {
             description: "Je bent offline.",
             og_path: "/offline".into(),
             favicon_emoji: "📴",
+            structured_data: None,
         },
         PageInlines::default(),
         (
@@ -61,6 +62,7 @@ pub async fn not_found(req: Request) -> impl IntoResponse {
             description: "Deze pagina bestaat niet.",
             og_path: "/404".into(),
             favicon_emoji: "🔎",
+            structured_data: None,
         },
         PageInlines::default(),
         (

@@ -7,6 +7,7 @@ use rama::http::protocols::html::{button, div, fieldset, input, label, legend, p
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{ExerciseInfo, exercise_breadcrumb, exercise_scaffold};
+use crate::service::json_ld;
 use crate::service::language_banner::lang_banner;
 use crate::service::layout::{PageInlines, PageMeta, page};
 
@@ -18,10 +19,10 @@ pub const INFO: ExerciseInfo = ExerciseInfo {
     code_label: "🕐",
     level: 2,
 };
+const DESCRIPTION: &str = "Oefen het lezen en zetten van een analoge klok.";
 
 crate::inline_style!(STYLE, "clock.css", EXERCISES_CLOCK_CSS_HASH_B64);
 crate::inline_module_script!(SCRIPT, "clock.js", EXERCISES_CLOCK_JS_HASH_B64);
-crate::inline_ld_json!(LD_JSON, "clock.jsonld", EXERCISES_CLOCK_JSONLD_HASH_B64);
 
 pub async fn handler(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());
@@ -39,14 +40,14 @@ pub async fn handler(req: Request) -> impl IntoResponse {
     page(
         PageMeta {
             title: "analoge klok — Oefeningen Basisschool",
-            description: "Oefen het lezen en zetten van een analoge klok.",
+            description: DESCRIPTION,
             og_path: INFO.path.into(),
             favicon_emoji: "🕐",
+            structured_data: Some(json_ld::exercise(INFO, DESCRIPTION)),
         },
         PageInlines {
             style: Some(&STYLE),
             module_script: Some(&SCRIPT),
-            ld_json: Some(&LD_JSON),
             ..Default::default()
         },
         body,
