@@ -8,6 +8,7 @@ import { test } from "node:test";
 import {
     buildDeck,
     buildSteps,
+    formatNumber,
     makeQuestion,
     matchesDifficulty,
     stepIsCorrect,
@@ -92,4 +93,52 @@ test("stepIsCorrect: checks both the result digit and the transfer", () => {
     assert.equal(stepIsCorrect(question, { digit: "4", transfer: "1" }), true);
     assert.equal(stepIsCorrect(question, { digit: "4", transfer: "0" }), false);
     assert.equal(stepIsCorrect(question, { digit: "14", transfer: "1" }), false);
+});
+
+test("buildSteps: decimal columns carry across the comma", () => {
+    const steps = buildSteps("som", 1_248, 385, 2);
+    assert.deepEqual(
+        steps.map(({ incoming, result, transfer }) => ({ incoming, result, transfer })),
+        [
+            { incoming: 0, result: 3, transfer: 1 },
+            { incoming: 1, result: 3, transfer: 1 },
+            { incoming: 1, result: 6, transfer: 0 },
+            { incoming: 0, result: 1, transfer: 0 },
+        ],
+    );
+});
+
+test("formatNumber: keeps the decimal comma aligned and trailing zeroes visible", () => {
+    assert.equal(formatNumber(1_633, 2), "16,33");
+    assert.equal(formatNumber(120, 2), "1,20");
+    assert.equal(formatNumber(5, 2), "0,05");
+});
+
+test("buildDeck: decimal mode is opt-in and stays within the selected maximum", () => {
+    const natural = buildDeck({
+        maximum: 1_000,
+        numExercises: 5,
+        kinds: ["som"],
+        difficulty: "mixed",
+        includeDecimals: false,
+        decimalPlaces: 3,
+    });
+    assert.ok(natural.every((question) => question.decimalPlaces === 0));
+
+    const decimals = buildDeck({
+        maximum: 1_000,
+        numExercises: 20,
+        kinds: ["som", "verschil"],
+        difficulty: "mixed",
+        includeDecimals: true,
+        decimalPlaces: 3,
+    });
+    assert.ok(decimals.every((question) => question.decimalPlaces >= 1));
+    assert.ok(decimals.every((question) => question.decimalPlaces <= 3));
+    for (const question of decimals) {
+        const maximumUnits = 1_000 * 10 ** question.decimalPlaces;
+        assert.ok(question.a <= maximumUnits);
+        assert.ok(question.b <= maximumUnits);
+        assert.ok(question.answer <= maximumUnits);
+    }
 });

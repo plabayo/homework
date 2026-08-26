@@ -6,8 +6,9 @@ import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from 
 
 const MAXIMUMS = [1_000, 10_000, 100_000];
 const DIFFICULTIES = ["mixed", "without-transfer", "with-transfer"];
+const DECIMAL_PLACES = [1, 2, 3];
 const QUESTION_PROGRESS = new WeakMap();
-const PLACE_NAMES = [
+const INTEGER_PLACE_NAMES = [
     ["E", "eenheden"],
     ["T", "tientallen"],
     ["H", "honderdtallen"],
@@ -15,6 +16,7 @@ const PLACE_NAMES = [
     ["TD", "tienduizendtallen"],
     ["HD", "honderdduizendtallen"],
 ];
+const FRACTIONAL_PLACE_NAMES = [null, ["t", "tienden"], ["h", "honderdsten"], ["d", "duizendsten"]];
 
 function randomInt(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
@@ -24,13 +26,16 @@ function digitAt(value, placeIndex) {
     return Math.floor(value / 10 ** placeIndex) % 10;
 }
 
-function formatNatural(value) {
-    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+function formatNumber(units, decimalPlaces = 0) {
+    const digits = String(units).padStart(decimalPlaces + 1, "0");
+    const split = digits.length - decimalPlaces;
+    const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+    return decimalPlaces > 0 ? `${whole},${digits.slice(split)}` : whole;
 }
 
-function buildSteps(kind, a, b) {
+function buildSteps(kind, a, b, decimalPlaces = 0) {
     const steps = [];
-    const operandWidth = Math.max(String(a).length, String(b).length);
+    const operandWidth = Math.max(String(a).length, String(b).length, decimalPlaces + 1);
     let transfer = 0;
 
     for (let placeIndex = 0; placeIndex < operandWidth || transfer > 0; placeIndex++) {
@@ -64,56 +69,60 @@ function matchesDifficulty(question, difficulty) {
     return true;
 }
 
-function makeQuestion(kind, a, b) {
+function makeQuestion(kind, a, b, decimalPlaces = 0) {
     return {
         kind,
         a,
         b,
+        decimalPlaces,
         answer: kind === "som" ? a + b : a - b,
-        steps: buildSteps(kind, a, b),
+        steps: buildSteps(kind, a, b, decimalPlaces),
     };
 }
 
-function fallbackQuestion(kind, maximum, difficulty) {
+function fallbackQuestion(kind, maximum, difficulty, decimalPlaces) {
     const digits = String(maximum - 1).length;
     const place = 10 ** (digits - 1);
 
     if (difficulty === "without-transfer") {
         const repeated = (digit) => Number(String(digit).repeat(digits));
         return kind === "som"
-            ? makeQuestion(kind, Number("12345".slice(0, digits)), Number("23454".slice(0, digits)))
-            : makeQuestion(kind, repeated(8), repeated(3));
+            ? makeQuestion(kind, Number("12345".slice(0, digits)), Number("23454".slice(0, digits)), decimalPlaces)
+            : makeQuestion(kind, repeated(8), repeated(3), decimalPlaces);
     }
 
-    if (kind === "som") return makeQuestion(kind, 5 * place - 5, place + 15);
-    if (maximum === 1_000) return makeQuestion(kind, 632, 185);
-    return makeQuestion(kind, 6 * place + 432, Math.floor(place / 5) + 185);
+    if (kind === "som") return makeQuestion(kind, 5 * place - 5, place + 15, decimalPlaces);
+    if (maximum === 1_000) return makeQuestion(kind, 632, 185, decimalPlaces);
+    return makeQuestion(kind, 6 * place + 432, Math.floor(place / 5) + 185, decimalPlaces);
 }
 
-function generateQuestion(kind, cfg) {
-    const minimumAnswer = cfg.maximum / 10;
-    const minimumTerm = cfg.maximum / 100;
+function generateQuestion(kind, cfg, decimalPlaces) {
+    const scale = 10 ** decimalPlaces;
+    const maximum = cfg.maximum * scale;
+    const minimumAnswer = maximum / 10;
+    const minimumTerm = maximum / 100;
 
     for (let tries = 0; tries < 400; tries++) {
         let a;
         let b;
         if (kind === "som") {
-            a = randomInt(minimumTerm, cfg.maximum - minimumTerm);
-            b = randomInt(minimumTerm, cfg.maximum - a);
+            a = randomInt(minimumTerm, maximum - minimumTerm);
+            b = randomInt(minimumTerm, maximum - a);
         } else {
-            a = randomInt(minimumAnswer + minimumTerm, cfg.maximum - 1);
+            a = randomInt(minimumAnswer + minimumTerm, maximum - 1);
             b = randomInt(minimumTerm, a - minimumAnswer);
         }
 
-        const question = makeQuestion(kind, a, b);
+        if (decimalPlaces > 0 && a % scale === 0 && b % scale === 0) continue;
+        const question = makeQuestion(kind, a, b, decimalPlaces);
         if (matchesDifficulty(question, cfg.difficulty)) return question;
     }
 
-    return fallbackQuestion(kind, cfg.maximum, cfg.difficulty);
+    return fallbackQuestion(kind, maximum, cfg.difficulty, decimalPlaces);
 }
 
 function questionKey(question) {
-    return `${question.kind}:${question.a}:${question.b}`;
+    return `${question.kind}:${question.decimalPlaces}:${question.a}:${question.b}`;
 }
 
 function buildDeck(cfg) {
@@ -121,7 +130,8 @@ function buildDeck(cfg) {
         !cfg.kinds ||
         cfg.kinds.length === 0 ||
         !MAXIMUMS.includes(cfg.maximum) ||
-        !DIFFICULTIES.includes(cfg.difficulty)
+        !DIFFICULTIES.includes(cfg.difficulty) ||
+        (cfg.includeDecimals && !DECIMAL_PLACES.includes(cfg.decimalPlaces))
     ) {
         return [];
     }
@@ -136,7 +146,8 @@ function buildDeck(cfg) {
             staleTries = 0;
         }
 
-        const question = generateQuestion(pickRandom(cfg.kinds), cfg);
+        const decimalPlaces = cfg.includeDecimals ? randomInt(1, cfg.decimalPlaces) : 0;
+        const question = generateQuestion(pickRandom(cfg.kinds), cfg, decimalPlaces);
         const key = questionKey(question);
         if (seen.has(key)) {
             staleTries++;
@@ -151,12 +162,17 @@ function buildDeck(cfg) {
     return deck;
 }
 
-function placeName(placeIndex) {
-    return PLACE_NAMES[placeIndex] ?? [`10^${placeIndex}`, `positie ${placeIndex + 1}`];
+function placeName(question, placeIndex) {
+    const exponent = placeIndex - question.decimalPlaces;
+    if (exponent >= 0) {
+        return INTEGER_PLACE_NAMES[exponent] ?? [`10^${exponent}`, `positie ${exponent + 1}`];
+    }
+    return FRACTIONAL_PLACE_NAMES[-exponent] ?? [`10^${exponent}`, `decimale positie ${-exponent}`];
 }
 
-function operandDigit(value, placeIndex) {
-    return placeIndex < String(value).length ? String(digitAt(value, placeIndex)) : "";
+function operandDigit(question, value, placeIndex) {
+    if (placeIndex < String(value).length) return String(digitAt(value, placeIndex));
+    return placeIndex <= question.decimalPlaces ? "0" : "";
 }
 
 function cellClass(base, placeIndex, currentStep) {
@@ -181,52 +197,76 @@ function resultCell(question, placeIndex, mode) {
     if (mode.kind === "review" || placeIndex < progress) return String(step.result);
     if (placeIndex !== progress) return "";
 
-    const [, fullPlaceName] = placeName(placeIndex);
+    const [, fullPlaceName] = placeName(question, placeIndex);
     return `<input class="written-digit" inputmode="numeric" pattern="[0-9]" maxlength="1"
         id="answer-digit" aria-label="cijfer bij de ${fullPlaceName}" min="0" max="9" required>`;
 }
 
+function calculationColumns(question) {
+    const columns = [];
+    for (let placeIndex = question.steps.length - 1; placeIndex >= 0; placeIndex--) {
+        columns.push(placeIndex);
+        if (question.decimalPlaces > 0 && placeIndex === question.decimalPlaces) columns.push("comma");
+    }
+    return columns;
+}
+
+function rowCells(columns, renderPlace, showComma) {
+    return columns
+        .map((column) => {
+            if (column === "comma") {
+                return `<td class="written-decimal-separator" aria-hidden="true">${showComma ? "," : ""}</td>`;
+            }
+            return renderPlace(column);
+        })
+        .join("");
+}
+
 function calculationHtml(question, mode) {
-    const width = question.steps.length;
     const currentStep = mode.kind === "play" ? questionProgress(question) : -1;
-    const columns = Array.from({ length: width }, (_, visualIndex) => width - visualIndex - 1);
+    const columns = calculationColumns(question);
     const header = columns
-        .map((placeIndex) => {
-            const [short, full] = placeName(placeIndex);
-            return `<th scope="col" class="${cellClass("written-place", placeIndex, currentStep)}">
+        .map((column) => {
+            if (column === "comma") {
+                return `<th scope="col" class="written-decimal-separator">
+                    <span aria-hidden="true">,</span><span class="written-sr-only">komma</span>
+                </th>`;
+            }
+            const [short, full] = placeName(question, column);
+            return `<th scope="col" class="${cellClass("written-place", column, currentStep)}">
                 <span aria-hidden="true">${short}</span><span class="written-sr-only">${full}</span>
             </th>`;
         })
         .join("");
-    const transfer = columns
-        .map(
-            (placeIndex) =>
-                `<td class="${cellClass("written-transfer", placeIndex, currentStep)}">${transferCell(question, placeIndex, mode)}</td>`,
-        )
-        .join("");
-    const first = columns
-        .map(
-            (placeIndex) =>
-                `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question.a, placeIndex)}</td>`,
-        )
-        .join("");
-    const second = columns
-        .map(
-            (placeIndex) =>
-                `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question.b, placeIndex)}</td>`,
-        )
-        .join("");
-    const result = columns
-        .map(
-            (placeIndex) =>
-                `<td class="${cellClass("written-result", placeIndex, currentStep)}">${resultCell(question, placeIndex, mode)}</td>`,
-        )
-        .join("");
+    const transfer = rowCells(
+        columns,
+        (placeIndex) =>
+            `<td class="${cellClass("written-transfer", placeIndex, currentStep)}">${transferCell(question, placeIndex, mode)}</td>`,
+        false,
+    );
+    const first = rowCells(
+        columns,
+        (placeIndex) =>
+            `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question, question.a, placeIndex)}</td>`,
+        true,
+    );
+    const second = rowCells(
+        columns,
+        (placeIndex) =>
+            `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question, question.b, placeIndex)}</td>`,
+        true,
+    );
+    const result = rowCells(
+        columns,
+        (placeIndex) =>
+            `<td class="${cellClass("written-result", placeIndex, currentStep)}">${resultCell(question, placeIndex, mode)}</td>`,
+        true,
+    );
     const symbol = question.kind === "som" ? "+" : "−";
 
     return `<div class="written-table-wrap">
         <table class="written-calculation">
-            <caption class="written-sr-only">${formatNatural(question.a)} ${symbol} ${formatNatural(question.b)}</caption>
+            <caption class="written-sr-only">${formatNumber(question.a, question.decimalPlaces)} ${symbol} ${formatNumber(question.b, question.decimalPlaces)}</caption>
             <thead><tr><th scope="col"><span class="written-sr-only">bewerking</span></th>${header}</tr></thead>
             <tbody>
                 <tr class="written-transfer-row"><th scope="row">${question.kind === "som" ? "onthoud" : "geleend"}</th>${transfer}</tr>
@@ -240,7 +280,7 @@ function calculationHtml(question, mode) {
 
 function promptForStep(question) {
     const step = question.steps[questionProgress(question)];
-    const [, fullPlaceName] = placeName(step.placeIndex);
+    const [, fullPlaceName] = placeName(question, step.placeIndex);
     if (question.kind === "som") {
         const incoming = step.incoming ? ` + ${step.incoming} onthouden` : "";
         return `reken de ${fullPlaceName} uit: ${step.aDigit} + ${step.bDigit}${incoming}`;
@@ -266,8 +306,8 @@ function renderPlay(question) {
 
 function renderReview(question) {
     return `${calculationHtml(question, { kind: "review" })}
-        <p class="written-solution">${formatNatural(question.a)} ${question.kind === "som" ? "+" : "−"}
-            ${formatNatural(question.b)} = ${formatNatural(question.answer)}</p>`;
+        <p class="written-solution">${formatNumber(question.a, question.decimalPlaces)} ${question.kind === "som" ? "+" : "−"}
+            ${formatNumber(question.b, question.decimalPlaces)} = ${formatNumber(question.answer, question.decimalPlaces)}</p>`;
 }
 
 function stepIsCorrect(question, given) {
@@ -281,8 +321,20 @@ const FIELDS = [
     { field: "maximum", type: "radio", key: "maximum" },
     { field: "practice", type: "checkboxes", key: "kinds" },
     { field: "difficulty", type: "radio", key: "difficulty" },
+    { field: "include-decimals", type: "checkbox", key: "includeDecimals" },
+    { field: "decimal-places", type: "radio", key: "decimalPlaces" },
     { field: "num-exercises", type: "number", key: "numExercises" },
 ];
+
+const form = document.getElementById("form-setup");
+const decimalOptions = document.getElementById("decimal-options");
+
+function syncDecimalOptions() {
+    if (!form || !decimalOptions) return;
+    decimalOptions.hidden = !form.elements["include-decimals"]?.checked;
+}
+
+form?.elements["include-decimals"]?.addEventListener("change", syncDecimalOptions);
 
 runExercise({
     id: "written-arithmetic",
@@ -290,16 +342,24 @@ runExercise({
     maxAttempts: 0,
     loadConfig(form, saved) {
         loadFields(form, FIELDS, saved);
+        syncDecimalOptions();
     },
     readConfig(form) {
         const cfg = readFields(form, FIELDS);
-        return { ...cfg, maximum: Number(cfg.maximum) };
+        return {
+            ...cfg,
+            maximum: Number(cfg.maximum),
+            decimalPlaces: Number(cfg.decimalPlaces),
+        };
     },
     validateConfig(cfg) {
         if (!MAXIMUMS.includes(cfg.maximum)) return "Kies een geldig grootste getal.";
         if (!DIFFICULTIES.includes(cfg.difficulty)) return "Kies een geldige moeilijkheid.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Geef een geldig aantal oefeningen op.";
         if (cfg.kinds.length === 0) return "Kies minstens één soort oefening.";
+        if (cfg.includeDecimals && !DECIMAL_PLACES.includes(cfg.decimalPlaces)) {
+            return "Kies een geldig aantal cijfers na de komma.";
+        }
         return null;
     },
     buildDeck,
@@ -331,6 +391,6 @@ runExercise({
     isCorrect: stepIsCorrect,
     describe(question) {
         const symbol = question.kind === "som" ? "+" : "−";
-        return `${formatNatural(question.a)} ${symbol} ${formatNatural(question.b)} = ${formatNatural(question.answer)}`;
+        return `${formatNumber(question.a, question.decimalPlaces)} ${symbol} ${formatNumber(question.b, question.decimalPlaces)} = ${formatNumber(question.answer, question.decimalPlaces)}`;
     },
 });

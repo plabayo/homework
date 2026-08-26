@@ -49,6 +49,7 @@ const PRECACHE = [
     "/2/fractions",
     "/2/percentages",
     "/3/written-arithmetic",
+    "/3/decimals",
     "/3/advanced-mathbox",
 ];
 

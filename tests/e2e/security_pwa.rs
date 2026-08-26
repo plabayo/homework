@@ -360,6 +360,7 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
         ("/2/clock", 3),
         ("/1/multiplications", 3),
         ("/3/written-arithmetic", 3),
+        ("/3/decimals", 3),
         ("/3/advanced-mathbox", 3),
         ("/extra/flashcards", 3),
     ] {
@@ -463,6 +464,7 @@ async fn csp_exercise_pages_whitelist_inline_style_by_hash() -> TestResult<()> {
         "/2/fractions",
         "/2/percentages",
         "/3/written-arithmetic",
+        "/3/decimals",
         "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
@@ -502,6 +504,7 @@ async fn rendered_html_has_no_inline_style_attributes() -> TestResult<()> {
         "/2/digital-clock",
         "/2/fractions",
         "/3/written-arithmetic",
+        "/3/decimals",
         "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
@@ -857,6 +860,7 @@ async fn json_ld_is_present_and_well_formed() -> TestResult<()> {
         "/1/multiplications",
         "/2/clock",
         "/3/written-arithmetic",
+        "/3/decimals",
         "/3/advanced-mathbox",
     ] {
         driver.goto(app.url(path)).await?;
@@ -886,6 +890,7 @@ async fn json_ld_is_present_and_well_formed() -> TestResult<()> {
         "/1/multiplications",
         "/2/clock",
         "/3/written-arithmetic",
+        "/3/decimals",
         "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
@@ -928,6 +933,7 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
         ("/2/clock", "/#niveau-2", "analoge klok"),
         ("/1/multiplications", "/#niveau-1", "maaltafels"),
         ("/3/written-arithmetic", "/#niveau-3", "cijfertrainer"),
+        ("/3/decimals", "/#niveau-3", "kommatrainer"),
         ("/3/advanced-mathbox", "/#niveau-3", "grote rekendoos"),
         ("/extra/flashcards", "/#niveau-10", "flitskaarten"),
     ] {
@@ -996,6 +1002,7 @@ async fn importmap_precedes_any_module_loading() -> TestResult<()> {
         "/privacy",
         "/1/mathbox",
         "/3/written-arithmetic",
+        "/3/decimals",
         "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {

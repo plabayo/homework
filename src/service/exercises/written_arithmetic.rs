@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend};
+use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend, p};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
@@ -126,6 +126,42 @@ fn config_fields() -> impl IntoHtml {
                         value = "with-transfer",
                     ),
                     " met onthouden of lenen",
+                ),
+            ),
+        ),
+        fieldset!(
+            legend!("Extra optie"),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    id = "include-decimals",
+                    name = "include-decimals",
+                ),
+                " ook kommagetallen",
+            ),
+            div!(
+                id = "decimal-options",
+                hidden? = true,
+                p!(class = "field-hint", "Tot hoeveel cijfers na de komma?"),
+                div!(
+                    class = "kinds",
+                    label!(
+                        input!(r#type = "radio", name = "decimal-places", value = "1",),
+                        " tienden (0,1)",
+                    ),
+                    label!(
+                        input!(
+                            r#type = "radio",
+                            name = "decimal-places",
+                            value = "2",
+                            checked? = true,
+                        ),
+                        " honderdsten (0,01)",
+                    ),
+                    label!(
+                        input!(r#type = "radio", name = "decimal-places", value = "3",),
+                        " duizendsten (0,001)",
+                    ),
                 ),
             ),
         ),

@@ -11,6 +11,7 @@ use crate::service::layout::theme_toggle_button;
 
 pub mod advanced_mathbox;
 pub mod clock;
+pub mod decimals;
 pub mod digital_clock;
 pub mod flashcards;
 pub mod fractions;
@@ -51,6 +52,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
     fractions::INFO,
     percentages::INFO,
     written_arithmetic::INFO,
+    decimals::INFO,
     advanced_mathbox::INFO,
     flashcards::INFO,
 ];

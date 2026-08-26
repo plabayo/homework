@@ -60,6 +60,23 @@
     background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.written-calculation .written-decimal-separator {
+    width: 0.8rem;
+    min-width: 0.8rem;
+    padding-inline: 0;
+    border-inline: 0;
+    font-weight: 800;
+}
+
+#decimal-options {
+    margin-block-start: 8px;
+    padding-inline-start: 24px;
+}
+
+#decimal-options .field-hint {
+    margin-block: 0 4px;
+}
+
 #exercise-content .written-digit {
     width: 2em;
     min-width: 0;

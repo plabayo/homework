@@ -111,6 +111,7 @@ pub async fn load_https_app_service()
             "/3/written-arithmetic",
             exercises::written_arithmetic::handler,
         )
+        .with_get("/3/decimals", exercises::decimals::handler)
         .with_get("/3/advanced-mathbox", exercises::advanced_mathbox::handler)
         .with_get("/extra/flashcards", exercises::flashcards::handler)
         .with_not_found(pages::offline::not_found);

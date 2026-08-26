@@ -93,3 +93,59 @@ async fn written_arithmetic_checks_each_column_and_is_first_in_level() -> TestRe
     driver.clone().quit().await?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn written_arithmetic_decimals_are_opt_in_and_keep_the_comma_aligned() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/3/written-arithmetic")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    let decimal_options = driver.find(By::Css("#decimal-options")).await?;
+    assert!(decimal_options.attr("hidden").await?.is_some());
+
+    set_checkbox(driver, "#include-decimals", true).await?;
+    assert!(decimal_options.attr("hidden").await?.is_none());
+    click(driver, "input[name='decimal-places'][value='2']").await?;
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "input[name='practice'][value='som']", true).await?;
+    set_checkbox(driver, "input[name='practice'][value='verschil']", false).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(
+        driver,
+        ".written-result-row .written-decimal-separator",
+        Duration::from_secs(10),
+    )
+    .await?;
+    let comma_text = driver
+        .execute(
+            r#"return document.querySelector(
+                '.written-operand-a .written-decimal-separator'
+            )?.textContent ?? '';"#,
+            Vec::new(),
+        )
+        .await?;
+    assert_eq!(comma_text.json().as_str(), Some(","));
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    check_a11y(driver).await?;
+    let a = operand(driver, ".written-operand-a .written-number").await?;
+    let b = operand(driver, ".written-operand-b .written-number").await?;
+    let steps = addition_steps(a, b);
+    for (digit, carry) in steps {
+        set_input_value(driver, "#answer-digit", &digit.to_string()).await?;
+        click(
+            driver,
+            &format!("input[name='step-transfer'][value='{carry}']"),
+        )
+        .await?;
+        click(driver, "#button-check").await?;
+    }
+
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+    driver.clone().quit().await?;
+    Ok(())
+}

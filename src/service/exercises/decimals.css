@@ -1,0 +1,130 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+.decimal-question {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.decimal-expression {
+    margin: 0;
+    font-size: clamp(1.2rem, 5vw, 1.65rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.decimal-number,
+.decimal-token,
+.decimal-option-sequence {
+    font-variant-numeric: tabular-nums;
+}
+
+.decimal-target-digit {
+    display: inline-grid;
+    min-width: 1.6em;
+    place-items: center;
+    color: var(--accent);
+}
+
+.decimal-place-name,
+.decimal-round-place {
+    color: var(--muted);
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.decimal-comparison .option-list {
+    grid-template-columns: repeat(3, 1fr);
+    max-inline-size: 300px;
+}
+
+.decimal-order-source {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.decimal-token {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+    font-size: 1.08rem;
+    font-weight: 700;
+}
+
+.decimal-order .option-list {
+    max-inline-size: 440px;
+}
+
+.decimal-order .option-list .default-button {
+    font-size: clamp(0.86rem, 3.8vw, 1rem);
+    font-variant-numeric: tabular-nums;
+}
+
+.decimal-line-card {
+    width: min(100%, 420px);
+    padding: 8px 12px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+
+.decimal-number-line {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--fg);
+}
+
+.decimal-line-axis,
+.decimal-line-tick {
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.decimal-line-tick {
+    stroke-width: 1.5;
+}
+
+.decimal-line-point {
+    fill: var(--accent);
+    stroke: var(--accent-fg);
+    stroke-width: 2;
+}
+
+.decimal-line-labels {
+    display: flex;
+    justify-content: space-between;
+    padding-inline: 2px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+#exercise-content .decimal-answer {
+    width: min(9rem, 60vw);
+    max-width: none;
+    text-align: center;
+}
+
+.decimal-solution {
+    margin: 2px 0 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+@media (min-width: 600px) {
+    .decimal-line-card {
+        padding: 12px 18px 6px;
+    }
+}
