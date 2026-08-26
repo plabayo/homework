@@ -62,6 +62,22 @@ if (kind === 'place-value') {
 return kind;
 "#;
 
+const CHECK_COMFORTABLE_SPACING: &str = r#"
+const question = document.querySelector('.decimal-question');
+const group = question.querySelector(':scope > .decimal-order, :scope > .decimal-comparison') ?? question;
+const children = Array.from(group.children);
+const gaps = children.slice(1).map((child, index) => {
+    const previous = children[index].getBoundingClientRect();
+    const current = child.getBoundingClientRect();
+    return current.top - previous.bottom;
+});
+return {
+    kind: question.dataset.kind,
+    gaps,
+    comfortable: gaps.length > 0 && gaps.every((gap) => gap >= 18),
+};
+"#;
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn decimals_exercises_all_concepts_and_is_second_in_level() -> TestResult<()> {
@@ -100,6 +116,13 @@ async fn decimals_exercises_all_concepts_and_is_second_in_level() -> TestResult<
 
     let mut seen = BTreeSet::new();
     for index in 0..5 {
+        let spacing = driver.execute(CHECK_COMFORTABLE_SPACING, vec![]).await?;
+        assert_eq!(
+            spacing.json()["comfortable"].as_bool(),
+            Some(true),
+            "decimal content groups should have comfortable spacing: {}",
+            spacing.json()
+        );
         let result = driver.execute(ANSWER_CURRENT_QUESTION, vec![]).await?;
         let kind = result
             .json()

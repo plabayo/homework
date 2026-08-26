@@ -5,7 +5,7 @@
 .decimal-question {
     display: grid;
     justify-items: center;
-    gap: 12px;
+    gap: 20px;
     width: 100%;
 }
 
@@ -36,6 +36,19 @@
     font-size: 0.92rem;
     font-weight: 600;
     text-align: center;
+}
+
+.decimal-comparison,
+.decimal-order {
+    display: grid;
+    justify-items: center;
+    gap: 20px;
+    width: 100%;
+}
+
+.decimal-comparison .option-list,
+.decimal-order .option-list {
+    margin-block-start: 0;
 }
 
 .decimal-comparison .option-list {
@@ -124,6 +137,12 @@
 }
 
 @media (min-width: 600px) {
+    .decimal-question,
+    .decimal-comparison,
+    .decimal-order {
+        gap: 24px;
+    }
+
     .decimal-line-card {
         padding: 12px 18px 6px;
     }
