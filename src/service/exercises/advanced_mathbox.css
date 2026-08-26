@@ -1,0 +1,38 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+.advanced-expression {
+    font-variant-numeric: tabular-nums;
+}
+
+#exercise-content .advanced-expression input,
+#exercise-content .remainder-field input {
+    width: 5.5em;
+}
+
+.remainder-answer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+
+.remainder-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.remainder-field input {
+    color: var(--fg);
+}
+
+.remainder-review {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

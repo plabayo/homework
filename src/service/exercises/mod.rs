@@ -9,6 +9,7 @@ use rama::http::protocols::html::{
 
 use crate::service::layout::theme_toggle_button;
 
+pub mod advanced_mathbox;
 pub mod clock;
 pub mod digital_clock;
 pub mod flashcards;
@@ -48,6 +49,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
     digital_clock::INFO,
     fractions::INFO,
     percentages::INFO,
+    advanced_mathbox::INFO,
     flashcards::INFO,
 ];
 
@@ -60,7 +62,7 @@ pub fn all_exercises() -> &'static [ExerciseInfo] {
 /// NOTE: when a new level is added, add it here AND add a matching row to
 /// `LEVEL_LABELS` below. The `level_label` / `breadcrumb_level_label`
 /// accessors both source from that single table.
-pub const EXERCISE_LEVELS: &[u8] = &[1, 2, 10];
+pub const EXERCISE_LEVELS: &[u8] = &[1, 2, 3, 10];
 
 /// Single source of truth for level naming: `(level, plain, with_emoji)`.
 /// Each row pairs the plain form used in `<title>`/breadcrumb/JSON-LD with

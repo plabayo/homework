@@ -359,6 +359,7 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
         ("/privacy", 2),
         ("/2/clock", 3),
         ("/1/multiplications", 3),
+        ("/3/advanced-mathbox", 3),
         ("/extra/flashcards", 3),
     ] {
         let (status, _body, csp) = fetch_csp(driver, &app.url(path)).await?;
@@ -460,6 +461,7 @@ async fn csp_exercise_pages_whitelist_inline_style_by_hash() -> TestResult<()> {
         "/2/digital-clock",
         "/2/fractions",
         "/2/percentages",
+        "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
         let (_status, _body, csp) = fetch_csp(driver, &app.url(path)).await?;
@@ -497,6 +499,7 @@ async fn rendered_html_has_no_inline_style_attributes() -> TestResult<()> {
         "/2/clock",
         "/2/digital-clock",
         "/2/fractions",
+        "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
         let (_status, body, _csp) = fetch_csp(driver, &app.url(path)).await?;
@@ -844,7 +847,14 @@ async fn json_ld_is_present_and_well_formed() -> TestResult<()> {
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 
     // Every HTML page must carry the always-on site-wide block.
-    for path in ["/", "/about", "/privacy", "/1/multiplications", "/2/clock"] {
+    for path in [
+        "/",
+        "/about",
+        "/privacy",
+        "/1/multiplications",
+        "/2/clock",
+        "/3/advanced-mathbox",
+    ] {
         driver.goto(app.url(path)).await?;
         wait_for_css(driver, "h1", Duration::from_secs(10)).await?;
         let bodies = ld_json_bodies(driver).await?;
@@ -868,7 +878,12 @@ async fn json_ld_is_present_and_well_formed() -> TestResult<()> {
     }
 
     // Exercise pages must additionally carry LearningResource + BreadcrumbList.
-    for path in ["/1/multiplications", "/2/clock", "/extra/flashcards"] {
+    for path in [
+        "/1/multiplications",
+        "/2/clock",
+        "/3/advanced-mathbox",
+        "/extra/flashcards",
+    ] {
         driver.goto(app.url(path)).await?;
         wait_for_css(driver, "h1", Duration::from_secs(10)).await?;
         let bodies = ld_json_bodies(driver).await?;
@@ -907,6 +922,7 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
     for (path, niveau_anchor, leaf) in [
         ("/2/clock", "/#niveau-2", "analoge klok"),
         ("/1/multiplications", "/#niveau-1", "maaltafels"),
+        ("/3/advanced-mathbox", "/#niveau-3", "grote rekendoos"),
         ("/extra/flashcards", "/#niveau-10", "flitskaarten"),
     ] {
         driver.goto(app.url(path)).await?;
@@ -942,7 +958,7 @@ async fn exercise_pages_render_visible_breadcrumb() -> TestResult<()> {
 
     // Also the home-page anchors the breadcrumbs link into.
     driver.goto(app.url("/")).await?;
-    for anchor in ["niveau-1", "niveau-2", "niveau-10"] {
+    for anchor in ["niveau-1", "niveau-2", "niveau-3", "niveau-10"] {
         wait_for_css(driver, &format!("h2#{anchor}"), Duration::from_secs(10)).await?;
     }
 
@@ -968,7 +984,14 @@ async fn importmap_precedes_any_module_loading() -> TestResult<()> {
     driver.goto(app.url("/")).await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 
-    for path in ["/", "/about", "/privacy", "/1/mathbox", "/extra/flashcards"] {
+    for path in [
+        "/",
+        "/about",
+        "/privacy",
+        "/1/mathbox",
+        "/3/advanced-mathbox",
+        "/extra/flashcards",
+    ] {
         let (_status, body, _csp) = fetch_csp(driver, &app.url(path)).await?;
         let importmap = body
             .find(r#"<script type="importmap">"#)
