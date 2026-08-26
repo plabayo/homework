@@ -7,6 +7,7 @@ import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from 
 function buildDeck(cfg) {
     const deck = [];
     const N = cfg.numExercises;
+    const maxSecondTerm = Math.min(cfg.maxSecondTerm ?? cfg.countUntil, cfg.countUntil);
     while (deck.length < N) {
         const kind = pickRandom(cfg.kinds);
         let a, b, answer;
@@ -14,12 +15,12 @@ function buildDeck(cfg) {
             case "som":
             case "splitsen":
                 a = Math.floor(Math.random() * (cfg.countUntil + 1));
-                b = Math.floor(Math.random() * (cfg.countUntil - a + 1));
+                b = Math.floor(Math.random() * (Math.min(maxSecondTerm, cfg.countUntil - a) + 1));
                 answer = a + b;
                 break;
             case "verschil":
                 a = Math.floor(Math.random() * (cfg.countUntil + 1));
-                b = Math.floor(Math.random() * (a + 1));
+                b = Math.floor(Math.random() * (Math.min(maxSecondTerm, a) + 1));
                 answer = a - b;
                 break;
             case "vermenigvuldigen":
@@ -27,7 +28,11 @@ function buildDeck(cfg) {
                 let tries = 0;
                 do {
                     a = Math.floor(Math.random() * Math.max(1, Math.floor(cfg.countUntil / 2) + 1));
-                    b = 1 + Math.floor(Math.random() * Math.max(1, Math.floor(cfg.countUntil / 2)));
+                    b =
+                        1 +
+                        Math.floor(
+                            Math.random() * Math.max(1, Math.min(maxSecondTerm, Math.floor(cfg.countUntil / 2))),
+                        );
                     answer = a * b;
                     tries++;
                 } while (answer > cfg.countUntil && tries < 50);
@@ -119,6 +124,7 @@ function renderReview(q) {
 
 const FIELDS = [
     { field: "count-until", type: "number", key: "countUntil" },
+    { field: "max-second-term", type: "optional-number", key: "maxSecondTerm" },
     { field: "num-exercises", type: "number", key: "numExercises" },
     { field: "practice", type: "checkboxes", key: "kinds" },
 ];
@@ -136,6 +142,12 @@ runExercise({
         if (cfg.kinds.length === 0) return "Kies minstens één soort oefening.";
         if (!cfg.numExercises || cfg.numExercises < 1) return "Geef een geldig aantal oefeningen op.";
         if (!cfg.countUntil || cfg.countUntil < 3) return "Kies een getal van minstens 3.";
+        if (cfg.maxSecondTerm != null && (!Number.isInteger(cfg.maxSecondTerm) || cfg.maxSecondTerm < 1)) {
+            return "Kies voor het tweede getal minstens 1, of laat het veld leeg.";
+        }
+        if (cfg.maxSecondTerm > cfg.countUntil) {
+            return "Het tweede getal mag niet groter zijn dan het algemene maximum.";
+        }
         return null;
     },
     buildDeck,

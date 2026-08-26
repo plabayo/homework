@@ -37,6 +37,55 @@ async fn multiplications_happy_path_reaches_finish() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn mathbox_second_term_limit_applies_and_persists() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/mathbox")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    let initial = driver.find(By::Css("#max-second-term")).await?;
+    assert_eq!(
+        initial.prop("value").await?.unwrap_or_default(),
+        "",
+        "the optional second-term limit should be blank by default",
+    );
+
+    set_input_value(driver, "#count-until", "20").await?;
+    set_input_value(driver, "#max-second-term", "5").await?;
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "input[name='practice'][value='som']", false).await?;
+    set_checkbox(driver, "input[name='practice'][value='splitsen']", false).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    let prompt =
+        wait_for_nonempty_text(driver, "#exercise-content p", Duration::from_secs(2)).await?;
+    let terms = prompt
+        .split(|character: char| !character.is_ascii_digit())
+        .filter(|part| !part.is_empty())
+        .map(str::parse::<u16>)
+        .collect::<Result<Vec<_>, _>>()?;
+    assert!(terms.len() >= 2, "expected two terms in {prompt:?}");
+    assert!(terms[0] <= 20, "first term {} exceeds 20", terms[0]);
+    assert!(terms[1] <= 5, "second term {} exceeds 5", terms[1]);
+
+    // Starting a session persists the optional value. Return without
+    // answering and make sure the setup form restores both limits.
+    click(driver, "#page-exercises .button-reset").await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    let count_until = driver.find(By::Css("#count-until")).await?;
+    let max_second = driver.find(By::Css("#max-second-term")).await?;
+    assert_eq!(count_until.prop("value").await?.unwrap_or_default(), "20");
+    assert_eq!(max_second.prop("value").await?.unwrap_or_default(), "5");
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn timeout_locks_question_and_shows_correct_answer() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;

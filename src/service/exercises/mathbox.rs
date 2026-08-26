@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend};
+use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend, p};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
@@ -71,6 +71,28 @@ fn config_fields() -> impl IntoHtml {
                 max = "1000",
                 value = "10",
                 required? = true,
+            ),
+        ),
+        div!(
+            class = "field",
+            label!(
+                r#for = "max-second-term",
+                "Grootste tweede getal (optioneel)",
+            ),
+            input!(
+                inputmode = "numeric",
+                pattern = "[0-9]*",
+                id = "max-second-term",
+                name = "max-second-term",
+                min = "1",
+                max = "1000",
+                placeholder = "zelfde maximum",
+                "aria-describedby" = "max-second-term-hint",
+            ),
+            p!(
+                id = "max-second-term-hint",
+                class = "field-hint",
+                "Laat leeg om hetzelfde maximum als hierboven te gebruiken.",
             ),
         ),
         div!(
