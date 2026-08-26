@@ -18,6 +18,7 @@ pub mod mathbox;
 pub mod multiplications;
 pub mod percentages;
 pub mod thermometer;
+pub mod written_arithmetic;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExerciseInfo {
@@ -49,6 +50,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
     digital_clock::INFO,
     fractions::INFO,
     percentages::INFO,
+    written_arithmetic::INFO,
     advanced_mathbox::INFO,
     flashcards::INFO,
 ];

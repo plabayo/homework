@@ -1430,6 +1430,7 @@ function renderTrickyList(session) {
  *   readConfig: (form) => config              — read submitted form
  *   validateConfig?: (config) => string|null  — error message or null
  *   buildDeck: (config) => questions[]        — full deck for a session
+ *   prepareQuestion?: (q) => void             — reset per-session runtime state
  *   renderQuestion: (q, root, mode) => getAnswer | { getAnswer, cleanup }
  *      mode = { kind: 'play' } | { kind: 'review', given, correct }
  *      For 'play', return a function that yields the user's answer
@@ -1864,6 +1865,11 @@ export function runExercise(spec) {
     // --- play ---
 
     function startSession(deck, config, mode) {
+        if (spec.prepareQuestion) {
+            deck.forEach((question) => {
+                spec.prepareQuestion(question);
+            });
+        }
         state.config = config;
         state.deck = deck;
         state.questions = [];
@@ -1878,6 +1884,24 @@ export function runExercise(spec) {
         show("play");
         startSessionTimer();
         nextQuestion();
+    }
+
+    function prepareQuestionInputs() {
+        // Label any unlabeled answer inputs so screen readers know their purpose.
+        contentEl.querySelectorAll("input:not([aria-label]):not([aria-labelledby])").forEach((input) => {
+            input.setAttribute("aria-label", "jouw antwoord");
+        });
+        // Suppress browser autofill suggestions for every answer input — the
+        // outer <form autocomplete="off"> already requests this, but Chrome
+        // sometimes ignores form-level off for inputs it considers
+        // address/credential-shaped. Setting it per input is reliable.
+        contentEl.querySelectorAll("input:not([autocomplete])").forEach((input) => {
+            input.setAttribute("autocomplete", "off");
+        });
+        // Focus the first input before the entrance animation starts so the
+        // browser sees a fully-visible element (opacity: 1) at focus time.
+        const firstInput = contentEl.querySelector("input, [tabindex]");
+        if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
     }
 
     function nextQuestion() {
@@ -1909,24 +1933,10 @@ export function runExercise(spec) {
                 kind: "play",
             }),
         );
-        // Label any unlabeled answer inputs so screen readers know their purpose.
-        contentEl.querySelectorAll("input:not([aria-label]):not([aria-labelledby])").forEach((input) => {
-            input.setAttribute("aria-label", "jouw antwoord");
-        });
-        // Suppress browser autofill suggestions for every answer input — the
-        // outer <form autocomplete="off"> already requests this, but Chrome
-        // sometimes ignores form-level off for inputs it considers
-        // address/credential-shaped. Setting it per input is reliable.
-        contentEl.querySelectorAll("input:not([autocomplete])").forEach((input) => {
-            input.setAttribute("autocomplete", "off");
-        });
-        // Focus the first input before the entrance animation starts so the
-        // browser sees a fully-visible element (opacity: 1) at focus time.
-        // Adding question-enter immediately after would set opacity to 0 via
-        // the animation's fill-mode:both, which causes some browsers to silently
-        // skip the focus call.
-        const firstInput = contentEl.querySelector("input, [tabindex]");
-        if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
+        // Adding question-enter immediately after focus would set opacity to 0
+        // via the animation's fill-mode:both, which causes some browsers to
+        // silently skip the focus call.
+        prepareQuestionInputs();
 
         // Trigger entrance animation after content is in the DOM.
         void contentEl.offsetWidth;
@@ -2338,6 +2348,9 @@ export function runExercise(spec) {
             feedbackEl.classList.remove("is-bad");
             contentEl.innerHTML = "";
             setQuestionController(spec.renderQuestion(state.currentQuestion, contentEl, { kind: "play" }));
+            prepareQuestionInputs();
+            ensureClearChip();
+            syncClearChips();
             void contentEl.offsetWidth;
             contentEl.classList.add("question-enter");
             return;

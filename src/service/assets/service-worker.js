@@ -48,6 +48,7 @@ const PRECACHE = [
     "/2/digital-clock",
     "/2/fractions",
     "/2/percentages",
+    "/3/written-arithmetic",
     "/3/advanced-mathbox",
 ];
 

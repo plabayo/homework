@@ -27,3 +27,4 @@ mod language_banner;
 mod percentages;
 mod review_context;
 mod security_pwa;
+mod written_arithmetic;

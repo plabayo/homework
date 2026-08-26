@@ -1,0 +1,336 @@
+// Copyright (C) 2024-2026 Plabayo
+// License: https://github.com/plabayo/homework/blob/main/LICENSE
+// Source-available; non-commercial use only.
+
+import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
+
+const MAXIMUMS = [1_000, 10_000, 100_000];
+const DIFFICULTIES = ["mixed", "without-transfer", "with-transfer"];
+const QUESTION_PROGRESS = new WeakMap();
+const PLACE_NAMES = [
+    ["E", "eenheden"],
+    ["T", "tientallen"],
+    ["H", "honderdtallen"],
+    ["D", "duizendtallen"],
+    ["TD", "tienduizendtallen"],
+    ["HD", "honderdduizendtallen"],
+];
+
+function randomInt(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function digitAt(value, placeIndex) {
+    return Math.floor(value / 10 ** placeIndex) % 10;
+}
+
+function formatNatural(value) {
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+}
+
+function buildSteps(kind, a, b) {
+    const steps = [];
+    const operandWidth = Math.max(String(a).length, String(b).length);
+    let transfer = 0;
+
+    for (let placeIndex = 0; placeIndex < operandWidth || transfer > 0; placeIndex++) {
+        const aDigit = digitAt(a, placeIndex);
+        const bDigit = digitAt(b, placeIndex);
+        const incoming = transfer;
+
+        if (kind === "som") {
+            const total = aDigit + bDigit + incoming;
+            transfer = Math.floor(total / 10);
+            steps.push({ placeIndex, aDigit, bDigit, incoming, result: total % 10, transfer });
+            continue;
+        }
+
+        const reducedTop = aDigit - incoming;
+        transfer = reducedTop < bDigit ? 1 : 0;
+        const result = reducedTop + transfer * 10 - bDigit;
+        steps.push({ placeIndex, aDigit, bDigit, incoming, result, transfer });
+    }
+
+    return steps;
+}
+
+function hasTransfer(question) {
+    return question.steps.some((step) => step.transfer === 1);
+}
+
+function matchesDifficulty(question, difficulty) {
+    if (difficulty === "without-transfer") return !hasTransfer(question);
+    if (difficulty === "with-transfer") return hasTransfer(question);
+    return true;
+}
+
+function makeQuestion(kind, a, b) {
+    return {
+        kind,
+        a,
+        b,
+        answer: kind === "som" ? a + b : a - b,
+        steps: buildSteps(kind, a, b),
+    };
+}
+
+function fallbackQuestion(kind, maximum, difficulty) {
+    const digits = String(maximum - 1).length;
+    const place = 10 ** (digits - 1);
+
+    if (difficulty === "without-transfer") {
+        const repeated = (digit) => Number(String(digit).repeat(digits));
+        return kind === "som"
+            ? makeQuestion(kind, Number("12345".slice(0, digits)), Number("23454".slice(0, digits)))
+            : makeQuestion(kind, repeated(8), repeated(3));
+    }
+
+    if (kind === "som") return makeQuestion(kind, 5 * place - 5, place + 15);
+    if (maximum === 1_000) return makeQuestion(kind, 632, 185);
+    return makeQuestion(kind, 6 * place + 432, Math.floor(place / 5) + 185);
+}
+
+function generateQuestion(kind, cfg) {
+    const minimumAnswer = cfg.maximum / 10;
+    const minimumTerm = cfg.maximum / 100;
+
+    for (let tries = 0; tries < 400; tries++) {
+        let a;
+        let b;
+        if (kind === "som") {
+            a = randomInt(minimumTerm, cfg.maximum - minimumTerm);
+            b = randomInt(minimumTerm, cfg.maximum - a);
+        } else {
+            a = randomInt(minimumAnswer + minimumTerm, cfg.maximum - 1);
+            b = randomInt(minimumTerm, a - minimumAnswer);
+        }
+
+        const question = makeQuestion(kind, a, b);
+        if (matchesDifficulty(question, cfg.difficulty)) return question;
+    }
+
+    return fallbackQuestion(kind, cfg.maximum, cfg.difficulty);
+}
+
+function questionKey(question) {
+    return `${question.kind}:${question.a}:${question.b}`;
+}
+
+function buildDeck(cfg) {
+    if (
+        !cfg.kinds ||
+        cfg.kinds.length === 0 ||
+        !MAXIMUMS.includes(cfg.maximum) ||
+        !DIFFICULTIES.includes(cfg.difficulty)
+    ) {
+        return [];
+    }
+
+    const deck = [];
+    const seen = new Set();
+    let staleTries = 0;
+
+    while (deck.length < cfg.numExercises) {
+        if (staleTries > Math.max(20, seen.size)) {
+            seen.clear();
+            staleTries = 0;
+        }
+
+        const question = generateQuestion(pickRandom(cfg.kinds), cfg);
+        const key = questionKey(question);
+        if (seen.has(key)) {
+            staleTries++;
+            continue;
+        }
+
+        seen.add(key);
+        staleTries = 0;
+        deck.push(question);
+    }
+
+    return deck;
+}
+
+function placeName(placeIndex) {
+    return PLACE_NAMES[placeIndex] ?? [`10^${placeIndex}`, `positie ${placeIndex + 1}`];
+}
+
+function operandDigit(value, placeIndex) {
+    return placeIndex < String(value).length ? String(digitAt(value, placeIndex)) : "";
+}
+
+function cellClass(base, placeIndex, currentStep) {
+    return `${base}${placeIndex === currentStep ? " is-current" : ""}`;
+}
+
+function questionProgress(question) {
+    return QUESTION_PROGRESS.get(question) ?? 0;
+}
+
+function transferCell(question, placeIndex, mode) {
+    const step = question.steps[placeIndex];
+    const visible = mode.kind === "review" || placeIndex <= questionProgress(question);
+    if (!step || !visible || step.incoming === 0) return "";
+    return question.kind === "som" ? "1" : "−1";
+}
+
+function resultCell(question, placeIndex, mode) {
+    const step = question.steps[placeIndex];
+    const progress = questionProgress(question);
+    if (!step) return "";
+    if (mode.kind === "review" || placeIndex < progress) return String(step.result);
+    if (placeIndex !== progress) return "";
+
+    const [, fullPlaceName] = placeName(placeIndex);
+    return `<input class="written-digit" inputmode="numeric" pattern="[0-9]" maxlength="1"
+        id="answer-digit" aria-label="cijfer bij de ${fullPlaceName}" min="0" max="9" required>`;
+}
+
+function calculationHtml(question, mode) {
+    const width = question.steps.length;
+    const currentStep = mode.kind === "play" ? questionProgress(question) : -1;
+    const columns = Array.from({ length: width }, (_, visualIndex) => width - visualIndex - 1);
+    const header = columns
+        .map((placeIndex) => {
+            const [short, full] = placeName(placeIndex);
+            return `<th scope="col" class="${cellClass("written-place", placeIndex, currentStep)}">
+                <span aria-hidden="true">${short}</span><span class="written-sr-only">${full}</span>
+            </th>`;
+        })
+        .join("");
+    const transfer = columns
+        .map(
+            (placeIndex) =>
+                `<td class="${cellClass("written-transfer", placeIndex, currentStep)}">${transferCell(question, placeIndex, mode)}</td>`,
+        )
+        .join("");
+    const first = columns
+        .map(
+            (placeIndex) =>
+                `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question.a, placeIndex)}</td>`,
+        )
+        .join("");
+    const second = columns
+        .map(
+            (placeIndex) =>
+                `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question.b, placeIndex)}</td>`,
+        )
+        .join("");
+    const result = columns
+        .map(
+            (placeIndex) =>
+                `<td class="${cellClass("written-result", placeIndex, currentStep)}">${resultCell(question, placeIndex, mode)}</td>`,
+        )
+        .join("");
+    const symbol = question.kind === "som" ? "+" : "−";
+
+    return `<div class="written-table-wrap">
+        <table class="written-calculation">
+            <caption class="written-sr-only">${formatNatural(question.a)} ${symbol} ${formatNatural(question.b)}</caption>
+            <thead><tr><th scope="col"><span class="written-sr-only">bewerking</span></th>${header}</tr></thead>
+            <tbody>
+                <tr class="written-transfer-row"><th scope="row">${question.kind === "som" ? "onthoud" : "geleend"}</th>${transfer}</tr>
+                <tr class="written-operand-a"><th scope="row"><span class="written-sr-only">eerste getal</span></th>${first}</tr>
+                <tr class="written-operand-b"><th scope="row" aria-label="${question.kind === "som" ? "plus" : "min"}">${symbol}</th>${second}</tr>
+                <tr class="written-result-row"><th scope="row" aria-label="is gelijk aan">=</th>${result}</tr>
+            </tbody>
+        </table>
+    </div>`;
+}
+
+function promptForStep(question) {
+    const step = question.steps[questionProgress(question)];
+    const [, fullPlaceName] = placeName(step.placeIndex);
+    if (question.kind === "som") {
+        const incoming = step.incoming ? ` + ${step.incoming} onthouden` : "";
+        return `reken de ${fullPlaceName} uit: ${step.aDigit} + ${step.bDigit}${incoming}`;
+    }
+    const incoming = step.incoming ? " − 1 geleend" : "";
+    return `reken de ${fullPlaceName} uit: ${step.aDigit}${incoming} − ${step.bDigit}`;
+}
+
+function transferChoiceHtml(kind) {
+    const action = kind === "som" ? "onthouden" : "lenen";
+    const noLabel = kind === "som" ? "nee, niets onthouden" : "nee, niet lenen";
+    const yesLabel = kind === "som" ? "ja, 1 onthouden" : "ja, 1 lenen";
+    return `<fieldset class="written-transfer-choice">
+        <legend>Moet je 1 ${action}?</legend>
+        <label><input type="radio" name="step-transfer" value="0" aria-label="${noLabel}" required> nee</label>
+        <label><input type="radio" name="step-transfer" value="1" aria-label="${yesLabel}" required> ja</label>
+    </fieldset>`;
+}
+
+function renderPlay(question) {
+    return `${calculationHtml(question, { kind: "play" })}${transferChoiceHtml(question.kind)}`;
+}
+
+function renderReview(question) {
+    return `${calculationHtml(question, { kind: "review" })}
+        <p class="written-solution">${formatNatural(question.a)} ${question.kind === "som" ? "+" : "−"}
+            ${formatNatural(question.b)} = ${formatNatural(question.answer)}</p>`;
+}
+
+function stepIsCorrect(question, given) {
+    const step = question.steps[questionProgress(question)];
+    const digit = parseStrictInt(given?.digit);
+    const transfer = parseStrictInt(given?.transfer);
+    return digit === step.result && transfer === step.transfer;
+}
+
+const FIELDS = [
+    { field: "maximum", type: "radio", key: "maximum" },
+    { field: "practice", type: "checkboxes", key: "kinds" },
+    { field: "difficulty", type: "radio", key: "difficulty" },
+    { field: "num-exercises", type: "number", key: "numExercises" },
+];
+
+runExercise({
+    id: "written-arithmetic",
+    label: "cijfertrainer",
+    maxAttempts: 0,
+    loadConfig(form, saved) {
+        loadFields(form, FIELDS, saved);
+    },
+    readConfig(form) {
+        const cfg = readFields(form, FIELDS);
+        return { ...cfg, maximum: Number(cfg.maximum) };
+    },
+    validateConfig(cfg) {
+        if (!MAXIMUMS.includes(cfg.maximum)) return "Kies een geldig grootste getal.";
+        if (!DIFFICULTIES.includes(cfg.difficulty)) return "Kies een geldige moeilijkheid.";
+        if (!cfg.numExercises || cfg.numExercises < 1) return "Geef een geldig aantal oefeningen op.";
+        if (cfg.kinds.length === 0) return "Kies minstens één soort oefening.";
+        return null;
+    },
+    buildDeck,
+    prepareQuestion(question) {
+        QUESTION_PROGRESS.set(question, 0);
+    },
+    renderQuestion(question, root, mode) {
+        if (mode.kind === "review") {
+            root.innerHTML = renderReview(question);
+            return;
+        }
+
+        document.getElementById("exercise-feedback").textContent = promptForStep(question);
+        root.innerHTML = renderPlay(question);
+        const digit = root.querySelector("#answer-digit");
+        return () => {
+            const transfer = root.querySelector("input[name='step-transfer']:checked");
+            if (!digit.value || !transfer) return null;
+            return { digit: digit.value, transfer: transfer.value };
+        };
+    },
+    evaluateAnswer(question, given) {
+        if (!stepIsCorrect(question, given)) return { correct: false };
+        const nextStep = questionProgress(question) + 1;
+        QUESTION_PROGRESS.set(question, nextStep);
+        if (nextStep < question.steps.length) return { partialCorrect: true };
+        return { correct: true };
+    },
+    isCorrect: stepIsCorrect,
+    describe(question) {
+        const symbol = question.kind === "som" ? "+" : "−";
+        return `${formatNatural(question.a)} ${symbol} ${formatNatural(question.b)} = ${formatNatural(question.answer)}`;
+    },
+});

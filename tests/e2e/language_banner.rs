@@ -139,6 +139,7 @@ async fn lang_banner_shows_on_exercise_pages() -> TestResult<()> {
         "/1/mathbox",
         "/1/multiplications",
         "/2/clock",
+        "/3/written-arithmetic",
         "/3/advanced-mathbox",
         "/extra/flashcards",
     ] {
