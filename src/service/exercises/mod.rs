@@ -14,6 +14,7 @@ pub mod clock;
 pub mod decimals;
 pub mod digital_clock;
 pub mod flashcards;
+pub mod fraction_sense;
 pub mod fractions;
 pub mod mathbox;
 pub mod multiplications;
@@ -49,6 +50,7 @@ static ALL_EXERCISES: &[ExerciseInfo] = &[
     thermometer::INFO,
     clock::INFO,
     digital_clock::INFO,
+    fraction_sense::INFO,
     fractions::INFO,
     percentages::INFO,
     written_arithmetic::INFO,

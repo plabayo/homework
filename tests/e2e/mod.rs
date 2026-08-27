@@ -21,6 +21,7 @@ mod decimals;
 mod exercise_flows;
 mod flashcards_decks;
 mod flashcards_play;
+mod fraction_sense;
 mod fractions;
 mod helpers;
 mod history_view;

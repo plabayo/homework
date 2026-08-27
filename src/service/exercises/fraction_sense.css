@@ -1,0 +1,253 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+.denominator-levels {
+    display: grid;
+    gap: 6px;
+}
+
+.denominator-levels label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fraction-sense-question {
+    display: grid;
+    justify-items: center;
+    gap: 20px;
+    width: 100%;
+}
+
+.fraction-sense-prompt,
+.fraction-sense-expression {
+    margin: 0;
+    text-align: center;
+}
+
+.fraction-sense-prompt {
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 650;
+}
+
+.fraction-sense-expression {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    font-size: clamp(1.2rem, 5vw, 1.65rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fraction-question-mark {
+    display: inline-grid;
+    min-width: 2em;
+    place-items: center;
+    color: var(--accent);
+}
+
+.fraction-visual {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    width: min(100%, 320px);
+    min-height: 58px;
+    overflow: hidden;
+    border: 2px solid var(--fg);
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+
+.fraction-visual-part {
+    min-width: 0;
+    border-inline-start: 1px solid color-mix(in srgb, var(--fg) 55%, transparent);
+}
+
+.fraction-visual-part:first-child {
+    border-inline-start: 0;
+}
+
+.fraction-visual-part.is-filled {
+    background: color-mix(in srgb, var(--accent) 72%, var(--bg));
+}
+
+.fraction-visual-options {
+    grid-template-columns: 1fr;
+    width: min(100%, 500px);
+    margin-block-start: 0;
+}
+
+.fraction-visual-option {
+    width: 100%;
+    padding: 10px;
+}
+
+.fraction-visual-option .fraction-visual {
+    min-height: 42px;
+    pointer-events: none;
+}
+
+.fraction-line-card {
+    width: min(100%, 430px);
+    padding: 10px 14px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+
+.fraction-number-line {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--fg);
+}
+
+.fraction-line-axis,
+.fraction-line-tick {
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.fraction-line-tick {
+    stroke-width: 1.5;
+}
+
+.fraction-line-point {
+    fill: var(--accent);
+    stroke: var(--accent-fg);
+    stroke-width: 2;
+}
+
+.fraction-line-labels {
+    display: flex;
+    justify-content: space-between;
+    padding-inline: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fraction-order-source {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+
+.fraction-token {
+    display: inline-flex;
+    min-width: 3.2em;
+    justify-content: center;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+    font-weight: 700;
+}
+
+.fraction-sense-question > .option-list {
+    margin-block-start: 0;
+}
+
+.fraction-sense-question[data-kind="compare"] > .option-list {
+    grid-template-columns: repeat(3, 1fr);
+    max-inline-size: 300px;
+}
+
+.fraction-sense-question[data-kind="order"] > .option-list {
+    max-inline-size: 460px;
+}
+
+.fraction-sense-question[data-kind="order"] .option {
+    font-size: clamp(0.86rem, 3.8vw, 1rem);
+    font-variant-numeric: tabular-nums;
+}
+
+#exercise-content .fraction-integer-answer,
+#exercise-content .fraction-decimal-answer {
+    max-width: none;
+    text-align: center;
+}
+
+#exercise-content .fraction-integer-answer {
+    width: 3.4em;
+}
+
+#exercise-content .fraction-decimal-answer {
+    width: min(9rem, 60vw);
+}
+
+.fraction-partial-input > span:last-child {
+    min-width: 3em;
+    text-align: center;
+}
+
+.fraction-placeholder {
+    font-variant-numeric: tabular-nums;
+}
+
+.fraction-common-rows {
+    display: grid;
+    gap: 16px;
+    width: min(100%, 340px);
+}
+
+.fraction-common-rows p {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.fraction-mixed-number,
+.fraction-mixed-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fraction-mixed-number > strong {
+    font-size: 1.15em;
+}
+
+.fraction-sense-solution {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.fraction-sense-solution .box {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fraction-decimal-source {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 600px) {
+    .denominator-levels {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fraction-sense-question {
+        gap: 24px;
+    }
+
+    .fraction-visual-options {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fraction-line-card {
+        padding: 12px 18px 8px;
+    }
+}
