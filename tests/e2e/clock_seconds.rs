@@ -116,9 +116,9 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
             const rect = svg.getBoundingClientRect();
             const scale = rect.width / 100;
             const secondTip = svg.querySelector('.hand-hit-tip[data-hand="second"]');
-            const tipRect = secondTip.getBoundingClientRect();
-            const startX = (tipRect.left + tipRect.right) / 2;
-            const startY = (tipRect.top + tipRect.bottom) / 2;
+            const startAngle = (55 / 60) * 2 * Math.PI;
+            const startX = rect.left + (50 + 36 * Math.sin(startAngle)) * scale;
+            const startY = rect.top + (50 - 36 * Math.cos(startAngle)) * scale;
 
             secondTip.dispatchEvent(new PointerEvent('pointerdown', {
                 clientX: startX, clientY: startY,
