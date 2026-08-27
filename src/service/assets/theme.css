@@ -304,6 +304,16 @@
         color: var(--muted);
         font-size: 0.9rem;
     }
+    .nested-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 4px 0 2px 24px;
+        padding: 10px 12px;
+        border-inline-start: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+        border-radius: 0 var(--radius) var(--radius) 0;
+    }
     .button-row + form,
     form + .button-row {
         margin-block-start: 8px;

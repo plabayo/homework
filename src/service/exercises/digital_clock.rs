@@ -115,6 +115,36 @@ fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
             ),
         ),
         fieldset!(
+            legend!("Extra opties (gevorderd)"),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    name = "include-seconds",
+                    id = "include-seconds",
+                ),
+                " oefen ook seconden",
+            ),
+            div!(
+                id = "second-options",
+                class = "nested-options",
+                hidden? = true,
+                p!(class = "field-hint", "Hoe nauwkeurig zijn de seconden?"),
+                label!(
+                    input!(
+                        r#type = "radio",
+                        name = "second-step",
+                        value = "5",
+                        checked? = true,
+                    ),
+                    " per 5 seconden (aanbevolen)",
+                ),
+                label!(
+                    input!(r#type = "radio", name = "second-step", value = "1"),
+                    " elke seconde (extra moeilijk)",
+                ),
+            ),
+        ),
+        fieldset!(
             legend!("Wat oefen je?"),
             label!(
                 input!(

@@ -151,6 +151,33 @@ fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
                 input!(r#type = "checkbox", name = "hide-numbers", value = "1",),
                 " verberg de getallen op de wijzerplaat",
             ),
+            label!(
+                input!(
+                    r#type = "checkbox",
+                    name = "include-seconds",
+                    id = "include-seconds",
+                ),
+                " oefen ook seconden",
+            ),
+            div!(
+                id = "second-options",
+                class = "nested-options",
+                hidden? = true,
+                p!(class = "field-hint", "Hoe nauwkeurig zijn de seconden?"),
+                label!(
+                    input!(
+                        r#type = "radio",
+                        name = "second-step",
+                        value = "5",
+                        checked? = true,
+                    ),
+                    " per 5 seconden (aanbevolen)",
+                ),
+                label!(
+                    input!(r#type = "radio", name = "second-step", value = "1"),
+                    " elke seconde (extra moeilijk)",
+                ),
+            ),
         ),
     )
 }
@@ -196,6 +223,11 @@ fn freeplay_section() -> impl rama::http::protocols::html::IntoHtml {
             p!(class = "time-readout", id = "freeplay-digital", "06:00"),
             p!(class = "freeplay-phrase", id = "freeplay-phrase", "zes uur"),
         ),
+        label!(
+            class = "freeplay-seconds-toggle",
+            input!(r#type = "checkbox", id = "freeplay-seconds"),
+            " toon seconden (gevorderd)",
+        ),
         div!(
             class = "clock-controls",
             div!(
@@ -214,6 +246,17 @@ fn freeplay_section() -> impl rama::http::protocols::html::IntoHtml {
                     class = "button-pair",
                     button!(r#type = "button", id = "freeplay-min-dec", "➖"),
                     button!(r#type = "button", id = "freeplay-min-inc", "➕"),
+                ),
+            ),
+            div!(
+                class = "clock-control-row",
+                id = "freeplay-second-controls",
+                hidden? = true,
+                span!(class = "label", "seconde"),
+                div!(
+                    class = "button-pair",
+                    button!(r#type = "button", id = "freeplay-sec-dec", "➖"),
+                    button!(r#type = "button", id = "freeplay-sec-inc", "➕"),
                 ),
             ),
         ),

@@ -8,6 +8,7 @@ import {
     dutchTimePhraseVariants,
     escapeHtml,
     formatHHMM,
+    formatHHMMSS,
     loadFields,
     makeFillValidator,
     minutesForStep,
@@ -15,6 +16,7 @@ import {
     parseStrictInt,
     phraseFlipHtml,
     pickRandom,
+    preciseTimePhrase,
     readFields,
     runExercise,
     shuffle,
@@ -25,6 +27,11 @@ import {
 
 // Maps granularity config keys to minute step sizes.
 const GRAN_STEP = { hour: 60, half: 30, quarter: 15, five: 5, one: 1 };
+
+function pickQuestionSecond(cfg) {
+    if (!cfg.includeSeconds) return 0;
+    return pickRandom(minutesForStep(Number(cfg.secondStep) || 5).filter((s) => s > 0));
+}
 
 function buildDeck(cfg) {
     const minutes = minutesForStep(GRAN_STEP[cfg.granularity] || 5);
@@ -66,6 +73,9 @@ function buildDeck(cfg) {
             kind,
             h: entry.h,
             m: entry.m,
+            s: pickQuestionSecond(cfg),
+            includeSeconds: !!cfg.includeSeconds,
+            secondStep: Number(cfg.secondStep) || 5,
             granularity: cfg.granularity,
             answerMode: cfg.answerMode || "multiple",
             showNumbers: !cfg.hideNumbers,
@@ -88,8 +98,21 @@ function buildDeck(cfg) {
 }
 
 function buildClockOptions(q, minStep) {
-    const taken = new Set([`${q.h}:${q.m}`]);
-    const out = [{ h: q.h, m: q.m }];
+    const taken = new Set([`${q.h}:${q.m}:${q.s}`]);
+    const out = [{ h: q.h, m: q.m, s: q.s }];
+    const push = (h, m, s) => {
+        const key = `${h}:${m}:${s}`;
+        if (taken.has(key)) return;
+        taken.add(key);
+        out.push({ h, m, s });
+    };
+    if (q.includeSeconds) {
+        const secondOffsets = shuffle([-2, -1, 1, 2]);
+        for (const ds of secondOffsets) {
+            push(q.h, q.m, (q.s + ds * (q.secondStep || 5) + 60) % 60);
+            if (out.length >= 3) break;
+        }
+    }
     const offsets = [];
     for (let dh = -2; dh <= 2; dh++) {
         for (let dm = -3 * minStep; dm <= 3 * minStep; dm += minStep) {
@@ -111,10 +134,10 @@ function buildClockOptions(q, minStep) {
             h = (h + 1) % 12;
         }
         m = Math.round(m / minStep) * minStep;
-        const key = `${h}:${m}`;
-        if (taken.has(key)) continue;
-        taken.add(key);
-        out.push({ h, m });
+        const secondOffsets = q.includeSeconds ? [-2, -1, 1, 2] : [0];
+        const ds = pickRandom(secondOffsets) * (q.secondStep || 5);
+        const s = q.includeSeconds ? (q.s + ds + 60) % 60 : 0;
+        push(h, m, s);
     }
     return shuffle(out);
 }
@@ -123,14 +146,14 @@ function buildWordOptions(q, minStep) {
     const seenTimes = new Set();
     const seenLabels = new Set();
     const out = [];
-    const push = (h, m) => {
-        const canonical = dutchTimePhrase(h, m);
+    const push = (h, m, s = 0) => {
+        const canonical = q.includeSeconds ? preciseTimePhrase(h, m, s) : dutchTimePhrase(h, m);
         if (!canonical) return;
-        const key = `${h}:${m}`;
+        const key = `${h}:${m}:${s}`;
         if (seenTimes.has(key) || seenLabels.has(canonical)) return;
         seenTimes.add(key);
         seenLabels.add(canonical);
-        const variants = dutchTimePhraseVariants(h, m);
+        const variants = q.includeSeconds ? [canonical] : dutchTimePhraseVariants(h, m);
         // Stick to the canonical pair (variants[0] / variants[1]) so the
         // word-choice options always surface the most established two
         // wordings for the time — for m=20/25 that's the traditional
@@ -139,12 +162,12 @@ function buildWordOptions(q, minStep) {
         const showAlt = variants.length > 1 && Math.random() < 0.5;
         const label = showAlt ? variants[1] : variants[0];
         const altLabel = variants.length > 1 ? (showAlt ? variants[0] : variants[1]) : null;
-        out.push({ h, m, label, altLabel, value: JSON.stringify({ h, m }) });
+        out.push({ h, m, s, label, altLabel, value: JSON.stringify({ h, m, s }) });
     };
 
-    push(q.h, q.m);
+    push(q.h, q.m, q.s);
     buildClockOptions(q, minStep).forEach((o) => {
-        push(o.h, o.m);
+        push(o.h, o.m, o.s);
     });
 
     if (out.length < 4) {
@@ -157,7 +180,7 @@ function buildWordOptions(q, minStep) {
         }
         shuffle(bag);
         for (const o of bag) {
-            push(o.h, o.m);
+            push(o.h, o.m, 0);
             if (out.length >= 4) break;
         }
     }
@@ -172,9 +195,12 @@ function buildWordOptions(q, minStep) {
 // minute hand crosses 12. transform-origin is set in CSS to the pivot.
 const HAND_HOUR_LEN = 24;
 const HAND_MINUTE_LEN = 36;
+const HAND_SECOND_LEN = 39;
 
 function clockSvg(h, m, opts) {
     const interactive = !!opts.interactive;
+    const s = opts.s ?? 0;
+    const showSeconds = !!opts.showSeconds;
     // Note: hand angles are NOT included in the markup string — see
     // `initClockHands` below.
     const num = (n) => {
@@ -202,19 +228,21 @@ function clockSvg(h, m, opts) {
     }
     const hourTip = 50 - HAND_HOUR_LEN;
     const minTip = 50 - HAND_MINUTE_LEN;
+    const secondTip = 50 - HAND_SECOND_LEN;
     // Hand rotations are applied via `el.style.transform` after the
     // markup is inserted (see `initClockHands`). Doing it that way
     // instead of as `style="transform: rotate(…)"` attributes in the
     // string keeps the per-page Content-Security-Policy fully
     // hash-locked — no `'unsafe-inline'` on style-src or style-src-attr.
     return `
-        <div class="clock${interactive ? " interactive" : ""}" data-h="${h}" data-m="${m}">
+        <div class="clock${interactive ? " interactive" : ""}${showSeconds ? " has-seconds" : ""}" data-h="${h}" data-m="${m}" data-s="${s}">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <circle class="face" cx="50" cy="50" r="46" />
                 ${ticks.join("")}
                 ${numbers.join("")}
                 <line class="hand-hour" x1="50" y1="50" x2="50" y2="${hourTip}" />
                 <line class="hand-minute" x1="50" y1="50" x2="50" y2="${minTip}" />
+                ${showSeconds ? `<line class="hand-second" x1="50" y1="50" x2="50" y2="${secondTip}" />` : ""}
                 ${
                     interactive
                         ? `
@@ -224,6 +252,12 @@ function clockSvg(h, m, opts) {
                     <circle class="hand-hit-tip" data-hand="hour" cx="50" cy="${hourTip}" r="8" />
                     <line class="hand-hit" data-hand="minute" x1="50" y1="50" x2="50" y2="${minTip}" />
                     <circle class="hand-hit-tip" data-hand="minute" cx="50" cy="${minTip}" r="8" />
+                    ${
+                        showSeconds
+                            ? `<line class="hand-hit" data-hand="second" x1="50" y1="50" x2="50" y2="${secondTip}" />
+                    <circle class="hand-hit-tip" data-hand="second" cx="50" cy="${secondTip}" r="8" />`
+                            : ""
+                    }
                 `
                         : ""
                 }
@@ -246,8 +280,11 @@ function initClockHands(container) {
     for (const clock of container.querySelectorAll(".clock")) {
         const h = Number(clock.dataset.h);
         const m = Number(clock.dataset.m);
-        const minuteAngle = (m / 60) * 360;
-        const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
+        const s = Number(clock.dataset.s || 0);
+        const secondAngle = (s / 60) * 360;
+        const minuteProgress = (m + s / 60) / 60;
+        const minuteAngle = minuteProgress * 360;
+        const hourAngle = ((h % 12) / 12) * 360 + minuteProgress * 30;
         for (const el of clock.querySelectorAll(
             '.hand-hour, .hand-hit[data-hand="hour"], .hand-hit-tip[data-hand="hour"]',
         )) {
@@ -258,6 +295,11 @@ function initClockHands(container) {
         )) {
             el.style.transform = `rotate(${minuteAngle}deg)`;
         }
+        for (const el of clock.querySelectorAll(
+            '.hand-second, .hand-hit[data-hand="second"], .hand-hit-tip[data-hand="second"]',
+        )) {
+            el.style.transform = `rotate(${secondAngle}deg)`;
+        }
     }
 }
 
@@ -266,21 +308,25 @@ function attachInteractive(root, q, opts = {}) {
     const svg = wrap.querySelector("svg");
     const minHand = svg.querySelector(".hand-minute");
     const hourHand = svg.querySelector(".hand-hour");
+    const secHand = svg.querySelector(".hand-second");
     const hitMin = svg.querySelector('.hand-hit[data-hand="minute"]');
     const hitHour = svg.querySelector('.hand-hit[data-hand="hour"]');
+    const hitSec = svg.querySelector('.hand-hit[data-hand="second"]');
     const tipMin = svg.querySelector('.hand-hit-tip[data-hand="minute"]');
     const tipHour = svg.querySelector('.hand-hit-tip[data-hand="hour"]');
+    const tipSec = svg.querySelector('.hand-hit-tip[data-hand="second"]');
     const minStep = GRAN_STEP[q.granularity] || 5;
+    const secondStep = Number(q.secondStep) || 5;
     // Start at 06:00 — both hands sit on the 12/6 axis but on opposite ends,
     // so neither is hidden under the other and either can be grabbed.
-    const state = { h: 6, m: 0 };
+    const state = { h: 6, m: 0, s: 0 };
 
     // Cumulative (un-modded) rotation degrees. Storing the running total
     // lets us pick the next angle as the *nearest* equivalent to the last
     // one (within ±180°), so wrapping from 55 → 0 minutes rotates 30°
     // forward (330° → 360°) instead of taking the long way back through
     // every previous tick.
-    const cum = { hour: 0, min: 0 };
+    const cum = { hour: 0, min: 0, sec: 0 };
     const rotate = (el, deg) => {
         if (el) el.style.transform = `rotate(${deg}deg)`;
     };
@@ -289,29 +335,38 @@ function attachInteractive(root, q, opts = {}) {
         const delta = ((((target - prev) % 360) + 540) % 360) - 180;
         return prev + delta;
     };
-    const set = (rawH, rawM) => {
+    const set = (rawH, rawM, rawS = state.s) => {
         const m = (Math.round(rawM / minStep) * minStep + 60) % 60;
         const h = ((rawH % 12) + 12) % 12;
+        const s = q.includeSeconds ? (Math.round(rawS / secondStep) * secondStep + 60) % 60 : 0;
         state.h = h;
         state.m = m;
+        state.s = s;
         wrap.dataset.h = h;
         wrap.dataset.m = m;
-        const minuteAngle = (m / 60) * 360;
+        wrap.dataset.s = s;
+        const secondAngle = (s / 60) * 360;
+        const minuteProgress = (m + s / 60) / 60;
+        const minuteAngle = minuteProgress * 360;
         // Hour angle includes the minute offset so the hour hand drifts
         // continuously between the numbers — a half-past-three has the
         // hour hand sitting between 3 and 4, not snapped to 3.
-        const hourAngle = ((h % 12) / 12) * 360 + (m / 60) * 30;
+        const hourAngle = ((h % 12) / 12) * 360 + minuteProgress * 30;
         cum.min = nearestAngle(cum.min, minuteAngle);
         cum.hour = nearestAngle(cum.hour, hourAngle);
+        cum.sec = nearestAngle(cum.sec, secondAngle);
         rotate(minHand, cum.min);
         rotate(hitMin, cum.min);
         rotate(tipMin, cum.min);
         rotate(hourHand, cum.hour);
         rotate(hitHour, cum.hour);
         rotate(tipHour, cum.hour);
-        opts.onSet?.(state.h, state.m);
+        rotate(secHand, cum.sec);
+        rotate(hitSec, cum.sec);
+        rotate(tipSec, cum.sec);
+        opts.onSet?.(state.h, state.m, state.s);
     };
-    set(state.h, state.m);
+    set(state.h, state.m, state.s);
 
     const pointToTime = (clientX, clientY) => {
         const rect = svg.getBoundingClientRect();
@@ -325,14 +380,20 @@ function attachInteractive(root, q, opts = {}) {
         return minute;
     };
 
-    let dragging = null; // 'minute' or 'hour'
+    let dragging = null; // 'minute', 'hour', or 'second'
 
     const onDown = (e) => {
         e.preventDefault();
         const t = e.target;
         const hand =
             t.dataset?.hand ||
-            (t.classList?.contains("hand-hour") ? "hour" : t.classList?.contains("hand-minute") ? "minute" : null);
+            (t.classList?.contains("hand-hour")
+                ? "hour"
+                : t.classList?.contains("hand-minute")
+                  ? "minute"
+                  : t.classList?.contains("hand-second")
+                    ? "second"
+                    : null);
         if (!hand) return;
         dragging = hand;
         // Disable the sweep transition while the user is actively dragging
@@ -355,12 +416,15 @@ function attachInteractive(root, q, opts = {}) {
             const newQuad = Math.floor(((m + 60) % 60) / 15);
             if (prevQuad === 3 && newQuad === 0) nh = (state.h + 1) % 12;
             else if (prevQuad === 0 && newQuad === 3) nh = (state.h + 11) % 12;
-            set(nh, (m + 60) % 60);
-        } else {
+            set(nh, (m + 60) % 60, state.s);
+        } else if (dragging === "hour") {
             // dragging the hour hand: hour = round(angle / 30)
             const hourAngle = (minute / 60) * 360;
             const h = (Math.round(hourAngle / 30) + 12) % 12;
-            set(h, state.m);
+            set(h, state.m, state.s);
+        } else {
+            const s = Math.round(minute / secondStep) * secondStep;
+            set(state.h, state.m, (s + 60) % 60);
         }
     };
     const onUp = () => {
@@ -376,17 +440,17 @@ function attachInteractive(root, q, opts = {}) {
     // increment/decrement helpers
     const onHourInc = (e) => {
         e.preventDefault();
-        set((state.h + 1) % 12, state.m);
+        set((state.h + 1) % 12, state.m, state.s);
     };
     const onHourDec = (e) => {
         e.preventDefault();
-        set((state.h + 11) % 12, state.m);
+        set((state.h + 11) % 12, state.m, state.s);
     };
     const onMinInc = (e) => {
         e.preventDefault();
         const m = (state.m + minStep) % 60;
         const nh = m === 0 ? (state.h + 1) % 12 : state.h;
-        set(nh, m);
+        set(nh, m, state.s);
     };
     const onMinDec = (e) => {
         e.preventDefault();
@@ -396,19 +460,36 @@ function attachInteractive(root, q, opts = {}) {
             m += 60;
             nh = (state.h + 11) % 12;
         }
-        set(nh, m);
+        set(nh, m, state.s);
+    };
+    const onSecInc = (e) => {
+        e.preventDefault();
+        set(state.h, state.m, (state.s + secondStep) % 60);
+    };
+    const onSecDec = (e) => {
+        e.preventDefault();
+        set(state.h, state.m, (state.s - secondStep + 60) % 60);
     };
     const hourIncBtn = opts.hourIncBtn ?? root.querySelector("#hour-inc");
     const hourDecBtn = opts.hourDecBtn ?? root.querySelector("#hour-dec");
     const minIncBtn = opts.minIncBtn ?? root.querySelector("#min-inc");
     const minDecBtn = opts.minDecBtn ?? root.querySelector("#min-dec");
+    const secIncBtn = opts.secIncBtn ?? root.querySelector("#sec-inc");
+    const secDecBtn = opts.secDecBtn ?? root.querySelector("#sec-dec");
     hourIncBtn?.addEventListener("click", onHourInc);
     hourDecBtn?.addEventListener("click", onHourDec);
     minIncBtn?.addEventListener("click", onMinInc);
     minDecBtn?.addEventListener("click", onMinDec);
+    secIncBtn?.addEventListener("click", onSecInc);
+    secDecBtn?.addEventListener("click", onSecDec);
 
     return {
-        getAnswer: () => ({ h: state.h, m: state.m }),
+        getAnswer: () => ({ h: state.h, m: state.m, s: state.s }),
+        setSecondsVisible(visible) {
+            q.includeSeconds = visible;
+            wrap.classList.toggle("seconds-hidden", !visible);
+            set(state.h, state.m, visible ? state.s : 0);
+        },
         cleanup() {
             svg.removeEventListener("pointerdown", onDown);
             window.removeEventListener("pointermove", onMove);
@@ -418,18 +499,26 @@ function attachInteractive(root, q, opts = {}) {
             hourDecBtn?.removeEventListener("click", onHourDec);
             minIncBtn?.removeEventListener("click", onMinInc);
             minDecBtn?.removeEventListener("click", onMinDec);
+            secIncBtn?.removeEventListener("click", onSecInc);
+            secDecBtn?.removeEventListener("click", onSecDec);
         },
     };
 }
 
 // Always render in 12-hour mode here — the analog face has no AM/PM, so the
 // digital twin shown alongside it follows the same convention.
-const timeLabel = (h, m) => formatHHMM(h, m);
+const timeLabel = (h, m, s = 0, includeSeconds = false) => (includeSeconds ? formatHHMMSS(h, m, s) : formatHHMM(h, m));
+const phraseFor = (q, h = q.h, m = q.m, s = q.s) =>
+    q.includeSeconds ? preciseTimePhrase(h, m, s) : dutchTimePhrase(h, m);
 
 /** Render the exercise-feedback prompt for a "zet" or "zet-woorden" question. */
 function renderZetFeedback(feedbackEl, q) {
     if (q.promptStyle !== "words") {
-        feedbackEl.textContent = `zet de klok op ${timeLabel(q.h, q.m)}`;
+        feedbackEl.textContent = `zet de klok op ${timeLabel(q.h, q.m, q.s, q.includeSeconds)}`;
+        return;
+    }
+    if (q.includeSeconds) {
+        feedbackEl.textContent = `zet de klok op "${phraseFor(q)}"`;
         return;
     }
     const variants = dutchTimePhraseVariants(q.h, q.m);
@@ -452,7 +541,7 @@ function renderZetFeedback(feedbackEl, q) {
 // longer needs its own listener.
 
 function renderClockReview(q, root, mode) {
-    const phrase = dutchTimePhrase(q.h, q.m);
+    const phrase = phraseFor(q);
     if (q.kind === "lees") {
         const wordChoices = q.choiceStyle === "words" && !!phrase;
         let answerHtml;
@@ -460,15 +549,19 @@ function renderClockReview(q, root, mode) {
             const givenObj = mode.given;
             answerHtml = buildReviewOptionList(
                 q._reviewOpts,
-                (o) => o.h === q.h && o.m === q.m,
-                (o) => !!givenObj && o.h === Number(givenObj.h) && o.m === Number(givenObj.m),
+                (o) => o.h === q.h && o.m === q.m && o.s === q.s,
+                (o) =>
+                    !!givenObj &&
+                    o.h === Number(givenObj.h) &&
+                    o.m === Number(givenObj.m) &&
+                    o.s === Number(givenObj.s || 0),
             );
         } else {
-            const answer = wordChoices ? phrase : timeLabel(q.h, q.m);
+            const answer = wordChoices ? phrase : timeLabel(q.h, q.m, q.s, q.includeSeconds);
             answerHtml = `<p class="time-readout bad">${escapeHtml(answer)}</p>`;
         }
         root.innerHTML = `
-            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers, showSeconds: q.includeSeconds, s: q.s })}
             ${wordChoices && q._reviewOpts ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
             ${answerHtml}
         `;
@@ -477,8 +570,8 @@ function renderClockReview(q, root, mode) {
         const promptHtml = q.promptStyle === "words" && phrase ? `<p class="clock-choice-label">${phrase}</p>` : "";
         root.innerHTML = `
             ${promptHtml}
-            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
-            <p class="time-readout bad">${timeLabel(q.h, q.m)}</p>
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers, showSeconds: q.includeSeconds, s: q.s })}
+            <p class="time-readout bad">${timeLabel(q.h, q.m, q.s, q.includeSeconds)}</p>
         `;
         initClockHands(root);
     }
@@ -488,16 +581,22 @@ function renderClockLees(q, root, minStep) {
     document.getElementById("exercise-feedback").textContent = "lees de klok";
     if (q.answerMode === "fill") {
         root.innerHTML = `
-            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+            ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers, showSeconds: q.includeSeconds, s: q.s })}
             <div class="time-pair">
-                <input inputmode="numeric" pattern="[0-9]+" id="answer-h" min="1" max="12" placeholder="uu" required>
+                <input inputmode="numeric" pattern="[0-9]+" id="answer-h" min="1" max="12" placeholder="uu" required aria-label="uur">
                 <span>:</span>
-                <input inputmode="numeric" pattern="[0-9]+" id="answer-m" min="0" max="59" step="${minStep}" placeholder="mm" required>
+                <input inputmode="numeric" pattern="[0-9]+" id="answer-m" min="0" max="59" step="${minStep}" placeholder="mm" required aria-label="minuten">
+                ${
+                    q.includeSeconds
+                        ? `<span>:</span><input inputmode="numeric" pattern="[0-9]+" id="answer-s" min="0" max="59" step="${q.secondStep}" placeholder="ss" required aria-label="seconden">`
+                        : ""
+                }
             </div>
         `;
         initClockHands(root);
         const hh = root.querySelector("#answer-h");
         const mm = root.querySelector("#answer-m");
+        const ss = root.querySelector("#answer-s");
         // Shared validator handles range validation, aria-describedby wiring,
         // invalid-state styling, and the clear-on-input listeners — same
         // accessible treatment digital_clock.js's fill mode gets. The analog
@@ -505,17 +604,21 @@ function renderClockLees(q, root, minStep) {
         return makeFillValidator({
             hourInput: hh,
             minuteInput: mm,
+            secondInput: ss,
             use24h: false,
             feedbackEl: document.getElementById("exercise-feedback"),
         });
     }
-    const wordChoices = q.choiceStyle === "words" && !!dutchTimePhrase(q.h, q.m);
+    const wordChoices = q.choiceStyle === "words" && !!phraseFor(q);
     const options = wordChoices
         ? buildWordOptions(q, minStep)
-        : buildClockOptions(q, minStep).map((o) => ({ ...o, label: timeLabel(o.h, o.m) }));
-    q._reviewOpts = options.map((o) => ({ label: o.label, h: o.h, m: o.m }));
+        : buildClockOptions(q, minStep).map((o) => ({
+              ...o,
+              label: timeLabel(o.h, o.m, o.s, q.includeSeconds),
+          }));
+    q._reviewOpts = options.map((o) => ({ label: o.label, h: o.h, m: o.m, s: o.s }));
     root.innerHTML = `
-        ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers })}
+        ${clockSvg(q.h, q.m, { interactive: false, showNumbers: q.showNumbers, showSeconds: q.includeSeconds, s: q.s })}
         ${wordChoices ? '<p class="clock-choice-label">welke zin past bij deze klok?</p>' : ""}
         ${
             wordChoices
@@ -523,7 +626,7 @@ function renderClockLees(q, root, minStep) {
                 : optionListHtml(
                       options,
                       (o) => o.label,
-                      (o) => JSON.stringify({ h: o.h, m: o.m }),
+                      (o) => JSON.stringify({ h: o.h, m: o.m, s: o.s }),
                   )
         }
     `;
@@ -558,8 +661,10 @@ function mountFreeplay() {
         pageSetup.hidden = false;
     });
 
-    clockDiv.innerHTML = clockSvg(6, 0, { interactive: true });
+    clockDiv.innerHTML = clockSvg(6, 0, { interactive: true, showSeconds: true, s: 0 });
     initClockHands(clockDiv);
+    const clock = clockDiv.querySelector(".clock");
+    clock.classList.add("seconds-hidden");
 
     const digitalEl = document.getElementById("freeplay-digital");
     const phraseEl = document.getElementById("freeplay-phrase");
@@ -571,7 +676,12 @@ function mountFreeplay() {
     // phrase waits for the kid to settle.
     let phraseTimer = null;
     const PHRASE_DEBOUNCE_MS = 180;
-    const renderPhrase = (h, m) => {
+    let showSeconds = false;
+    const renderPhrase = (h, m, s) => {
+        if (showSeconds) {
+            phraseEl.textContent = preciseTimePhrase(h, m, s);
+            return;
+        }
         const variants = dutchTimePhraseVariants(h, m);
         if (variants.length > 1) {
             // Keep the deterministic canonical pair (variants[0] ↔
@@ -586,22 +696,22 @@ function mountFreeplay() {
         }
     };
 
-    attachInteractive(
+    const interactive = attachInteractive(
         clockDiv,
         // Free-mode runs at 1-minute precision: drag snaps to the nearest
         // whole minute and the ± buttons step by 1. Coarser granularities
         // are useful in the structured exercise modes (where they shape
         // the problem space) but unhelpful when a parent wants to point
         // at "13 over 7" while teaching.
-        { granularity: "one" },
+        { granularity: "one", includeSeconds: true, secondStep: 1 },
         {
-            onSet(h, m) {
-                digitalEl.textContent = timeLabel(h, m);
+            onSet(h, m, s) {
+                digitalEl.textContent = timeLabel(h, m, s, showSeconds);
                 phraseEl.classList.add("is-updating");
                 if (phraseTimer !== null) clearTimeout(phraseTimer);
                 phraseTimer = setTimeout(() => {
                     phraseTimer = null;
-                    renderPhrase(h, m);
+                    renderPhrase(h, m, s);
                     phraseEl.classList.remove("is-updating");
                 }, PHRASE_DEBOUNCE_MS);
             },
@@ -609,8 +719,17 @@ function mountFreeplay() {
             hourDecBtn: document.getElementById("freeplay-hour-dec"),
             minIncBtn: document.getElementById("freeplay-min-inc"),
             minDecBtn: document.getElementById("freeplay-min-dec"),
+            secIncBtn: document.getElementById("freeplay-sec-inc"),
+            secDecBtn: document.getElementById("freeplay-sec-dec"),
         },
     );
+    const secondsToggle = document.getElementById("freeplay-seconds");
+    const secondsControls = document.getElementById("freeplay-second-controls");
+    secondsToggle?.addEventListener("change", () => {
+        showSeconds = secondsToggle.checked;
+        secondsControls.hidden = !showSeconds;
+        interactive.setSecondsVisible(showSeconds);
+    });
 }
 
 mountFreeplay();
@@ -621,13 +740,24 @@ const FIELDS = [
     { field: "ck", type: "checkboxes", key: "kinds" },
     { field: "answer", type: "radio", key: "answerMode", default: "multiple" },
     { field: "hide-numbers", type: "checkbox", key: "hideNumbers" },
+    { field: "include-seconds", type: "checkbox", key: "includeSeconds" },
+    { field: "second-step", type: "radio", key: "secondStep", default: "5" },
 ];
+
+const setupForm = document.getElementById("form-setup");
+const secondOptions = document.getElementById("second-options");
+function syncSecondOptions(form = setupForm) {
+    if (!form || !secondOptions) return;
+    secondOptions.hidden = !form.elements["include-seconds"]?.checked;
+}
+setupForm?.elements["include-seconds"]?.addEventListener("change", () => syncSecondOptions());
 
 runExercise({
     id: "clock",
     label: "analoge klok",
     loadConfig(form, saved) {
         loadFields(form, FIELDS, saved);
+        syncSecondOptions(form);
     },
     readConfig(form) {
         return readFields(form, FIELDS);
@@ -650,7 +780,7 @@ runExercise({
         // q.kind === 'zet' or 'zet-woorden'
         renderZetFeedback(document.getElementById("exercise-feedback"), q);
         root.innerHTML = `
-            ${clockSvg(0, 0, { interactive: true, showNumbers: q.showNumbers })}
+            ${clockSvg(0, 0, { interactive: true, showNumbers: q.showNumbers, showSeconds: q.includeSeconds, s: 0 })}
             <div class="clock-controls">
                 <div class="clock-control-row">
                     <span class="label">uur</span>
@@ -672,6 +802,19 @@ runExercise({
                 `
                         : ""
                 }
+                ${
+                    q.includeSeconds
+                        ? `
+                    <div class="clock-control-row">
+                        <span class="label">seconde</span>
+                        <div class="button-pair">
+                            <button type="button" class="default-button" id="sec-dec">➖</button>
+                            <button type="button" class="default-button" id="sec-inc">➕</button>
+                        </div>
+                    </div>
+                `
+                        : ""
+                }
             </div>
         `;
         return attachInteractive(root, q);
@@ -681,15 +824,16 @@ runExercise({
         if (q.kind === "lees") {
             const h = parseStrictInt(given.h);
             const m = parseStrictInt(given.m);
-            return h !== null && m !== null && h === q.h && m === q.m;
+            const s = parseStrictInt(given.s ?? 0);
+            return h !== null && m !== null && s !== null && h === q.h && m === q.m && s === q.s;
         }
-        return given.h === q.h && given.m === q.m;
+        return given.h === q.h && given.m === q.m && given.s === q.s;
     },
     describe(q) {
         if (q.kind === "zet-woorden" || q.promptStyle === "words") {
-            const phrase = dutchTimePhrase(q.h, q.m) || timeLabel(q.h, q.m);
+            const phrase = phraseFor(q) || timeLabel(q.h, q.m, q.s, q.includeSeconds);
             return `zet "${phrase}"`;
         }
-        return `${q.kind === "lees" ? "lees" : "zet"} ${timeLabel(q.h, q.m)}`;
+        return `${q.kind === "lees" ? "lees" : "zet"} ${timeLabel(q.h, q.m, q.s, q.includeSeconds)}`;
     },
 });

@@ -57,6 +57,7 @@
    transform-origin gotcha. */
 .clock .hand-hour,
 .clock .hand-minute,
+.clock .hand-second,
 .clock .hand-hit,
 .clock .hand-hit-tip {
     transform-origin: 50px 50px;
@@ -71,6 +72,15 @@
     stroke: var(--accent);
     stroke-width: 1.8;
     stroke-linecap: round;
+}
+.clock .hand-second {
+    stroke: var(--bad);
+    stroke-width: 1;
+    stroke-linecap: round;
+}
+.clock.seconds-hidden .hand-second,
+.clock.seconds-hidden [data-hand="second"] {
+    display: none;
 }
 /* Invisible thicker overlay used purely for hit testing — much easier
    to grab a hand with a finger or imprecise click than the 1.8/2.2-unit
@@ -200,6 +210,11 @@
     gap: 2px;
     user-select: none;
 }
+.freeplay-seconds-toggle {
+    color: var(--muted);
+    font-size: 0.95rem;
+    padding-block: 4px;
+}
 .freeplay-phrase {
     font-size: 1.2rem;
     font-weight: 600;
@@ -245,12 +260,14 @@
        the finger instead of trailing 300 ms behind. */
     .clock .hand-hour,
     .clock .hand-minute,
+    .clock .hand-second,
     .clock .hand-hit,
     .clock .hand-hit-tip {
         transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
     }
     .clock.dragging .hand-hour,
     .clock.dragging .hand-minute,
+    .clock.dragging .hand-second,
     .clock.dragging .hand-hit,
     .clock.dragging .hand-hit-tip {
         transition: none;

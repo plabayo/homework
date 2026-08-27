@@ -18,7 +18,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { buildDeck, dutchTimePhraseVariants } from "./clock-harness.mjs";
+import { buildClockOptions, buildDeck, dutchTimePhraseVariants } from "./clock-harness.mjs";
 
 // All m-values that have at least one Dutch phrasing.
 const ALL_5MIN_BOUNDARIES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
@@ -32,6 +32,8 @@ function cfg(overrides) {
         kinds: ["zet-woorden"],
         answerMode: "multiple",
         hideNumbers: false,
+        includeSeconds: false,
+        secondStep: "5",
         ...overrides,
     };
 }
@@ -158,6 +160,39 @@ test("buildDeck: returns exactly numExercises questions", () => {
         const deck = buildDeck(cfg({ numExercises: n }));
         assert.equal(deck.length, n, `expected ${n} questions, got ${deck.length}`);
     }
+});
+
+test("seconds stay disabled by default", () => {
+    const deck = buildDeck(cfg({ numExercises: 60 }));
+    for (const q of deck) {
+        assert.equal(q.includeSeconds, false);
+        assert.equal(q.s, 0);
+    }
+});
+
+test("seconds can use five-second steps", () => {
+    const deck = buildDeck(cfg({ includeSeconds: true, secondStep: "5", numExercises: 60 }));
+    for (const q of deck) {
+        assert.equal(q.includeSeconds, true);
+        assert.ok(q.s >= 5 && q.s <= 55, `seconds out of range: ${q.s}`);
+        assert.equal(q.s % 5, 0, `seconds must be a multiple of five: ${q.s}`);
+    }
+});
+
+test("seconds can use every whole second", () => {
+    const deck = buildDeck(cfg({ includeSeconds: true, secondStep: "1", numExercises: 60 }));
+    for (const q of deck) {
+        assert.equal(q.includeSeconds, true);
+        assert.ok(q.s >= 1 && q.s <= 59, `seconds out of range: ${q.s}`);
+    }
+});
+
+test("seconds choices cannot be solved by ignoring seconds", () => {
+    const q = buildDeck(cfg({ includeSeconds: true, secondStep: "5", numExercises: 1 }))[0];
+    const options = buildClockOptions(q, 5);
+    const sameHourAndMinute = options.filter((o) => o.h === q.h && o.m === q.m);
+    assert.ok(sameHourAndMinute.length >= 3);
+    assert.ok(sameHourAndMinute.some((o) => o.s !== q.s));
 });
 
 // ---------------------------------------------------------------------------

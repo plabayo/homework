@@ -17,6 +17,7 @@ mod advanced_mathbox;
 mod app_shell;
 mod clock_freeplay;
 mod clock_play;
+mod clock_seconds;
 mod decimals;
 mod exercise_flows;
 mod flashcards_decks;

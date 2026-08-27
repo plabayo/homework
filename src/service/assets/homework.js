@@ -259,12 +259,17 @@ export function formatHHMM(h, m, { use24h = false } = {}) {
     return `${pad(display)}:${pad(m)}`;
 }
 
+/** Render an `HH:MM:SS` label, following the same 12/24-hour rules. */
+export function formatHHMMSS(h, m, s, { use24h = false } = {}) {
+    return `${formatHHMM(h, m, { use24h })}:${pad(s)}`;
+}
+
 /**
- * Build a getter for a paired `hh:mm` fill-in (two `<input>` elements). The
- * returned function reads both fields, validates the ranges, surfaces an
+ * Build a getter for an `hh:mm` or `hh:mm:ss` fill-in. The returned function
+ * reads every supplied field, validates the ranges, surfaces an
  * accessible error message via the shared feedback element, and returns either
- * `{ h, m }` (with `h` normalised to 0..23 — i.e. 12-hour input "12" becomes
- * `0`) or `null` when the inputs are blank or out-of-range.
+ * `{ h, m }` / `{ h, m, s }` value (with `h` normalised to 0..23 — i.e.
+ * 12-hour input "12" becomes `0`) or `null` for blank or invalid input.
  *
  * Side effects on every call:
  *   * toggles `is-invalid` + `aria-invalid` on each input,
@@ -277,11 +282,18 @@ export function formatHHMM(h, m, { use24h = false } = {}) {
  *
  * Used by clock.js (lees-uu-mm) and digital_clock.js (fill-in answer mode).
  */
-export function makeFillValidator({ hourInput, minuteInput, use24h, feedbackEl, autoFocusNext = true }) {
+export function makeFillValidator({
+    hourInput,
+    minuteInput,
+    secondInput = null,
+    use24h,
+    feedbackEl,
+    autoFocusNext = true,
+}) {
     if (feedbackEl?.id) {
         // describedby is cumulative — only add the link the first time so we
         // don't accumulate duplicates on re-render of the same fields.
-        for (const el of [hourInput, minuteInput]) {
+        for (const el of [hourInput, minuteInput, secondInput].filter(Boolean)) {
             const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
             if (!ids.includes(feedbackEl.id)) {
                 ids.push(feedbackEl.id);
@@ -299,7 +311,8 @@ export function makeFillValidator({ hourInput, minuteInput, use24h, feedbackEl, 
             feedbackEl.dataset.invalidInput = "1";
         }
         const hourRange = use24h ? "0–23" : "1–12";
-        feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59).`;
+        const secondRange = secondInput ? ", seconden: 00–59" : "";
+        feedbackEl.textContent = `Geef een geldige tijd in (uren: ${hourRange}, minuten: 00–59${secondRange}).`;
         feedbackEl.classList.add("is-bad");
     };
 
@@ -327,14 +340,21 @@ export function makeFillValidator({ hourInput, minuteInput, use24h, feedbackEl, 
     minuteInput.addEventListener("input", () => {
         setInvalid(minuteInput, false);
         clearInvalidFeedback();
+        if (autoFocusNext && secondInput && minuteInput.value.length >= 2) secondInput.focus();
+    });
+    secondInput?.addEventListener("input", () => {
+        setInvalid(secondInput, false);
+        clearInvalidFeedback();
     });
 
     return () => {
         setInvalid(hourInput, false);
         setInvalid(minuteInput, false);
-        if (!hourInput.value || minuteInput.value === "") return null;
+        if (secondInput) setInvalid(secondInput, false);
+        if (!hourInput.value || minuteInput.value === "" || (secondInput && secondInput.value === "")) return null;
         const rawH = parseStrictInt(hourInput.value);
         const rawM = parseStrictInt(minuteInput.value);
+        const rawS = secondInput ? parseStrictInt(secondInput.value) : 0;
         const maxHour = use24h ? 23 : 12;
         const minHour = use24h ? 0 : 1;
         let invalid = false;
@@ -346,11 +366,16 @@ export function makeFillValidator({ hourInput, minuteInput, use24h, feedbackEl, 
             setInvalid(minuteInput, true);
             invalid = true;
         }
+        if (secondInput && (rawS === null || rawS < 0 || rawS > 59)) {
+            setInvalid(secondInput, true);
+            invalid = true;
+        }
         if (invalid) {
             showInvalidFeedback();
             return null;
         }
-        return { h: use24h ? rawH : rawH % 12, m: rawM };
+        const value = { h: use24h ? rawH : rawH % 12, m: rawM };
+        return secondInput ? { ...value, s: rawS } : value;
     };
 }
 
@@ -598,6 +623,31 @@ const MINUTE_NAMES = [
     "dertig",
 ];
 const minuteName = (n) => MINUTE_NAMES[n];
+
+/** Dutch cardinal number for 0–59, used by exact clock phrases. */
+export function dutchClockNumber(n) {
+    if (!Number.isInteger(n) || n < 0 || n > 59) return null;
+    if (n <= 30) return minuteName(n);
+    const tens = { 30: "dertig", 40: "veertig", 50: "vijftig" };
+    const base = Math.floor(n / 10) * 10;
+    const unit = n % 10;
+    if (unit === 0) return tens[base];
+    const unitPrefix = ["", "eenen", "tweeën", "drieën", "vieren", "vijfen", "zesen", "zevenen", "achten", "negenen"];
+    return `${unitPrefix[unit]}${tens[base]}`;
+}
+
+/**
+ * Formal, unambiguous wording for a time with seconds. Colloquial phrases
+ * such as "half drie" do not have a natural seconds suffix, so advanced
+ * clock exercises deliberately use this exact form.
+ */
+export function preciseTimePhrase(h, m, s, { use24h = false } = {}) {
+    const displayHour = use24h ? ((h % 24) + 24) % 24 : ((h % 12) + 12) % 12;
+    const hours = use24h ? dutchClockNumber(displayHour) : hourName(displayHour);
+    const minuteUnit = m === 1 ? "minuut" : "minuten";
+    const secondUnit = s === 1 ? "seconde" : "seconden";
+    return `${hours} uur, ${dutchClockNumber(m)} ${minuteUnit} en ${dutchClockNumber(s)} ${secondUnit}`;
+}
 
 /**
  * Standard Dutch time phrase for any minute 0–59 (12-hour convention).

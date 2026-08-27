@@ -120,6 +120,10 @@ function dutchTimePhraseVariants(h, m) {
     return expanded;
 }
 
+function preciseTimePhrase(h, m, s) {
+    return `${hourName(h)} uur, ${m} minuten en ${s} seconden`;
+}
+
 function minutesForStep(step) {
     const out = [];
     for (let m = 0; m < 60; m += step) out.push(m);
@@ -150,6 +154,17 @@ const ctx = createContext({
     // resolve to something callable.
     optionListHtml: () => "",
     pad: (n, w) => String(n).padStart(w, "0"),
+    formatHHMM: (h, m) => `${String(h || 12).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    formatHHMMSS: (h, m, s) =>
+        `${String(h || 12).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+    preciseTimePhrase,
+    escapeHtml: String,
+    buildReviewOptionList: () => "",
+    makeFillValidator: () => () => null,
+    parseStrictInt: Number,
+    phraseFlipHtml: String,
+    sizeFlip: () => {},
+    wordOptionListHtml: () => "",
     loadFields: () => {},
     readFields: () => ({}),
     runExercise: () => {},
@@ -163,11 +178,14 @@ const ctx = createContext({
         querySelectorAll: () => [],
         addEventListener: () => {},
     },
+    window: { addEventListener: () => {}, removeEventListener: () => {} },
+    setTimeout,
+    clearTimeout,
 });
 
 runInContext(patched, ctx);
 
-export const { buildDeck } = ctx;
+export const { buildClockOptions, buildDeck } = ctx;
 // Re-export helpers too — tests can use these directly without
 // re-implementing them.
 export { dutchTimePhrase, dutchTimePhraseVariants };
