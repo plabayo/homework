@@ -335,8 +335,8 @@ function attachInteractive(root, q, opts = {}) {
         const delta = ((((target - prev) % 360) + 540) % 360) - 180;
         return prev + delta;
     };
-    const set = (rawH, rawM, rawS = state.s) => {
-        const m = (Math.round(rawM / minStep) * minStep + 60) % 60;
+    const set = (rawH, rawM, rawS = state.s, snapMinute = true) => {
+        const m = snapMinute ? (Math.round(rawM / minStep) * minStep + 60) % 60 : ((Math.round(rawM) % 60) + 60) % 60;
         const h = ((rawH % 12) + 12) % 12;
         const s = q.includeSeconds ? (Math.round(rawS / secondStep) * secondStep + 60) % 60 : 0;
         state.h = h;
@@ -365,6 +365,30 @@ function attachInteractive(root, q, opts = {}) {
         rotate(hitSec, cum.sec);
         rotate(tipSec, cum.sec);
         opts.onSet?.(state.h, state.m, state.s);
+    };
+    const shiftMinute = (delta) => {
+        let h = state.h;
+        let m = state.m + delta;
+        if (m >= 60) {
+            m -= 60;
+            h = (h + 1) % 12;
+        } else if (m < 0) {
+            m += 60;
+            h = (h + 11) % 12;
+        }
+        return { h, m };
+    };
+    const shiftSeconds = (delta) => {
+        let { h, m } = state;
+        let s = state.s + delta;
+        if (s >= 60) {
+            s -= 60;
+            ({ h, m } = shiftMinute(1));
+        } else if (s < 0) {
+            s += 60;
+            ({ h, m } = shiftMinute(-1));
+        }
+        set(h, m, s, false);
     };
     set(state.h, state.m, state.s);
 
@@ -423,8 +447,13 @@ function attachInteractive(root, q, opts = {}) {
             const h = (Math.round(hourAngle / 30) + 12) % 12;
             set(h, state.m, state.s);
         } else {
-            const s = Math.round(minute / secondStep) * secondStep;
-            set(state.h, state.m, (s + 60) % 60);
+            const s = (Math.round(minute / secondStep) * secondStep + 60) % 60;
+            const prevQuad = Math.floor(state.s / 15);
+            const newQuad = Math.floor(s / 15);
+            let { h, m } = state;
+            if (prevQuad === 3 && newQuad === 0) ({ h, m } = shiftMinute(1));
+            else if (prevQuad === 0 && newQuad === 3) ({ h, m } = shiftMinute(-1));
+            set(h, m, s, false);
         }
     };
     const onUp = () => {
@@ -464,11 +493,11 @@ function attachInteractive(root, q, opts = {}) {
     };
     const onSecInc = (e) => {
         e.preventDefault();
-        set(state.h, state.m, (state.s + secondStep) % 60);
+        shiftSeconds(secondStep);
     };
     const onSecDec = (e) => {
         e.preventDefault();
-        set(state.h, state.m, (state.s - secondStep + 60) % 60);
+        shiftSeconds(-secondStep);
     };
     const hourIncBtn = opts.hourIncBtn ?? root.querySelector("#hour-inc");
     const hourDecBtn = opts.hourDecBtn ?? root.querySelector("#hour-dec");

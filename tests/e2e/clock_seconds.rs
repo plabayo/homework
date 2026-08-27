@@ -93,6 +93,58 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
         "default advanced precision should step by five seconds"
     );
 
+    for _ in 0..11 {
+        click(driver, "#sec-inc").await?;
+    }
+    let carried = driver
+        .execute(
+            "const c = document.querySelector('#exercise-content .clock'); return [Number(c.dataset.h), Number(c.dataset.m), Number(c.dataset.s)];",
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        carried.json(),
+        &serde_json::json!([6, 1, 0]),
+        "seconds should carry forward into the minute hand"
+    );
+
+    click(driver, "#sec-dec").await?;
+    let dragged = driver
+        .execute(
+            r#"
+            const svg = document.querySelector('#exercise-content .clock.interactive svg');
+            const rect = svg.getBoundingClientRect();
+            const scale = rect.width / 100;
+            const secondTip = svg.querySelector('.hand-hit-tip[data-hand="second"]');
+            const tipRect = secondTip.getBoundingClientRect();
+            const startX = (tipRect.left + tipRect.right) / 2;
+            const startY = (tipRect.top + tipRect.bottom) / 2;
+
+            secondTip.dispatchEvent(new PointerEvent('pointerdown', {
+                clientX: startX, clientY: startY,
+                bubbles: true, cancelable: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointermove', {
+                clientX: rect.left + 50 * scale,
+                clientY: rect.top + 14 * scale,
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+            window.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true, pointerId: 1, isPrimary: true,
+            }));
+
+            const clock = document.querySelector('#exercise-content .clock');
+            return [Number(clock.dataset.h), Number(clock.dataset.m), Number(clock.dataset.s)];
+            "#,
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        dragged.json(),
+        &serde_json::json!([6, 1, 0]),
+        "dragging seconds across twelve should carry into the minute hand"
+    );
+
     driver.clone().quit().await?;
     Ok(())
 }
@@ -106,6 +158,22 @@ async fn digital_clock_seconds_render_exact_words_and_three_fields() -> TestResu
 
     driver.goto(app.url("/2/digital-clock")).await?;
     wait_for_css(driver, "#form-setup", TIMEOUT).await?;
+    let midnight = driver
+        .execute_async(
+            r#"
+            const done = arguments[arguments.length - 1];
+            import('@homework')
+                .then(({ preciseTimePhrase }) => done(preciseTimePhrase(0, 0, 5, { use24h: true })))
+                .catch((error) => done(`error: ${error}`));
+            "#,
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        midnight.json().as_str(),
+        Some("middernacht, nul minuten en vijf seconden"),
+        "00:00 should be spoken as midnight, not zero hour"
+    );
     set_checkbox(driver, "#include-seconds", true).await?;
     wait_for_css(driver, "#second-options:not([hidden])", TIMEOUT).await?;
     set_input_value(driver, "#num-exercises", "1").await?;
@@ -163,6 +231,10 @@ async fn freeplay_seconds_toggle_updates_hand_controls_and_wording() -> TestResu
 
     set_checkbox(driver, "#freeplay-seconds", true).await?;
     wait_for_css(driver, "#freeplay-second-controls:not([hidden])", TIMEOUT).await?;
+    wait_for_text(driver, "#freeplay-digital", "06:00:00", TIMEOUT).await?;
+    click(driver, "#freeplay-sec-dec").await?;
+    wait_for_text(driver, "#freeplay-digital", "05:59:59", TIMEOUT).await?;
+    click(driver, "#freeplay-sec-inc").await?;
     wait_for_text(driver, "#freeplay-digital", "06:00:00", TIMEOUT).await?;
     click(driver, "#freeplay-sec-inc").await?;
     wait_for_text(driver, "#freeplay-digital", "06:00:01", TIMEOUT).await?;

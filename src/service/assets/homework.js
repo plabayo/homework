@@ -644,9 +644,10 @@ export function dutchClockNumber(n) {
 export function preciseTimePhrase(h, m, s, { use24h = false } = {}) {
     const displayHour = use24h ? ((h % 24) + 24) % 24 : ((h % 12) + 12) % 12;
     const hours = use24h ? dutchClockNumber(displayHour) : hourName(displayHour);
+    const hourPhrase = use24h && displayHour === 0 ? "middernacht" : `${hours} uur`;
     const minuteUnit = m === 1 ? "minuut" : "minuten";
     const secondUnit = s === 1 ? "seconde" : "seconden";
-    return `${hours} uur, ${dutchClockNumber(m)} ${minuteUnit} en ${dutchClockNumber(s)} ${secondUnit}`;
+    return `${hourPhrase}, ${dutchClockNumber(m)} ${minuteUnit} en ${dutchClockNumber(s)} ${secondUnit}`;
 }
 
 /**
