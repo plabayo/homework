@@ -79,12 +79,16 @@ if (kind === 'visual-to-fraction') {
     set('#answer-right-num', right.num * (commonDen / right.den));
 } else if (kind === 'improper-to-mixed') {
     const source = fraction(question.querySelector('.fraction-sense-expression > .fraction'));
+    const remainder = source.num % source.den;
+    const divisor = gcd(remainder, source.den);
     set('#answer-whole', Math.floor(source.num / source.den));
-    setFraction(source.num % source.den, source.den, '#answer-mixed-num', '#answer-mixed-den');
+    setFraction(remainder / divisor, source.den / divisor, '#answer-mixed-num', '#answer-mixed-den');
 } else if (kind === 'mixed-to-improper') {
     const whole = Number(question.querySelector('.fraction-mixed-number > strong').textContent);
     const source = fraction(question.querySelector('.fraction-mixed-number .fraction'));
-    setFraction(whole * source.den + source.num, source.den);
+    const numerator = whole * source.den + source.num;
+    const divisor = gcd(numerator, source.den);
+    setFraction(numerator / divisor, source.den / divisor);
 } else if (kind === 'fraction-to-decimal') {
     const source = fraction(question.querySelector('.fraction-sense-expression > .fraction'));
     set('#answer-decimal', String(source.num / source.den).replace('.', ','));

@@ -5,7 +5,8 @@
 //! Inline-asset registry and per-response CSP source construction.
 //!
 //! `build.rs` walks `src/service/` and emits one base64-SHA-256 const
-//! per `.js` / `.css` file. The file lives in `$OUT_DIR/inline_hashes.rs`
+//! per inline `.js`, `.css`, or `.json` file. The file lives in
+//! `$OUT_DIR/inline_hashes.rs`
 //! and is `include!`d below — so every web asset under `src/service/`
 //! has a hash constant whether or not it ends up being inlined.
 //!
@@ -205,33 +206,41 @@ impl InlineImportmap {
 /// Inline `<script type="speculationrules">` for the [Speculation Rules
 /// API](https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API)
 /// — tells the browser which links to prefetch/prerender from the current
-/// page. Bodies vary per page (each page recommends different "what
-/// comes next" routes), so we don't hash them; instead the page's CSP
-/// adds the dedicated `'inline-speculation-rules'` keyword which the
-/// browser scopes to this script type specifically.
+/// page. The body and its build-time hash travel together, just like the
+/// other inline script types. Under a hash-based strict CSP, the
+/// `'inline-speculation-rules'` keyword does not authorise rules in the
+/// initial HTML document.
 #[derive(Debug)]
 pub struct InlineSpeculationRules {
     body: &'static str,
+    hash_b64: &'static str,
 }
 
 impl InlineSpeculationRules {
-    pub(crate) const fn new(body: &'static str) -> Self {
-        Self { body }
+    pub(crate) const fn new(body: &'static str, hash_b64: &'static str) -> Self {
+        Self { body, hash_b64 }
     }
 
     pub fn render(&self) -> impl IntoHtml {
         script!(r#type = "speculationrules", PreEscaped(self.body))
     }
+
+    pub fn hash_b64(&self) -> &'static str {
+        self.hash_b64
+    }
 }
 
 /// Declare a speculation-rules block `static`. JSON body is
-/// `include_str!`'d from `$path`, no hashing involved (see the type docs).
+/// `include_str!`'d from `$path` and paired with its generated hash.
 /// Private by default; prefix with a visibility specifier to export.
 #[macro_export]
 macro_rules! inline_speculation_rules {
-    ($vis:vis $name:ident, $path:literal) => {
+    ($vis:vis $name:ident, $path:literal, $hash_const:ident) => {
         $vis static $name: $crate::service::csp::InlineSpeculationRules =
-            $crate::service::csp::InlineSpeculationRules::new(include_str!($path));
+            $crate::service::csp::InlineSpeculationRules::new(
+                include_str!($path),
+                $crate::service::csp::generated::$hash_const,
+            );
     };
 }
 

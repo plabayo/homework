@@ -2,7 +2,9 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-use super::helpers::{click, set_checkbox, set_input_value, wait_for_css, wait_for_text};
+use super::helpers::{
+    click, set_checkbox, set_input_value, wait_for_css, wait_for_nonempty_text, wait_for_text,
+};
 use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver, check_a11y};
 
 async fn operand(driver: &WebDriver, selector: &str) -> TestResult<u32> {
@@ -144,10 +146,13 @@ async fn written_arithmetic_reveals_a_final_carry_in_reserved_space() -> TestRes
     assert_eq!(carry, 1);
     set_input_value(driver, "#answer-digit", &digit.to_string()).await?;
     click(driver, "input[name='step-transfer'][value='1']").await?;
-    let leading_result = driver
-        .find(By::Css(".written-result-row [data-leading-result]"))
-        .await?;
-    assert_eq!(leading_result.text().await?, "1");
+    let leading_result = wait_for_nonempty_text(
+        driver,
+        ".written-result-row [data-leading-result]",
+        Duration::from_secs(5),
+    )
+    .await?;
+    assert_eq!(leading_result, "1");
     click(driver, "#button-check").await?;
 
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;

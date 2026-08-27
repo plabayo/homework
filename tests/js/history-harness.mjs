@@ -83,4 +83,13 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { partitionForHistoryView, weeklyBuckets, isoWeekStart } = ctx;
+export const {
+    formatScaledNumber,
+    gcd,
+    isoWeekStart,
+    lcm,
+    partitionForHistoryView,
+    randomInt,
+    simplifyFraction,
+    weeklyBuckets,
+} = ctx;

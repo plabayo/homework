@@ -28,6 +28,26 @@ import {
 // Maps granularity config keys to minute step sizes.
 const GRAN_STEP = { hour: 60, half: 30, quarter: 15, five: 5, one: 1 };
 
+function handAngles(h, m, s = 0) {
+    const second = (s / 60) * 360;
+    const minuteProgress = (m + s / 60) / 60;
+    return {
+        hour: ((h % 12) / 12) * 360 + minuteProgress * 30,
+        minute: minuteProgress * 360,
+        second,
+    };
+}
+
+// Return `target` adjusted by ±360°*k so it is within ±180° of `previous`.
+function nearestAngle(previous, target) {
+    const delta = ((((target - previous) % 360) + 540) % 360) - 180;
+    return previous + delta;
+}
+
+function turnsCrossed(previous, next) {
+    return Math.floor(next / 360) - Math.floor(previous / 360);
+}
+
 function pickQuestionSecond(cfg) {
     if (!cfg.includeSeconds) return 0;
     return pickRandom(minutesForStep(Number(cfg.secondStep) || 5).filter((s) => s > 0));
@@ -281,24 +301,21 @@ function initClockHands(container) {
         const h = Number(clock.dataset.h);
         const m = Number(clock.dataset.m);
         const s = Number(clock.dataset.s || 0);
-        const secondAngle = (s / 60) * 360;
-        const minuteProgress = (m + s / 60) / 60;
-        const minuteAngle = minuteProgress * 360;
-        const hourAngle = ((h % 12) / 12) * 360 + minuteProgress * 30;
+        const angles = handAngles(h, m, s);
         for (const el of clock.querySelectorAll(
             '.hand-hour, .hand-hit[data-hand="hour"], .hand-hit-tip[data-hand="hour"]',
         )) {
-            el.style.transform = `rotate(${hourAngle}deg)`;
+            el.style.transform = `rotate(${angles.hour}deg)`;
         }
         for (const el of clock.querySelectorAll(
             '.hand-minute, .hand-hit[data-hand="minute"], .hand-hit-tip[data-hand="minute"]',
         )) {
-            el.style.transform = `rotate(${minuteAngle}deg)`;
+            el.style.transform = `rotate(${angles.minute}deg)`;
         }
         for (const el of clock.querySelectorAll(
             '.hand-second, .hand-hit[data-hand="second"], .hand-hit-tip[data-hand="second"]',
         )) {
-            el.style.transform = `rotate(${secondAngle}deg)`;
+            el.style.transform = `rotate(${angles.second}deg)`;
         }
     }
 }
@@ -330,11 +347,6 @@ function attachInteractive(root, q, opts = {}) {
     const rotate = (el, deg) => {
         if (el) el.style.transform = `rotate(${deg}deg)`;
     };
-    // Return `target` adjusted by ±360°*k so it's within ±180° of `prev`.
-    const nearestAngle = (prev, target) => {
-        const delta = ((((target - prev) % 360) + 540) % 360) - 180;
-        return prev + delta;
-    };
     const set = (rawH, rawM, rawS = state.s, snapMinute = true) => {
         const m = snapMinute ? (Math.round(rawM / minStep) * minStep + 60) % 60 : ((Math.round(rawM) % 60) + 60) % 60;
         const h = ((rawH % 12) + 12) % 12;
@@ -345,16 +357,10 @@ function attachInteractive(root, q, opts = {}) {
         wrap.dataset.h = h;
         wrap.dataset.m = m;
         wrap.dataset.s = s;
-        const secondAngle = (s / 60) * 360;
-        const minuteProgress = (m + s / 60) / 60;
-        const minuteAngle = minuteProgress * 360;
-        // Hour angle includes the minute offset so the hour hand drifts
-        // continuously between the numbers — a half-past-three has the
-        // hour hand sitting between 3 and 4, not snapped to 3.
-        const hourAngle = ((h % 12) / 12) * 360 + minuteProgress * 30;
-        cum.min = nearestAngle(cum.min, minuteAngle);
-        cum.hour = nearestAngle(cum.hour, hourAngle);
-        cum.sec = nearestAngle(cum.sec, secondAngle);
+        const angles = handAngles(h, m, s);
+        cum.min = nearestAngle(cum.min, angles.minute);
+        cum.hour = nearestAngle(cum.hour, angles.hour);
+        cum.sec = nearestAngle(cum.sec, angles.second);
         rotate(minHand, cum.min);
         rotate(hitMin, cum.min);
         rotate(tipMin, cum.min);
@@ -433,14 +439,9 @@ function attachInteractive(root, q, opts = {}) {
         if (x === undefined) return;
         const minute = pointToTime(x, y);
         if (dragging === "minute") {
-            const m = Math.round(minute / minStep) * minStep;
-            // adjust hour if minute wrapped
-            let nh = state.h;
-            const prevQuad = Math.floor(state.m / 15);
-            const newQuad = Math.floor(((m + 60) % 60) / 15);
-            if (prevQuad === 3 && newQuad === 0) nh = (state.h + 1) % 12;
-            else if (prevQuad === 0 && newQuad === 3) nh = (state.h + 11) % 12;
-            set(nh, (m + 60) % 60, state.s);
+            const m = (Math.round(minute / minStep) * minStep + 60) % 60;
+            const nextAngle = nearestAngle(cum.min, handAngles(state.h, m, state.s).minute);
+            set(state.h + turnsCrossed(cum.min, nextAngle), m, state.s);
         } else if (dragging === "hour") {
             // dragging the hour hand: hour = round(angle / 30)
             const hourAngle = (minute / 60) * 360;
@@ -448,11 +449,8 @@ function attachInteractive(root, q, opts = {}) {
             set(h, state.m, state.s);
         } else {
             const s = (Math.round(minute / secondStep) * secondStep + 60) % 60;
-            const prevQuad = Math.floor(state.s / 15);
-            const newQuad = Math.floor(s / 15);
-            let { h, m } = state;
-            if (prevQuad === 3 && newQuad === 0) ({ h, m } = shiftMinute(1));
-            else if (prevQuad === 0 && newQuad === 3) ({ h, m } = shiftMinute(-1));
+            const nextAngle = nearestAngle(cum.sec, handAngles(state.h, state.m, s).second);
+            const { h, m } = shiftMinute(turnsCrossed(cum.sec, nextAngle));
             set(h, m, s, false);
         }
     };

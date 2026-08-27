@@ -2,16 +2,20 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
+import {
+    formatScaledNumber,
+    loadFields,
+    parseStrictInt,
+    pickRandom,
+    randomInt,
+    readFields,
+    runExercise,
+} from "@homework";
 
 const MAXIMUMS = [10_000, 100_000];
 
-function randomInt(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
-}
-
 function formatNatural(value) {
-    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+    return formatScaledNumber(value);
 }
 
 function questionKey(q) {

@@ -108,7 +108,9 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
         "seconds should carry forward into the minute hand"
     );
 
-    click(driver, "#sec-dec").await?;
+    for _ in 0..4 {
+        click(driver, "#sec-dec").await?;
+    }
     let dragged = driver
         .execute(
             r#"
@@ -116,7 +118,7 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
             const rect = svg.getBoundingClientRect();
             const scale = rect.width / 100;
             const secondTip = svg.querySelector('.hand-hit-tip[data-hand="second"]');
-            const startAngle = (55 / 60) * 2 * Math.PI;
+            const startAngle = (40 / 60) * 2 * Math.PI;
             const startX = rect.left + (50 + 36 * Math.sin(startAngle)) * scale;
             const startY = rect.top + (50 - 36 * Math.cos(startAngle)) * scale;
 
@@ -124,9 +126,10 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
                 clientX: startX, clientY: startY,
                 bubbles: true, cancelable: true, pointerId: 1, isPrimary: true,
             }));
+            const endAngle = (5 / 60) * 2 * Math.PI;
             window.dispatchEvent(new PointerEvent('pointermove', {
-                clientX: rect.left + 50 * scale,
-                clientY: rect.top + 14 * scale,
+                clientX: rect.left + (50 + 36 * Math.sin(endAngle)) * scale,
+                clientY: rect.top + (50 - 36 * Math.cos(endAngle)) * scale,
                 bubbles: true, pointerId: 1, isPrimary: true,
             }));
             window.dispatchEvent(new PointerEvent('pointerup', {
@@ -141,8 +144,8 @@ async fn analog_clock_seconds_controls_use_configured_step() -> TestResult<()> {
         .await?;
     assert_eq!(
         dragged.json(),
-        &serde_json::json!([6, 1, 0]),
-        "dragging seconds across twelve should carry into the minute hand"
+        &serde_json::json!([6, 1, 5]),
+        "a coalesced seconds drag across twelve should carry into the minute hand"
     );
 
     driver.clone().quit().await?;

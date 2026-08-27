@@ -15,7 +15,11 @@ use crate::service::layout::{PageInlines, PageMeta, page, page_header};
 // to an exercise the HTML is already there. `eagerness: moderate` waits
 // for hover / pointerdown — kid-friendly latency without burning data on
 // just-scanning-the-page visits.
-crate::inline_speculation_rules!(SPECULATION, "home_speculation.json");
+crate::inline_speculation_rules!(
+    SPECULATION,
+    "home_speculation.json",
+    PAGES_HOME_SPECULATION_JSON_HASH_B64
+);
 
 pub async fn home(req: Request) -> impl IntoResponse {
     let banner = lang_banner(req.headers());

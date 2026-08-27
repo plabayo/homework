@@ -121,6 +121,22 @@ test("buildDeck: requested transfer difficulty applies to every question", () =>
     }
 });
 
+test("buildDeck: high-precision no-transfer decks stay varied and complete", () => {
+    const deck = buildDeck({
+        maximum: 100_000,
+        numExercises: 100,
+        kinds: ["som", "verschil"],
+        difficulty: "without-transfer",
+        includeDecimals: true,
+        decimalPlaces: 3,
+    });
+
+    assert.equal(deck.length, 100);
+    assert.ok(deck.every((question) => matchesDifficulty(question, "without-transfer")));
+    assert.ok(deck.every((question) => question.a % 10 ** question.decimalPlaces !== 0 || question.b % 10 ** question.decimalPlaces !== 0));
+    assert.ok(new Set(deck.map((question) => `${question.kind}:${question.a}:${question.b}`)).size >= 95);
+});
+
 test("stepIsCorrect: checks both the result digit and the transfer", () => {
     const question = makeQuestion("som", 478, 156);
     assert.equal(stepIsCorrect(question, { digit: "4", transfer: "1" }), true);

@@ -15,7 +15,11 @@ const patched = src.replace(
 );
 
 const testMath = Object.create(Math);
-testMath.random = () => 0.5;
+let randomState = 0xa8174e;
+testMath.random = () => {
+    randomState = (randomState * 1_664_525 + 1_013_904_223) >>> 0;
+    return randomState / 0x1_0000_0000;
+};
 
 function parseStrictInt(value) {
     const text = String(value ?? "");
@@ -32,7 +36,14 @@ const ctx = createContext({
     JSON,
     parseInt,
     isNaN,
+    formatScaledNumber: (units, places = 0) => {
+        const digits = String(Math.abs(units)).padStart(places + 1, "0");
+        const split = digits.length - places;
+        const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+        return `${units < 0 ? "−" : ""}${whole}${places > 0 ? `,${digits.slice(split)}` : ""}`;
+    },
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     parseStrictInt,
     loadFields: () => {},
     readFields: () => ({}),

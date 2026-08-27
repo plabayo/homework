@@ -67,7 +67,8 @@ fn emit_importmap_hash() -> std::io::Result<()> {
     Ok(())
 }
 
-/// Walk `src/service/` and emit one `pub const` per `.js` / `.css` file
+/// Walk `src/service/` and emit one `pub const` per inline `.js`, `.css`, or
+/// `.json` file
 /// holding its base64-encoded SHA-256 digest.
 ///
 /// The generated file lives in `$OUT_DIR/inline_hashes.rs`. `csp.rs`
@@ -116,7 +117,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
             walk(&path, out)?;
         } else if matches!(
             path.extension().and_then(|s| s.to_str()),
-            Some("js" | "css")
+            Some("js" | "css" | "json")
         ) {
             out.push(path);
         }

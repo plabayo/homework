@@ -352,9 +352,40 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
     driver.goto(app.url("/")).await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 
+    let speculation_violations = driver
+        .execute_async(
+            r#"
+            const done = arguments[arguments.length - 1];
+            const source = document.querySelector('script[type="speculationrules"]');
+            if (!source) {
+                done(['missing speculation rules']);
+                return;
+            }
+            const violations = [];
+            const onViolation = (event) => violations.push(`${event.effectiveDirective}:${event.blockedURI}`);
+            document.addEventListener('securitypolicyviolation', onViolation);
+            const clone = document.createElement('script');
+            clone.type = 'speculationrules';
+            clone.textContent = source.textContent;
+            document.head.append(clone);
+            setTimeout(() => {
+                document.removeEventListener('securitypolicyviolation', onViolation);
+                clone.remove();
+                done(violations);
+            }, 100);
+            "#,
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        speculation_violations.json(),
+        &serde_json::json!([]),
+        "the home speculation-rules body should be authorised by its CSP hash"
+    );
+
     // HTML pages: per-page CSP with hashes.
     for (path, expected_script_hashes) in [
-        ("/", 2),
+        ("/", 3),
         ("/about", 2),
         ("/privacy", 2),
         ("/2/clock", 3),
@@ -392,25 +423,18 @@ async fn csp_shape_locked_no_unsafe_inline() -> TestResult<()> {
             script_src.contains("'sha256-"),
             "{path} script-src should whitelist at least one inline by hash, got {script_src:?}"
         );
-        // Only executable inlines need hashes: theme-init + importmap on
-        // every page, plus the exercise module where present. Rama's
-        // application/ld+json blocks are data, not scripts, and must not
-        // inflate script-src.
+        // Only CSP-governed inlines need hashes: theme-init + importmap on
+        // every page, the exercise module where present, and the home page's
+        // speculation rules. Rama's application/ld+json blocks are data and
+        // must not inflate script-src.
         assert_eq!(
             script_src.matches("'sha256-").count(),
             expected_script_hashes,
-            "{path} script-src should hash executable inlines only, got {script_src:?}"
+            "{path} script-src should hash only CSP-governed inlines, got {script_src:?}"
         );
-        // `'inline-speculation-rules'` is added unconditionally by
-        // `layout::build_csp` so any page can grow a `<script type="speculationrules">`
-        // block (home.rs already does). Drift would silently disable
-        // pre-rendering — assert it's present on every HTML route so we
-        // catch a regression that would otherwise only show up as a
-        // performance loss.
         assert!(
-            script_src.contains("'inline-speculation-rules'"),
-            "{path} script-src must keep 'inline-speculation-rules' so speculationrules \
-             blocks can be added without revisiting CSP; got {script_src:?}"
+            !script_src.contains("'inline-speculation-rules'"),
+            "{path} must authorise initial-document speculation rules by hash; got {script_src:?}"
         );
         // style-src always names 'self'; the hash list is empty for pages
         // without inline CSS (home, about, offline) and non-empty for

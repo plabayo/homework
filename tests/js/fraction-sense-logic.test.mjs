@@ -117,3 +117,33 @@ test("simplifying and decimal-to-fraction require simplest form", () => {
         assert.equal(isCorrectAnswer(question, doubled), false, question.kind);
     }
 });
+
+test("mixed-number conversions accept equivalent fractions", () => {
+    assert.equal(
+        isCorrectAnswer(
+            { kind: "improper-to-mixed", answer: { whole: 2, num: 2, den: 4 } },
+            { whole: "2", num: "1", den: "2" },
+        ),
+        true,
+    );
+    assert.equal(
+        isCorrectAnswer(
+            { kind: "mixed-to-improper", answer: { num: 10, den: 4 } },
+            { num: "5", den: "2" },
+        ),
+        true,
+    );
+});
+
+test("generated mixed-number conversions use canonical fractional parts", () => {
+    const deck = buildDeck(
+        config({ kinds: ["improper"], denominatorSet: "large", includeDecimals: false, numExercises: 100 }),
+    );
+    for (const question of deck) {
+        const fraction = question.kind === "improper-to-mixed" ? question.answer : question.source;
+        let a = fraction.num;
+        let b = fraction.den;
+        while (b) [a, b] = [b, a % b];
+        assert.equal(a, 1, `${question.kind}: ${fraction.num}/${fraction.den}`);
+    }
+});

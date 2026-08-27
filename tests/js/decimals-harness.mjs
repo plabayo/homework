@@ -33,9 +33,16 @@ const ctx = createContext({
     Map,
     parseInt,
     isNaN,
+    formatScaledNumber: (units, places = 0) => {
+        const digits = String(Math.abs(units)).padStart(places + 1, "0");
+        const split = digits.length - places;
+        const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+        return `${units < 0 ? "−" : ""}${whole}${places > 0 ? `,${digits.slice(split)}` : ""}`;
+    },
     buildReviewOptionList: () => "",
     loadFields: () => {},
     optionListHtml: () => "",
+    randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     readFields: () => ({}),
     runExercise: () => {},
     shuffle: (values) => values,

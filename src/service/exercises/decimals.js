@@ -4,8 +4,10 @@
 
 import {
     buildReviewOptionList,
+    formatScaledNumber,
     loadFields,
     optionListHtml,
+    randomInt,
     readFields,
     runExercise,
     shuffle,
@@ -16,10 +18,6 @@ const MAX_PRECISIONS = [1, 2, 3];
 const QUESTION_KINDS = ["place-value", "compare", "order", "number-line", "round"];
 const FRACTIONAL_PLACES = ["", "tienden", "honderdsten", "duizendsten"];
 
-function randomInt(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
-}
-
 function scaleFor(precision) {
     return 10 ** precision;
 }
@@ -29,13 +27,7 @@ function digitAt(units, placeIndex) {
 }
 
 function formatDecimal(value) {
-    const precision = value.precision;
-    const negative = value.units < 0;
-    const digits = String(Math.abs(value.units)).padStart(precision + 1, "0");
-    const split = digits.length - precision;
-    const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
-    const fraction = precision > 0 ? `,${digits.slice(split)}` : "";
-    return `${negative ? "−" : ""}${whole}${fraction}`;
+    return formatScaledNumber(value.units, value.precision);
 }
 
 function parseDecimal(raw) {

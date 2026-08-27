@@ -4,12 +4,12 @@
 
 //! Typed schema.org documents rendered through Rama's JSON-LD support.
 
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 use rama::http::protocols::json_ld::JsonLd;
 use serde::Serialize;
 
-use crate::service::exercises::{ExerciseInfo, breadcrumb_level_label};
+use crate::service::exercises::{ExerciseInfo, all_exercises, breadcrumb_level_label};
 
 const CONTEXT: &str = "https://schema.org";
 const ORIGIN: &str = "https://elementary.training";
@@ -49,9 +49,22 @@ pub fn site() -> &'static JsonLd {
     &SITE
 }
 
-/// Build a learning-resource document from the exercise's source-of-truth
-/// metadata and the same description used by the page's regular metadata.
-pub fn exercise(info: ExerciseInfo, description: &'static str) -> JsonLd {
+/// Return the lazily serialised learning-resource document for an exercise.
+/// Catalogue entries are immutable, so each document is built at most once.
+pub fn exercise(info: ExerciseInfo, description: &'static str) -> &'static JsonLd {
+    static DOCUMENTS: LazyLock<Vec<OnceLock<JsonLd>>> =
+        LazyLock::new(|| all_exercises().iter().map(|_| OnceLock::new()).collect());
+
+    let Some(index) = all_exercises()
+        .iter()
+        .position(|candidate| candidate.id == info.id)
+    else {
+        unreachable!("exercise JSON-LD requested for an unregistered exercise");
+    };
+    DOCUMENTS[index].get_or_init(|| build_exercise_document(info, description))
+}
+
+fn build_exercise_document(info: ExerciseInfo, description: &'static str) -> JsonLd {
     let url = format!("{ORIGIN}{}", info.path);
     let resource_id = format!("{url}#resource");
     let level_name = breadcrumb_level_label(info.level);
@@ -245,5 +258,13 @@ mod tests {
         assert_eq!(level["name"], "Niveau 1");
         assert_eq!(level["item"], "https://elementary.training/#niveau-1");
         Ok(())
+    }
+
+    #[test]
+    fn exercise_document_is_cached() {
+        const DESCRIPTION: &str = "Oefen de maaltafels van 1 tot en met 10.";
+        let first = exercise(multiplications::INFO, DESCRIPTION);
+        let second = exercise(multiplications::INFO, DESCRIPTION);
+        assert!(std::ptr::eq(first, second));
     }
 }

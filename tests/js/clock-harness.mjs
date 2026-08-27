@@ -185,7 +185,7 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { buildClockOptions, buildDeck } = ctx;
+export const { buildClockOptions, buildDeck, handAngles, nearestAngle, turnsCrossed } = ctx;
 // Re-export helpers too — tests can use these directly without
 // re-implementing them.
 export { dutchTimePhrase, dutchTimePhraseVariants };

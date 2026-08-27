@@ -2,7 +2,15 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
+import {
+    formatScaledNumber,
+    loadFields,
+    parseStrictInt,
+    pickRandom,
+    randomInt,
+    readFields,
+    runExercise,
+} from "@homework";
 
 const MAXIMUMS = [1_000, 10_000, 100_000];
 const DIFFICULTIES = ["mixed", "without-transfer", "with-transfer"];
@@ -18,19 +26,12 @@ const INTEGER_PLACE_NAMES = [
 ];
 const FRACTIONAL_PLACE_NAMES = [null, ["t", "tienden"], ["h", "honderdsten"], ["d", "duizendsten"]];
 
-function randomInt(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
-}
-
 function digitAt(value, placeIndex) {
     return Math.floor(value / 10 ** placeIndex) % 10;
 }
 
 function formatNumber(units, decimalPlaces = 0) {
-    const digits = String(units).padStart(decimalPlaces + 1, "0");
-    const split = digits.length - decimalPlaces;
-    const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
-    return decimalPlaces > 0 ? `${whole},${digits.slice(split)}` : whole;
+    return formatScaledNumber(units, decimalPlaces);
 }
 
 function buildSteps(kind, a, b, decimalPlaces = 0) {
@@ -80,20 +81,48 @@ function makeQuestion(kind, a, b, decimalPlaces = 0) {
     };
 }
 
-function fallbackQuestion(kind, maximum, difficulty, decimalPlaces) {
+function fallbackQuestion(kind, maximum, decimalPlaces) {
     const digits = String(maximum - 1).length;
     const place = 10 ** (digits - 1);
-
-    if (difficulty === "without-transfer") {
-        const repeated = (digit) => Number(String(digit).repeat(digits));
-        return kind === "som"
-            ? makeQuestion(kind, Number("12345".slice(0, digits)), Number("23454".slice(0, digits)), decimalPlaces)
-            : makeQuestion(kind, repeated(8), repeated(3), decimalPlaces);
-    }
 
     if (kind === "som") return makeQuestion(kind, 5 * place - 5, place + 15, decimalPlaces);
     if (maximum === 1_000) return makeQuestion(kind, 632, 185, decimalPlaces);
     return makeQuestion(kind, 6 * place + 432, Math.floor(place / 5) + 185, decimalPlaces);
+}
+
+function generateWithoutTransferQuestion(kind, maximum, decimalPlaces) {
+    const digitCount = String(maximum - 1).length;
+    const aDigits = Array(digitCount).fill(0);
+    const bDigits = Array(digitCount).fill(0);
+    const highest = digitCount - 1;
+
+    if (kind === "som") {
+        aDigits[highest] = randomInt(1, 8);
+        bDigits[highest] = randomInt(1, 9 - aDigits[highest]);
+        for (let place = 0; place < highest; place++) {
+            aDigits[place] = randomInt(0, 9);
+            bDigits[place] = randomInt(0, 9 - aDigits[place]);
+        }
+    } else {
+        aDigits[highest] = randomInt(2, 9);
+        bDigits[highest] = randomInt(1, aDigits[highest] - 1);
+        for (let place = 0; place < highest; place++) {
+            aDigits[place] = randomInt(0, 9);
+            bDigits[place] = randomInt(0, aDigits[place]);
+        }
+    }
+
+    const scale = 10 ** decimalPlaces;
+    const toNumber = (digits) => digits.reduce((value, digit, place) => value + digit * 10 ** place, 0);
+    let a = toNumber(aDigits);
+    let b = toNumber(bDigits);
+    if (decimalPlaces > 0 && a % scale === 0 && b % scale === 0) {
+        aDigits[0] = 1;
+        bDigits[0] = 0;
+        a = toNumber(aDigits);
+        b = toNumber(bDigits);
+    }
+    return makeQuestion(kind, a, b, decimalPlaces);
 }
 
 function generateQuestion(kind, cfg, decimalPlaces) {
@@ -101,6 +130,10 @@ function generateQuestion(kind, cfg, decimalPlaces) {
     const maximum = cfg.maximum * scale;
     const minimumAnswer = maximum / 10;
     const minimumTerm = maximum / 100;
+
+    if (cfg.difficulty === "without-transfer") {
+        return generateWithoutTransferQuestion(kind, maximum, decimalPlaces);
+    }
 
     for (let tries = 0; tries < 400; tries++) {
         let a;
@@ -118,7 +151,7 @@ function generateQuestion(kind, cfg, decimalPlaces) {
         if (matchesDifficulty(question, cfg.difficulty)) return question;
     }
 
-    return fallbackQuestion(kind, maximum, cfg.difficulty, decimalPlaces);
+    return fallbackQuestion(kind, maximum, decimalPlaces);
 }
 
 function questionKey(question) {
@@ -139,8 +172,10 @@ function buildDeck(cfg) {
     const deck = [];
     const seen = new Set();
     let staleTries = 0;
+    let totalTries = 0;
 
-    while (deck.length < cfg.numExercises) {
+    while (deck.length < cfg.numExercises && totalTries < cfg.numExercises * 100) {
+        totalTries++;
         if (staleTries > Math.max(20, seen.size)) {
             seen.clear();
             staleTries = 0;
@@ -429,7 +464,6 @@ runExercise({
         if (nextStep < question.steps.length) return { partialCorrect: true };
         return { correct: true };
     },
-    isCorrect: stepIsCorrect,
     describe(question) {
         const symbol = question.kind === "som" ? "+" : "−";
         return `${formatNumber(question.a, question.decimalPlaces)} ${symbol} ${formatNumber(question.b, question.decimalPlaces)} = ${formatNumber(question.answer, question.decimalPlaces)}`;

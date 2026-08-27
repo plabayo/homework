@@ -5,31 +5,14 @@
 import {
     FRACTION_INPUT_HTML,
     fractionHtml as frac,
+    lcm,
     loadFields,
     parseStrictInt,
     pickRandom,
     readFields,
     runExercise,
+    simplifyFraction as simplify,
 } from "@homework";
-
-function gcd(a, b) {
-    let x = Math.abs(a);
-    let y = Math.abs(b);
-    while (y) {
-        [x, y] = [y, x % y];
-    }
-    return x || 1;
-}
-
-function simplify(num, den) {
-    if (num === 0) return { num: 0, den: 1 };
-    const g = gcd(Math.abs(num), Math.abs(den));
-    return { num: num / g, den: den / g };
-}
-
-function lcm(a, b) {
-    return (a * b) / gcd(a, b);
-}
 
 // `frac` and `FRAC_INPUT` come from @homework so the markup stays in lock-step
 // with the other exercises that render stacked fractions (percentages.js).

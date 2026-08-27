@@ -372,3 +372,68 @@ fn history_block(info: ExerciseInfo) -> impl IntoHtml {
         ),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use serde_json::Value;
+
+    use super::{EXERCISE_LEVELS, all_exercises};
+
+    #[test]
+    fn exercise_catalogue_entries_are_unique_and_use_known_levels() {
+        let mut ids = BTreeSet::new();
+        let mut paths = BTreeSet::new();
+        for exercise in all_exercises() {
+            assert!(
+                ids.insert(exercise.id),
+                "duplicate exercise id: {}",
+                exercise.id
+            );
+            assert!(
+                paths.insert(exercise.path),
+                "duplicate exercise path: {}",
+                exercise.path
+            );
+            assert!(
+                EXERCISE_LEVELS.contains(&exercise.level),
+                "{} uses unknown level {}",
+                exercise.id,
+                exercise.level
+            );
+        }
+    }
+
+    #[test]
+    fn exercise_catalogue_stays_in_sync_with_routes_and_offline_lists() {
+        let routes = include_str!("../mod.rs");
+        let service_worker = include_str!("../assets/service-worker.js");
+        let Ok(speculation) =
+            serde_json::from_str::<Value>(include_str!("../pages/home_speculation.json"))
+        else {
+            panic!("home speculation rules should be valid JSON");
+        };
+        let Some(speculation_urls) = speculation["prefetch"][0]["urls"].as_array() else {
+            panic!("home speculation rules should contain prefetch URLs");
+        };
+        let mut speculation_paths = BTreeSet::new();
+        for value in speculation_urls {
+            let Some(path) = value.as_str() else {
+                panic!("speculation URL should be a string");
+            };
+            speculation_paths.insert(path);
+        }
+        let catalogue_paths: BTreeSet<_> = all_exercises().iter().map(|info| info.path).collect();
+
+        assert_eq!(speculation_paths, catalogue_paths);
+        for path in catalogue_paths {
+            let quoted = format!("\"{path}\"");
+            assert!(routes.contains(&quoted), "missing route for {path}");
+            assert!(
+                service_worker.contains(&quoted),
+                "service worker does not precache {path}"
+            );
+        }
+    }
+}

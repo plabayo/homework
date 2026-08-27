@@ -35,6 +35,20 @@ function strictInt(value) {
     return /^\d+$/.test(text) ? Number(text) : null;
 }
 
+function gcd(a, b) {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) [x, y] = [y, x % y];
+    return x || 1;
+}
+
+function simplifyFraction(num, den) {
+    if (num === 0) return { num: 0, den: 1 };
+    const divisor = gcd(num, den);
+    const sign = den < 0 ? -1 : 1;
+    return { num: (num / divisor) * sign, den: Math.abs(den) / divisor };
+}
+
 const ctx = createContext({
     Array,
     Object,
@@ -50,13 +64,17 @@ const ctx = createContext({
     buildReviewOptionList: () => "",
     frac: (num, den) => `${num}/${den}`,
     fractionHtml: (num, den) => `${num}/${den}`,
+    gcd,
+    lcm: (a, b) => (a === 0 || b === 0 ? 0 : Math.abs((a / gcd(a, b)) * b)),
     loadFields: () => {},
     optionListHtml: () => "",
     parseStrictInt: strictInt,
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     readFields: () => ({}),
     runExercise: () => {},
     shuffle: testShuffle,
+    simplify: simplifyFraction,
     wireOptions: () => () => null,
     document: { getElementById: () => null },
 });

@@ -18,7 +18,14 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { buildClockOptions, buildDeck, dutchTimePhraseVariants } from "./clock-harness.mjs";
+import {
+    buildClockOptions,
+    buildDeck,
+    dutchTimePhraseVariants,
+    handAngles,
+    nearestAngle,
+    turnsCrossed,
+} from "./clock-harness.mjs";
 
 // All m-values that have at least one Dutch phrasing.
 const ALL_5MIN_BOUNDARIES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
@@ -46,6 +53,23 @@ function collectMinutes(deck) {
     for (const q of deck) seen.add(q.m);
     return seen;
 }
+
+test("hand angles share one seconds-aware calculation", () => {
+    const angles = handAngles(3, 15, 30);
+    assert.equal(angles.second, 180);
+    assert.ok(Math.abs(angles.minute - 93) < Number.EPSILON * 100);
+    assert.ok(Math.abs(angles.hour - 97.75) < Number.EPSILON * 100);
+});
+
+test("coalesced drags detect a turn even when they skip quadrants", () => {
+    const forward = nearestAngle(240, 30);
+    assert.equal(forward, 390);
+    assert.equal(turnsCrossed(240, forward), 1);
+
+    const backward = nearestAngle(30, 240);
+    assert.equal(backward, -120);
+    assert.equal(turnsCrossed(30, backward), -1);
+});
 
 // ---------------------------------------------------------------------------
 // zet-woorden — must cover every 5-minute boundary in `five` granularity

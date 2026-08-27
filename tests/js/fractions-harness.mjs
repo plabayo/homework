@@ -19,6 +19,20 @@ const patched = src.replace(
     "// @homework import removed for pure-function testing\n",
 );
 
+function gcd(a, b) {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) [x, y] = [y, x % y];
+    return x || 1;
+}
+
+function simplifyFraction(num, den) {
+    if (num === 0) return { num: 0, den: 1 };
+    const divisor = gcd(num, den);
+    const sign = den < 0 ? -1 : 1;
+    return { num: (num / divisor) * sign, den: Math.abs(den) / divisor };
+}
+
 const ctx = createContext({
     Array,
     Object,
@@ -31,6 +45,9 @@ const ctx = createContext({
     Map,
     parseInt,
     isNaN,
+    gcd,
+    lcm: (a, b) => (a === 0 || b === 0 ? 0 : Math.abs((a / gcd(a, b)) * b)),
+    simplify: simplifyFraction,
     // pickRandom is imported from @homework in the real file; provide a real impl.
     pickRandom: (arr) => arr[Math.floor(Math.random() * arr.length)],
     // Stubs for the remaining @homework imports — never called by pure functions.
@@ -53,4 +70,4 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { gcd, simplify, lcm, buildDeck } = ctx;
+export const { buildDeck } = ctx;

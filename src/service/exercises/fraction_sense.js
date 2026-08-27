@@ -5,13 +5,17 @@
 import {
     buildReviewOptionList,
     fractionHtml as frac,
+    gcd,
+    lcm,
     loadFields,
     optionListHtml,
     parseStrictInt,
     pickRandom,
+    randomInt,
     readFields,
     runExercise,
     shuffle,
+    simplifyFraction as simplify,
     wireOptions,
 } from "@homework";
 
@@ -28,26 +32,6 @@ const VARIANTS = {
     improper: ["improper-to-mixed", "mixed-to-improper"],
     decimals: ["fraction-to-decimal", "decimal-to-fraction"],
 };
-
-function randomInt(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
-}
-
-function gcd(a, b) {
-    let x = Math.abs(a);
-    let y = Math.abs(b);
-    while (y) [x, y] = [y, x % y];
-    return x || 1;
-}
-
-function lcm(a, b) {
-    return (a * b) / gcd(a, b);
-}
-
-function simplify(num, den) {
-    const divisor = gcd(num, den);
-    return { num: num / divisor, den: den / divisor };
-}
 
 function denominatorsFor(name) {
     return DENOMINATOR_SETS[name] ?? [];
@@ -246,30 +230,34 @@ function commonDenominatorQuestion(denominators) {
 }
 
 function improperToMixedQuestion(denominators) {
-    const den = pickRandom(denominators.filter((value) => value <= 12));
+    const fraction = properFraction(
+        denominators.filter((value) => value <= 12),
+        true,
+    );
     const whole = randomInt(1, 3);
-    const remainder = randomInt(1, den - 1);
     return {
         question: {
             kind: "improper-to-mixed",
-            source: { num: whole * den + remainder, den },
-            answer: { whole, num: remainder, den },
+            source: { num: whole * fraction.den + fraction.num, den: fraction.den },
+            answer: { whole, ...fraction },
         },
-        key: `to-mixed:${whole}:${remainder}/${den}`,
+        key: `to-mixed:${whole}:${fraction.num}/${fraction.den}`,
     };
 }
 
 function mixedToImproperQuestion(denominators) {
-    const den = pickRandom(denominators.filter((value) => value <= 12));
+    const fraction = properFraction(
+        denominators.filter((value) => value <= 12),
+        true,
+    );
     const whole = randomInt(1, 3);
-    const num = randomInt(1, den - 1);
     return {
         question: {
             kind: "mixed-to-improper",
-            source: { whole, num, den },
-            answer: { num: whole * den + num, den },
+            source: { whole, ...fraction },
+            answer: { num: whole * fraction.den + fraction.num, den: fraction.den },
         },
-        key: `to-improper:${whole}:${num}/${den}`,
+        key: `to-improper:${whole}:${fraction.num}/${fraction.den}`,
     };
 }
 
@@ -609,9 +597,10 @@ function isCorrectAnswer(question, given) {
     if (["visual-to-fraction", "number-line"].includes(question.kind)) {
         return fractionAnswerIsCorrect(given, question.answer);
     }
-    if (["simplify", "mixed-to-improper", "decimal-to-fraction"].includes(question.kind)) {
+    if (["simplify", "decimal-to-fraction"].includes(question.kind)) {
         return fractionAnswerIsCorrect(given, question.answer, true);
     }
+    if (question.kind === "mixed-to-improper") return fractionAnswerIsCorrect(given, question.answer);
     if (question.kind === "complete-equivalent") return parseStrictInt(given) === question.answer;
     if (question.kind === "common-denominator") {
         return (
@@ -621,9 +610,7 @@ function isCorrectAnswer(question, given) {
     }
     if (question.kind === "improper-to-mixed") {
         return (
-            parseStrictInt(given?.whole) === question.answer.whole &&
-            parseStrictInt(given?.num) === question.answer.num &&
-            parseStrictInt(given?.den) === question.answer.den
+            parseStrictInt(given?.whole) === question.answer.whole && fractionAnswerIsCorrect(given, question.answer)
         );
     }
     return parseHundredths(given) === question.answer;

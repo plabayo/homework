@@ -11,7 +11,8 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { gcd, simplify, lcm, buildDeck } from "./fractions-harness.mjs";
+import { buildDeck } from "./fractions-harness.mjs";
+import { gcd, lcm, simplifyFraction as simplify } from "./history-harness.mjs";
 
 // ---------------------------------------------------------------------------
 // gcd

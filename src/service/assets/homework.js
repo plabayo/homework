@@ -537,6 +537,46 @@ export function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/** Return an integer in the inclusive range `[min, max]`. */
+export function randomInt(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+/** Greatest common divisor, normalised to a positive non-zero value. */
+export function gcd(a, b) {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) [x, y] = [y, x % y];
+    return x || 1;
+}
+
+/** Least common multiple, normalised to a non-negative value. */
+export function lcm(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return Math.abs((a / gcd(a, b)) * b);
+}
+
+/** Reduce a fraction and keep its sign on the numerator. */
+export function simplifyFraction(num, den) {
+    if (num === 0) return { num: 0, den: 1 };
+    const divisor = gcd(num, den);
+    const sign = den < 0 ? -1 : 1;
+    return {
+        num: (num / divisor) * sign,
+        den: Math.abs(den) / divisor,
+    };
+}
+
+/** Format an integer containing a fixed number of decimal places. */
+export function formatScaledNumber(units, decimalPlaces = 0) {
+    const negative = units < 0;
+    const digits = String(Math.abs(units)).padStart(decimalPlaces + 1, "0");
+    const split = digits.length - decimalPlaces;
+    const whole = digits.slice(0, split).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+    const fraction = decimalPlaces > 0 ? `,${digits.slice(split)}` : "";
+    return `${negative ? "−" : ""}${whole}${fraction}`;
+}
+
 /**
  * Render a fraction `num/den` as the shared `.fraction` markup. Used by both
  * the fractions and percentages exercises (and any future exercise that needs

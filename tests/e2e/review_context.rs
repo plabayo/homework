@@ -16,9 +16,7 @@
 //!   • Clock "lees" (word-choice)  — Dutch phrase shown in .time-readout.bad
 //!   • Thermometer "teken"         — target value preserved in review bad-box
 
-use super::helpers::{
-    click, set_checkbox, set_input_value, text_of, wait_for_css, wait_for_nonempty_text,
-};
+use super::helpers::{click, set_checkbox, set_input_value, wait_for_css, wait_for_nonempty_text};
 use super::{BrowserHarness, Duration, TestApp, TestResult};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -81,7 +79,7 @@ async fn multiplications_review_shows_equation() -> TestResult<()> {
     );
 
     // Correct answer must appear in the bad box.
-    let answer = text_of(driver, "#exercise-content .box.bad").await?;
+    let answer = wait_for_nonempty_text(driver, "#exercise-content .box.bad", TIMEOUT).await?;
     assert!(
         answer.chars().any(|c| c.is_ascii_digit()),
         "expected correct answer digit in bad box, got: {answer:?}"
@@ -130,8 +128,7 @@ async fn clock_zet_word_prompt_review_shows_phrase() -> TestResult<()> {
     skip_to_review(driver).await?;
 
     // The Dutch phrase must appear as a .clock-choice-label above the clock.
-    wait_for_css(driver, ".clock-choice-label", TIMEOUT).await?;
-    let phrase = text_of(driver, ".clock-choice-label").await?;
+    let phrase = wait_for_nonempty_text(driver, ".clock-choice-label", TIMEOUT).await?;
     let dutch_words = ["uur", "half", "kwart", "voor", "over"];
     assert!(
         dutch_words.iter().any(|w| phrase.contains(w)),
@@ -206,8 +203,7 @@ async fn clock_lees_word_choice_review_shows_phrase() -> TestResult<()> {
     // Review now shows the full option list with the correct phrase highlighted in
     // `.review-correct`. The correct Dutch phrase must appear there — not a bare
     // "HH:MM" digital time string.
-    wait_for_css(driver, ".option-list .review-correct", TIMEOUT).await?;
-    let readout = text_of(driver, ".option-list .review-correct").await?;
+    let readout = wait_for_nonempty_text(driver, ".option-list .review-correct", TIMEOUT).await?;
     let dutch_words = ["uur", "half", "kwart", "voor", "over"];
     assert!(
         dutch_words.iter().any(|w| readout.contains(w)),

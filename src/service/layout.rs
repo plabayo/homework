@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use rama::http::headers::{
-    CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceExpression, SourceList,
+    CacheControl, ContentSecurityPolicy, HashAlgorithm, HeaderMapExt, SourceList,
 };
 use rama::http::protocols::html::{
     IntoHtml, PreEscaped, a, body, button, canvas, div, h1, head, header, html, link, main, meta,
@@ -45,7 +45,7 @@ pub struct PageMeta {
     pub favicon_emoji: &'static str,
     /// Optional page-specific structured data. Rama renders this as a safe
     /// non-executable `application/ld+json` data block.
-    pub structured_data: Option<JsonLd>,
+    pub structured_data: Option<&'static JsonLd>,
 }
 
 impl Default for PageMeta {
@@ -160,15 +160,13 @@ fn html_cache_control() -> CacheControl {
 /// directive is locked to `'self'` (or `'none'` where loading is never
 /// expected), so a successful injection has no source list to abuse.
 fn build_csp(inlines: &PageInlines) -> ContentSecurityPolicy {
-    // `'inline-speculation-rules'` is scoped to `<script type="speculationrules">`
-    // blocks only — adding it doesn't loosen what other inlines may execute.
-    // Cheap to add unconditionally so pages can grow speculation rules later
-    // without revisiting CSP.
     let mut script_src = SourceList::self_origin()
         .with_hash(HashAlgorithm::Sha256, csp::THEME_INIT.hash_b64())
-        .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64())
-        .with(SourceExpression::InlineSpeculationRules);
+        .with_hash(HashAlgorithm::Sha256, csp::IMPORTMAP.hash_b64());
     if let Some(s) = inlines.module_script {
+        script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
+    }
+    if let Some(s) = inlines.speculation_rules {
         script_src = script_src.with_hash(HashAlgorithm::Sha256, s.hash_b64());
     }
     let mut style_src = SourceList::self_origin();
@@ -265,7 +263,7 @@ pub fn page(
             json_ld::site().script(),
             // Per-page schema.org JSON-LD (LearningResource +
             // BreadcrumbList on exercise pages).
-            meta_data.structured_data.as_ref().map(JsonLd::script),
+            meta_data.structured_data.map(JsonLd::script),
             // Apply stored theme override before first paint to avoid flash.
             // Body lives in `assets/theme-init.js` so its SHA-256 (and the
             // matching CSP source) is computed by build.rs.

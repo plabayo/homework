@@ -678,7 +678,8 @@ async fn skip_shows_correct_answer() -> TestResult<()> {
     // The question must now be locked with the correct answer visible.
     wait_for_css(driver, "#exercise-content.locked", Duration::from_secs(5)).await?;
     wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
-    let answer_text = text_of(driver, "#exercise-content .box").await?;
+    let answer_text =
+        wait_for_nonempty_text(driver, "#exercise-content .box", Duration::from_secs(5)).await?;
     assert!(
         answer_text.chars().any(|c| c.is_ascii_digit()),
         "expected the skip screen to show the correct answer, got: {answer_text:?}"
