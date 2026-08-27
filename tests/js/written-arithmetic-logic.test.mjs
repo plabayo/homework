@@ -8,7 +8,10 @@ import { test } from "node:test";
 import {
     buildDeck,
     buildSteps,
+    calculationColumns,
+    calculationHtml,
     formatNumber,
+    leadingCarry,
     makeQuestion,
     matchesDifficulty,
     stepIsCorrect,
@@ -32,6 +35,36 @@ test("buildSteps: addition carries into each following column", () => {
             { aDigit: 1, bDigit: 0, incoming: 0, result: 1, transfer: 0 },
         ],
     );
+});
+
+test("buildSteps: a final carry uses reserved space instead of a fake step", () => {
+    const question = makeQuestion("som", 8_308, 1_692, 1);
+
+    assert.equal(question.steps.length, 4);
+    assert.deepEqual(
+        question.steps.map(({ incoming, result, transfer }) => ({ incoming, result, transfer })),
+        [
+            { incoming: 0, result: 0, transfer: 1 },
+            { incoming: 1, result: 0, transfer: 1 },
+            { incoming: 1, result: 0, transfer: 1 },
+            { incoming: 1, result: 0, transfer: 1 },
+        ],
+    );
+    assert.equal(leadingCarry(question), 1);
+    assert.deepEqual(Array.from(calculationColumns(question)), [4, 3, 2, 1, "comma", 0]);
+
+    const review = calculationHtml(question, { kind: "review" });
+    assert.match(review, /written-result written-leading-column/);
+    assert.match(review, /data-leading-result aria-live="polite">1<\/span>/);
+    assert.doesNotMatch(review, /positie 5/);
+});
+
+test("calculationColumns: additions always reserve a quiet leading column", () => {
+    const question = makeQuestion("som", 830, 98);
+
+    assert.equal(leadingCarry(question), 0);
+    assert.deepEqual(Array.from(calculationColumns(question)), [3, 2, 1, 0]);
+    assert.match(calculationHtml(question, { kind: "review" }), /data-leading-result aria-live="polite"><\/span>/);
 });
 
 test("buildSteps: subtraction propagates borrowing by column", () => {

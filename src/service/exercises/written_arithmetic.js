@@ -38,7 +38,7 @@ function buildSteps(kind, a, b, decimalPlaces = 0) {
     const operandWidth = Math.max(String(a).length, String(b).length, decimalPlaces + 1);
     let transfer = 0;
 
-    for (let placeIndex = 0; placeIndex < operandWidth || transfer > 0; placeIndex++) {
+    for (let placeIndex = 0; placeIndex < operandWidth; placeIndex++) {
         const aDigit = digitAt(a, placeIndex);
         const bDigit = digitAt(b, placeIndex);
         const incoming = transfer;
@@ -183,6 +183,20 @@ function questionProgress(question) {
     return QUESTION_PROGRESS.get(question) ?? 0;
 }
 
+function isLeadingColumn(question, placeIndex) {
+    return question.kind === "som" && placeIndex === question.steps.length;
+}
+
+function leadingCarry(question) {
+    if (question.kind !== "som") return 0;
+    return question.steps[question.steps.length - 1]?.transfer ?? 0;
+}
+
+function columnClass(base, question, placeIndex, currentStep) {
+    const leading = isLeadingColumn(question, placeIndex) ? " written-leading-column" : "";
+    return `${cellClass(base, placeIndex, currentStep)}${leading}`;
+}
+
 function transferCell(question, placeIndex, mode) {
     const step = question.steps[placeIndex];
     const visible = mode.kind === "review" || placeIndex <= questionProgress(question);
@@ -193,7 +207,11 @@ function transferCell(question, placeIndex, mode) {
 function resultCell(question, placeIndex, mode) {
     const step = question.steps[placeIndex];
     const progress = questionProgress(question);
-    if (!step) return "";
+    if (!step) {
+        if (!isLeadingColumn(question, placeIndex)) return "";
+        const value = mode.kind === "review" && leadingCarry(question) ? "1" : "";
+        return `<span data-leading-result aria-live="polite">${value}</span>`;
+    }
     if (mode.kind === "review" || placeIndex < progress) return String(step.result);
     if (placeIndex !== progress) return "";
 
@@ -204,7 +222,8 @@ function resultCell(question, placeIndex, mode) {
 
 function calculationColumns(question) {
     const columns = [];
-    for (let placeIndex = question.steps.length - 1; placeIndex >= 0; placeIndex--) {
+    const leadingSpace = question.kind === "som" ? 1 : 0;
+    for (let placeIndex = question.steps.length - 1 + leadingSpace; placeIndex >= 0; placeIndex--) {
         columns.push(placeIndex);
         if (question.decimalPlaces > 0 && placeIndex === question.decimalPlaces) columns.push("comma");
     }
@@ -232,6 +251,11 @@ function calculationHtml(question, mode) {
                     <span aria-hidden="true">,</span><span class="written-sr-only">komma</span>
                 </th>`;
             }
+            if (isLeadingColumn(question, column)) {
+                return `<th scope="col" class="written-place written-leading-column">
+                    <span class="written-sr-only">eventueel extra cijfer</span>
+                </th>`;
+            }
             const [short, full] = placeName(question, column);
             return `<th scope="col" class="${cellClass("written-place", column, currentStep)}">
                 <span aria-hidden="true">${short}</span><span class="written-sr-only">${full}</span>
@@ -241,25 +265,25 @@ function calculationHtml(question, mode) {
     const transfer = rowCells(
         columns,
         (placeIndex) =>
-            `<td class="${cellClass("written-transfer", placeIndex, currentStep)}">${transferCell(question, placeIndex, mode)}</td>`,
+            `<td class="${columnClass("written-transfer", question, placeIndex, currentStep)}">${transferCell(question, placeIndex, mode)}</td>`,
         false,
     );
     const first = rowCells(
         columns,
         (placeIndex) =>
-            `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question, question.a, placeIndex)}</td>`,
+            `<td class="${columnClass("written-number", question, placeIndex, currentStep)}">${operandDigit(question, question.a, placeIndex)}</td>`,
         true,
     );
     const second = rowCells(
         columns,
         (placeIndex) =>
-            `<td class="${cellClass("written-number", placeIndex, currentStep)}">${operandDigit(question, question.b, placeIndex)}</td>`,
+            `<td class="${columnClass("written-number", question, placeIndex, currentStep)}">${operandDigit(question, question.b, placeIndex)}</td>`,
         true,
     );
     const result = rowCells(
         columns,
         (placeIndex) =>
-            `<td class="${cellClass("written-result", placeIndex, currentStep)}">${resultCell(question, placeIndex, mode)}</td>`,
+            `<td class="${columnClass("written-result", question, placeIndex, currentStep)}">${resultCell(question, placeIndex, mode)}</td>`,
         true,
     );
     const symbol = question.kind === "som" ? "+" : "−";
@@ -375,10 +399,27 @@ runExercise({
         document.getElementById("exercise-feedback").textContent = promptForStep(question);
         root.innerHTML = renderPlay(question);
         const digit = root.querySelector("#answer-digit");
-        return () => {
+        const leadingResult = root.querySelector("[data-leading-result]");
+        const transferChoices = root.querySelectorAll("input[name='step-transfer']");
+        const syncLeadingResult = () => {
+            if (!leadingResult || questionProgress(question) + 1 !== question.steps.length) return;
             const transfer = root.querySelector("input[name='step-transfer']:checked");
-            if (!digit.value || !transfer) return null;
-            return { digit: digit.value, transfer: transfer.value };
+            leadingResult.textContent = transfer?.value === "1" ? "1" : "";
+        };
+        transferChoices.forEach((choice) => {
+            choice.addEventListener("change", syncLeadingResult);
+        });
+        return {
+            getAnswer() {
+                const transfer = root.querySelector("input[name='step-transfer']:checked");
+                if (!digit.value || !transfer) return null;
+                return { digit: digit.value, transfer: transfer.value };
+            },
+            cleanup() {
+                transferChoices.forEach((choice) => {
+                    choice.removeEventListener("change", syncLeadingResult);
+                });
+            },
         };
     },
     evaluateAnswer(question, given) {

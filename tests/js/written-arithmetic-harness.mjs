@@ -42,4 +42,14 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { buildDeck, buildSteps, formatNumber, makeQuestion, matchesDifficulty, stepIsCorrect } = ctx;
+export const {
+    buildDeck,
+    buildSteps,
+    calculationColumns,
+    calculationHtml,
+    formatNumber,
+    leadingCarry,
+    makeQuestion,
+    matchesDifficulty,
+    stepIsCorrect,
+} = ctx;
