@@ -37,6 +37,93 @@ async fn multiplications_happy_path_reaches_finish() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn screen_wake_lock_is_scoped_to_active_exercise() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    // Stub the browser API after the shared runner is mounted. Its controller
+    // feature-detects at request time, so starting the exercise should use this
+    // fake and finishing should release the returned sentinel.
+    driver
+        .execute(
+            r#"
+            window.__wakeLockRequests = 0;
+            window.__wakeLockReleases = 0;
+            Object.defineProperty(navigator, "wakeLock", {
+                configurable: true,
+                value: {
+                    request(type) {
+                        if (type !== "screen") throw new Error("unexpected wake-lock type");
+                        window.__wakeLockRequests += 1;
+                        let released = false;
+                        let releaseListener = null;
+                        return Promise.resolve({
+                            get released() { return released; },
+                            addEventListener(event, listener) {
+                                if (event === "release") releaseListener = listener;
+                            },
+                            release() {
+                                if (released) return Promise.resolve();
+                                released = true;
+                                window.__wakeLockReleases += 1;
+                                if (releaseListener) releaseListener();
+                                return Promise.resolve();
+                            },
+                        });
+                    },
+                },
+            });
+            "#,
+            vec![],
+        )
+        .await?;
+
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+
+    let active_counts = driver
+        .execute(
+            "return [window.__wakeLockRequests, window.__wakeLockReleases];",
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        active_counts.json(),
+        &serde_json::json!([1, 0]),
+        "active exercise should hold one screen wake lock",
+    );
+
+    let prompt =
+        wait_for_nonempty_text(driver, "#exercise-content p", Duration::from_secs(2)).await?;
+    let answer = parse_product_answer(&prompt)?;
+    set_input_value(driver, "#answer", &answer.to_string()).await?;
+    click(driver, "#button-check").await?;
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    let finished_counts = driver
+        .execute(
+            "return [window.__wakeLockRequests, window.__wakeLockReleases];",
+            vec![],
+        )
+        .await?;
+    assert_eq!(
+        finished_counts.json(),
+        &serde_json::json!([1, 1]),
+        "finishing the exercise should release its screen wake lock",
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn mathbox_second_term_limit_applies_and_persists() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;

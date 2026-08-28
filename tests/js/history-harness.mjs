@@ -84,6 +84,7 @@ const ctx = createContext({
 runInContext(patched, ctx);
 
 export const {
+    createScreenWakeLockController,
     formatScaledNumber,
     gcd,
     isoWeekStart,

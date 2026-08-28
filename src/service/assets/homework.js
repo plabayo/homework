@@ -1511,6 +1511,101 @@ function renderTrickyList(session) {
     `;
 }
 
+// ---------- screen wake lock ----------
+
+/**
+ * Keep the display awake while an exercise is active. The injected accessors
+ * make the lifecycle testable without a browser and keep feature detection at
+ * request time (important when browsers expose the API lazily).
+ *
+ * Wake locks are automatically dropped when a document becomes hidden, but
+ * we release explicitly as well and request a fresh sentinel when it becomes
+ * visible again. Unsupported browsers and denied requests degrade silently.
+ */
+export function createScreenWakeLockController({
+    getWakeLock = () => navigator.wakeLock,
+    getVisibilityState = () => document.visibilityState,
+} = {}) {
+    let wanted = false;
+    let sentinel = null;
+    let pendingRequest = null;
+
+    async function releaseCurrent() {
+        const current = sentinel;
+        sentinel = null;
+        if (!current || current.released) return;
+        try {
+            await current.release();
+        } catch (_err) {}
+    }
+
+    function acquireIfPossible() {
+        if (!wanted || getVisibilityState() !== "visible" || sentinel || pendingRequest) {
+            return pendingRequest || Promise.resolve();
+        }
+
+        let wakeLock;
+        try {
+            wakeLock = getWakeLock();
+        } catch (_err) {
+            return Promise.resolve();
+        }
+        if (!wakeLock || typeof wakeLock.request !== "function") return Promise.resolve();
+
+        let request;
+        try {
+            // Call synchronously so browsers that require user activation can
+            // associate this request with the setup form's submit gesture.
+            request = wakeLock.request("screen");
+        } catch (_err) {
+            return Promise.resolve();
+        }
+
+        pendingRequest = Promise.resolve(request)
+            .then((nextSentinel) => {
+                if (!nextSentinel) return;
+                // The user may have finished the exercise, or hidden the tab,
+                // while the asynchronous request was still pending.
+                if (!wanted || getVisibilityState() !== "visible") {
+                    if (!nextSentinel.released) {
+                        try {
+                            void Promise.resolve(nextSentinel.release()).catch((_err) => {});
+                        } catch (_err) {}
+                    }
+                    return;
+                }
+                sentinel = nextSentinel;
+                nextSentinel.addEventListener?.(
+                    "release",
+                    () => {
+                        if (sentinel === nextSentinel) sentinel = null;
+                    },
+                    { once: true },
+                );
+            })
+            .catch((_err) => {})
+            .finally(() => {
+                pendingRequest = null;
+            });
+        return pendingRequest;
+    }
+
+    return {
+        start() {
+            wanted = true;
+            return acquireIfPossible();
+        },
+        stop() {
+            wanted = false;
+            return releaseCurrent();
+        },
+        visibilityChanged() {
+            if (getVisibilityState() === "visible") return acquireIfPossible();
+            return releaseCurrent();
+        },
+    };
+}
+
 // ---------- main runner ----------
 
 /**
@@ -1573,6 +1668,7 @@ export function runExercise(spec) {
     const contentEl = document.getElementById("exercise-content");
     const skipBtn = document.getElementById("button-skip");
     const resultEl = document.getElementById("result");
+    const screenWakeLock = createScreenWakeLockController();
 
     // Any text/number-style answer input inside the current question card.
     // Excludes hidden/disabled/readonly fields and the option-button machinery
@@ -1755,6 +1851,7 @@ export function runExercise(spec) {
     // anyway, but pausing avoids wall-time drift when the tab comes back and
     // stops needless wake-ups during long backgrounded sessions.
     function _onVisibilityChange() {
+        void screenWakeLock.visibilityChanged();
         if (document.visibilityState === "hidden") {
             if (state.sessionTimerHandle) {
                 clearInterval(state.sessionTimerHandle);
@@ -1833,6 +1930,8 @@ export function runExercise(spec) {
         play.hidden = which !== "play";
         result.hidden = which !== "result";
         if (which !== "result") stopConfetti();
+        if (which === "play") void screenWakeLock.start();
+        else void screenWakeLock.stop();
         if (which !== "play") stopSessionTimer();
         if (which !== "play") cleanupCurrentQuestion();
         // Replay the page-in animation on whichever section just became
