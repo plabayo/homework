@@ -233,10 +233,17 @@ function columnClass(base, question, placeIndex, currentStep) {
 }
 
 function transferCell(question, placeIndex, mode) {
+    const progress = questionProgress(question);
+    if (mode.kind === "play" && placeIndex === progress + 1) {
+        const [, fullPlaceName] = placeName(question, placeIndex);
+        const action = question.kind === "som" ? "onthouden" : "lenen";
+        return `<button type="button" class="written-transfer-toggle" aria-pressed="false"
+            aria-label="1 ${action} bij de ${fullPlaceName}" aria-describedby="written-transfer-hint">0</button>`;
+    }
     const step = question.steps[placeIndex];
-    const visible = mode.kind === "review" || placeIndex <= questionProgress(question);
+    const visible = mode.kind === "review" || placeIndex === progress;
     if (!step || !visible || step.incoming === 0) return "";
-    return question.kind === "som" ? "1" : "−1";
+    return "1";
 }
 
 function resultCell(question, placeIndex, mode) {
@@ -348,19 +355,22 @@ function promptForStep(question) {
     return `reken de ${fullPlaceName} uit: ${step.aDigit}${incoming} − ${step.bDigit}`;
 }
 
-function transferChoiceHtml(kind) {
-    const action = kind === "som" ? "onthouden" : "lenen";
-    const noLabel = kind === "som" ? "nee, niets onthouden" : "nee, niet lenen";
-    const yesLabel = kind === "som" ? "ja, 1 onthouden" : "ja, 1 lenen";
-    return `<fieldset class="written-transfer-choice">
-        <legend>Moet je 1 ${action}?</legend>
-        <label><input type="radio" name="step-transfer" value="0" aria-label="${noLabel}" required> nee</label>
-        <label><input type="radio" name="step-transfer" value="1" aria-label="${yesLabel}" required> ja</label>
-    </fieldset>`;
+function transferLocation(question, placeIndex) {
+    return isLeadingColumn(question, placeIndex) ? "links" : `bij ${placeName(question, placeIndex)[0]}`;
+}
+
+function transferHintHtml(question) {
+    const nextPlace = questionProgress(question) + 1;
+    if (question.kind === "verschil" && nextPlace === question.steps.length) return "";
+    const location = transferLocation(question, nextPlace);
+    const action = question.kind === "som" ? "onthouden" : "lenen";
+    return `<p class="written-transfer-hint" id="written-transfer-hint">
+        Tik op de 0 ${location} om 1 te ${action}, en opnieuw voor 0. Laat 0 staan als dat niet nodig is.
+    </p>`;
 }
 
 function renderPlay(question) {
-    return `${calculationHtml(question, { kind: "play" })}${transferChoiceHtml(question.kind)}`;
+    return `${calculationHtml(question, { kind: "play" })}${transferHintHtml(question)}`;
 }
 
 function renderReview(question) {
@@ -374,6 +384,19 @@ function stepIsCorrect(question, given) {
     const digit = parseStrictInt(given?.digit);
     const transfer = parseStrictInt(given?.transfer);
     return digit === step.result && transfer === step.transfer;
+}
+
+function feedbackForStep(question, given) {
+    const step = question.steps[questionProgress(question)];
+    if (parseStrictInt(given?.transfer) !== step.transfer) {
+        const location = transferLocation(question, step.placeIndex + 1);
+        const action = question.kind === "som" ? "onthouden" : "lenen";
+        return step.transfer
+            ? `Je moet hier 1 ${action}. Zet de 0 ${location} op 1.`
+            : `Je hoeft hier niets te ${action}. Zet de 1 ${location} terug op 0.`;
+    }
+    const [, fullPlaceName] = placeName(question, step.placeIndex);
+    return `Controleer het cijfer bij de ${fullPlaceName}. Reken deze kolom opnieuw uit.`;
 }
 
 const FIELDS = [
@@ -435,30 +458,31 @@ runExercise({
         root.innerHTML = renderPlay(question);
         const digit = root.querySelector("#answer-digit");
         const leadingResult = root.querySelector("[data-leading-result]");
-        const transferChoices = root.querySelectorAll("input[name='step-transfer']");
-        const syncLeadingResult = () => {
-            if (!leadingResult || questionProgress(question) + 1 !== question.steps.length) return;
-            const transfer = root.querySelector("input[name='step-transfer']:checked");
-            leadingResult.textContent = transfer?.value === "1" ? "1" : "";
+        const transferToggle = root.querySelector(".written-transfer-toggle");
+        const toggleTransfer = () => {
+            const pressed = transferToggle.getAttribute("aria-pressed") !== "true";
+            transferToggle.setAttribute("aria-pressed", String(pressed));
+            transferToggle.textContent = pressed ? "1" : "0";
+            if (leadingResult && questionProgress(question) + 1 === question.steps.length) {
+                leadingResult.textContent = pressed ? "1" : "";
+            }
         };
-        transferChoices.forEach((choice) => {
-            choice.addEventListener("change", syncLeadingResult);
-        });
+        transferToggle?.addEventListener("click", toggleTransfer);
         return {
             getAnswer() {
-                const transfer = root.querySelector("input[name='step-transfer']:checked");
-                if (!digit.value || !transfer) return null;
-                return { digit: digit.value, transfer: transfer.value };
+                if (!digit.value) return null;
+                return {
+                    digit: digit.value,
+                    transfer: transferToggle?.getAttribute("aria-pressed") === "true" ? "1" : "0",
+                };
             },
             cleanup() {
-                transferChoices.forEach((choice) => {
-                    choice.removeEventListener("change", syncLeadingResult);
-                });
+                transferToggle?.removeEventListener("click", toggleTransfer);
             },
         };
     },
     evaluateAnswer(question, given) {
-        if (!stepIsCorrect(question, given)) return { correct: false };
+        if (!stepIsCorrect(question, given)) return { correct: false, feedback: feedbackForStep(question, given) };
         const nextStep = questionProgress(question) + 1;
         QUESTION_PROGRESS.set(question, nextStep);
         if (nextStep < question.steps.length) return { partialCorrect: true };

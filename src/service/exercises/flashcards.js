@@ -2306,13 +2306,19 @@ function renderMultiPartQuestion(q, root, mode) {
         .join("");
 
     root.innerHTML = `
-        <div class="flash-question">
+        <div class="flash-question fc-mp-question">
             <p class="flash-text">${escapeHtml(q.front)}</p>
             ${hintToggleHtml(q.hint)}
             <p class="fc-mp-progress">${matched.size}/${partsRequired} gevonden</p>
             ${matchedHtml}
             <input type="text" id="answer" autocomplete="off"
-                placeholder="geef een onderdeel…" aria-label="jouw antwoord">
+                placeholder="geef je antwoord…" aria-label="jouw antwoord"
+                aria-describedby="fc-mp-instructions">
+            <details class="fc-mp-instructions">
+                <summary id="fc-mp-instructions">Eén per keer of met komma’s</summary>
+                <p>Geef één onderdeel per keer en klik op antwoord. Of geef er meerdere tegelijk
+                    met een komma (,) of puntkomma (;) ertussen. De volgorde maakt niet uit.</p>
+            </details>
         </div>`;
 
     wireHintToggle(root);

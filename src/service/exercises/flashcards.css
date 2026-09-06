@@ -164,8 +164,9 @@
     box-shadow: none;
 }
 
-/* ---- Editing / importing mode — hide the play controls and history ---- */
+/* ---- Editing / importing mode — hide the list intro, play controls, and history ---- */
 
+#page-setup[data-editing] > .page-intro,
 #page-setup[data-editing] #form-setup > fieldset,
 #page-setup[data-editing] #form-setup > .button-row,
 #page-setup[data-editing] #config-error,
@@ -1065,11 +1066,40 @@
 
 /* ---- Multi-part play mode ---- */
 
+.fc-mp-question {
+    width: min(100%, 30rem);
+}
+
 .fc-mp-progress {
     font-size: 0.85rem;
     opacity: 0.7;
     margin: 0.25rem 0 0;
     text-align: center;
+}
+
+.fc-mp-instructions {
+    max-width: 30rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.fc-mp-instructions summary {
+    width: fit-content;
+    margin-inline: auto;
+    cursor: pointer;
+}
+
+.fc-mp-instructions summary:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+}
+
+.fc-mp-instructions p {
+    margin-block: 0.5rem 0;
 }
 
 .fc-mp-done {

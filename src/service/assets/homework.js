@@ -2252,7 +2252,7 @@ export function runExercise(spec) {
         });
     }
 
-    function onWrongAttempt(given) {
+    function onWrongAttempt(given, feedback) {
         state.currentAttempts += 1;
         state.currentGiven = given;
         state.streak = 0;
@@ -2281,13 +2281,14 @@ export function runExercise(spec) {
             feedbackEl.dataset.assignmentHtml = feedbackEl.innerHTML;
         }
         const assignmentHtml = (feedbackEl.dataset.assignmentHtml || "").trim();
+        const retryHint = `${randomAnimal()} ${feedback || "probeer het nog eens."}`;
         if (assignmentHtml) {
             feedbackEl.innerHTML = assignmentHtml;
             const hint = document.createElement("small");
-            hint.textContent = `${randomAnimal()} probeer het nog eens.`;
+            hint.textContent = retryHint;
             feedbackEl.append(document.createElement("br"), hint);
         } else {
-            feedbackEl.textContent = `${randomAnimal()} probeer het nog eens.`;
+            feedbackEl.textContent = retryHint;
         }
         // Remove then re-add so the animation re-fires on repeated wrong answers.
         feedbackEl.classList.remove("is-bad");
@@ -2548,7 +2549,7 @@ export function runExercise(spec) {
         if (evaluation.correct) {
             onCorrect(given, evaluation);
         } else {
-            onWrongAttempt(given);
+            onWrongAttempt(given, evaluation.feedback);
         }
     });
 
