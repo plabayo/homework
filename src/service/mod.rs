@@ -21,7 +21,7 @@ use rama::{
         },
         service::{redirect::RedirectHttpToHttps, web::Router},
     },
-    net::http::uri::UriMatchReplaceDomain,
+    net::uri::UriMatchReplaceDomain,
 };
 
 mod assets;
