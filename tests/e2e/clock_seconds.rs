@@ -159,60 +159,100 @@ async fn digital_clock_seconds_render_exact_words_and_three_fields() -> TestResu
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
 
-    driver.goto(app.url("/2/digital-clock")).await?;
-    wait_for_css(driver, "#form-setup", TIMEOUT).await?;
-    let midnight = driver
-        .execute_async(
-            r#"
-            const done = arguments[arguments.length - 1];
-            import('@homework')
-                .then(({ preciseTimePhrase }) => done(preciseTimePhrase(0, 0, 5, { use24h: true })))
-                .catch((error) => done(`error: ${error}`));
-            "#,
-            vec![],
+    // Pin the deck shuffle and second selection so every run covers midnight,
+    // an ordinary 24-hour time, and the 12-hour/singular-second wording.
+    // A random prompt used to fail whenever "middernacht" replaced "uur".
+    for (random, use_24h, second_step, expected_phrase, answer) in [
+        (
+            0.0,
+            true,
+            "5",
+            "middernacht, vijftien minuten en vijf seconden",
+            ["00", "15", "05"],
+        ),
+        (
+            0.5,
+            true,
+            "5",
+            "middernacht, nul minuten en dertig seconden",
+            ["00", "00", "30"],
+        ),
+        (
+            0.2,
+            true,
+            "5",
+            "drieëntwintig uur, dertig minuten en vijftien seconden",
+            ["23", "30", "15"],
+        ),
+        (
+            0.0,
+            false,
+            "1",
+            "twaalf uur, vijftien minuten en een seconde",
+            ["12", "15", "01"],
+        ),
+    ] {
+        driver.goto(app.url("/2/digital-clock")).await?;
+        wait_for_css(driver, "#form-setup", TIMEOUT).await?;
+        set_checkbox(driver, "#include-seconds", true).await?;
+        wait_for_css(driver, "#second-options:not([hidden])", TIMEOUT).await?;
+        set_input_value(driver, "#num-exercises", "1").await?;
+        set_checkbox(driver, "#use-24h", use_24h).await?;
+        click(driver, "input[name='granularity'][value='kwart']").await?;
+        click(
+            driver,
+            &format!("input[name='second-step'][value='{second_step}']"),
         )
         .await?;
-    assert_eq!(
-        midnight.json().as_str(),
-        Some("middernacht, nul minuten en vijf seconden"),
-        "00:00 should be spoken as midnight, not zero hour"
-    );
-    set_checkbox(driver, "#include-seconds", true).await?;
-    wait_for_css(driver, "#second-options:not([hidden])", TIMEOUT).await?;
-    set_input_value(driver, "#num-exercises", "1").await?;
-    set_checkbox(driver, "input[name='dir'][value='digital-to-words']", false).await?;
-    set_checkbox(driver, "input[name='dir'][value='words-to-digital']", true).await?;
-    set_checkbox(driver, "input[name='answer'][value='fill']", true).await?;
-    click(driver, "#form-setup button[type='submit']").await?;
-
-    wait_for_css(driver, "#answer-s", TIMEOUT).await?;
-    let phrase = wait_for_nonempty_text(driver, ".dclock-label", TIMEOUT).await?;
-    assert!(
-        phrase.contains("uur") && phrase.contains("minuten") && phrase.contains("seconden"),
-        "advanced prompt should use exact hour/minute/second wording, got {phrase:?}"
-    );
-    let overflows = driver
-        .execute(
-            "const e = document.querySelector('.dclock-input'); return e.scrollWidth > e.clientWidth;",
-            vec![],
-        )
-        .await?
-        .json()
-        .as_bool()
-        .unwrap_or(true);
-    assert!(
-        !overflows,
-        "HH:MM:SS input should not overflow its clock face"
-    );
-    assert_eq!(
+        set_checkbox(driver, "input[name='dir'][value='digital-to-words']", false).await?;
+        set_checkbox(driver, "input[name='dir'][value='words-to-digital']", true).await?;
+        set_checkbox(driver, "input[name='answer'][value='fill']", true).await?;
         driver
-            .find(By::Css("#answer-s"))
+            .execute(
+                "window._savedRandom = Math.random; const value = arguments[0]; Math.random = () => value;",
+                vec![serde_json::json!(random)],
+            )
+            .await?;
+        click(driver, "#form-setup button[type='submit']").await?;
+        wait_for_css(driver, "#answer-s", TIMEOUT).await?;
+        driver
+            .execute("Math.random = window._savedRandom;", vec![])
+            .await?;
+
+        let phrase = wait_for_nonempty_text(driver, ".dclock-label", TIMEOUT).await?;
+        assert_eq!(phrase, expected_phrase, "prompt for {answer:?}");
+        let overflows = driver
+            .execute(
+                "const e = document.querySelector('.dclock-input'); return e.scrollWidth > e.clientWidth;",
+                vec![],
+            )
             .await?
-            .attr("aria-label")
-            .await?
-            .as_deref(),
-        Some("seconden")
-    );
+            .json()
+            .as_bool()
+            .unwrap_or(true);
+        assert!(
+            !overflows,
+            "HH:MM:SS input should not overflow its clock face"
+        );
+        assert_eq!(
+            driver
+                .find(By::Css("#answer-s"))
+                .await?
+                .attr("aria-label")
+                .await?
+                .as_deref(),
+            Some("seconden")
+        );
+
+        for (selector, value) in ["#answer-h", "#answer-m", "#answer-s"]
+            .into_iter()
+            .zip(answer)
+        {
+            set_input_value(driver, selector, value).await?;
+        }
+        click(driver, "#button-check").await?;
+        wait_for_text(driver, "#result h3", "1 / 1", TIMEOUT).await?;
+    }
 
     driver.clone().quit().await?;
     Ok(())

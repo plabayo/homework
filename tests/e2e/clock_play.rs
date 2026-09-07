@@ -3,9 +3,10 @@
 // Source-available; non-commercial use only.
 
 use super::helpers::{
-    click, set_checkbox, set_input_value, wait_for_css, wait_for_nonempty_text, wait_for_text,
+    click, poll_until, set_checkbox, set_input_value, wait_for_css, wait_for_nonempty_text,
+    wait_for_text,
 };
-use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
+use super::{BrowserHarness, Duration, TestApp, TestResult, WebDriver};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -25,9 +26,20 @@ async fn start_word_zet_session(driver: &WebDriver, app: &TestApp) -> TestResult
     set_checkbox(driver, "input[name='ck'][value='zet']", false).await?;
     set_checkbox(driver, "input[name='ck'][value='zet-woorden']", true).await?;
     click(driver, "input[name='granularity'][value='five']").await?;
+    // A fixed draw selects 02:20, which has two phrasings and differs from
+    // the interactive clock's initial 06:00. No random restarts are needed.
+    driver
+        .execute(
+            "window._savedRandom = Math.random; Math.random = () => 0.2;",
+            vec![],
+        )
+        .await?;
     click(driver, "#form-setup button[type='submit']").await?;
     wait_for_css(driver, "#exercise-content .clock.interactive", TIMEOUT).await?;
     wait_for_nonempty_text(driver, "#exercise-feedback", TIMEOUT).await?;
+    driver
+        .execute("Math.random = window._savedRandom;", vec![])
+        .await?;
     Ok(())
 }
 
@@ -84,29 +96,8 @@ async fn clock_zet_retry_feedback_keeps_single_clickable_phrase() -> TestResult<
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
 
-    // The target time is random; restart until we land on an ambiguous one
-    // (two phrasings → a `.phrase-flip` in the prompt). ~58% of five-minute
-    // times qualify, so this almost always succeeds on the first try.
-    // Navigating away from a fresh, unanswered question is safe — the session
-    // leave-guard only arms after the first recorded answer.
-    let mut found = false;
-    for _ in 0..25 {
-        start_word_zet_session(driver, &app).await?;
-        // Let renderZetFeedback's sizeFlip settle before inspecting.
-        tokio::time::sleep(Duration::from_millis(80)).await;
-        if !driver
-            .find_all(By::Css("#exercise-feedback .phrase-flip"))
-            .await?
-            .is_empty()
-        {
-            found = true;
-            break;
-        }
-    }
-    assert!(
-        found,
-        "could not reach an ambiguous (two-phrasing) word-mode clock question in 25 tries",
-    );
+    start_word_zet_session(driver, &app).await?;
+    wait_for_text(driver, "#exercise-feedback", "tien voor half drie", TIMEOUT).await?;
 
     // The fresh prompt shows the flip with exactly one visible face.
     let faces_before = feedback_flip_faces(driver).await?;
@@ -151,7 +142,21 @@ async fn clock_zet_retry_feedback_keeps_single_clickable_phrase() -> TestResult<
     // ...and remain clickable: tapping flips to the other phrasing, still
     // showing exactly one face.
     click(driver, "#exercise-feedback .phrase-flip").await?;
-    tokio::time::sleep(Duration::from_millis(450)).await; // opacity crossfade
+    // Wait for the actual crossfade endpoint, independent of rendering speed.
+    poll_until(TIMEOUT, || async {
+        Ok(driver
+            .execute(
+                "const flip = document.querySelector('#exercise-feedback .phrase-flip'); \
+                 return getComputedStyle(flip.querySelector('.phrase-flip-front')).opacity === '0' \
+                     && getComputedStyle(flip.querySelector('.phrase-flip-back')).opacity === '1';",
+                vec![],
+            )
+            .await?
+            .json()
+            .as_bool()
+            .unwrap_or(false))
+    })
+    .await?;
     let pressed = driver
         .execute(
             "var el = document.querySelector('#exercise-feedback .phrase-flip'); \
