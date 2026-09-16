@@ -240,6 +240,58 @@ test("tryMatchParts: 'en' separator works as split (pass 1)", () => {
     assert.equal(result.length, 2);
 });
 
+test("tryMatchParts: repeating an already-given part still yields the new one", () => {
+    // Re-listing what you already answered is not a mistake: "b, c" after a
+    // and b must land c, exactly, not be rejected for the duplicate.
+    const result = tryMatchParts("b, c", ["a", "b", "c"], new Set(["a", "b"]), "front", false);
+    assert.deepEqual(
+        result.map((r) => r.part),
+        ["c"],
+    );
+    assert.equal(result[0].exact, true);
+});
+
+test("tryMatchParts: restating the whole answer lands only the missing part", () => {
+    const parts = ["de kat", "de hond", "het paard"];
+    const result = tryMatchParts("de kat, de hond, het paard", parts, new Set(["de kat", "de hond"]), "dieren", false);
+    assert.deepEqual(
+        result.map((r) => r.part),
+        ["het paard"],
+    );
+    assert.equal(result[0].exact, true, "an exactly-typed part stays exact despite the repeats");
+});
+
+test("tryMatchParts: a repeated part cannot fuzzy-steal a lookalike missing part", () => {
+    // "lopen" is within fuzzy distance of "gelopen". Replayed as a duplicate it
+    // used to claim "gelopen" leniently, downgrading a perfect answer to
+    // "bijna goed" and sending the card back to mistake practice.
+    const parts = ["lopen", "liep", "gelopen"];
+    const result = tryMatchParts("lopen, liep, gelopen", parts, new Set(["lopen", "liep"]), "werkwoord", false);
+    assert.deepEqual(
+        result.map((r) => r.part),
+        ["gelopen"],
+    );
+    assert.equal(result[0].exact, true);
+    assert.equal(result[0].practiceAgain, false);
+});
+
+test("tryMatchParts: exact matches win over fuzzy ones within a single answer", () => {
+    // Order must not decide: "groot" is fuzzy-close to "grootst", so a
+    // left-to-right greedy pass would let it claim "grootst" before the token
+    // that spells "grootst" out.
+    const parts = ["groot", "groter", "grootst"];
+    const result = tryMatchParts("grootst, groter, groot", parts, new Set(), "trappen", false);
+    assert.equal(result.length, 3);
+    for (const r of result) {
+        assert.equal(r.exact, true, `${r.part} should be an exact match`);
+    }
+});
+
+test("tryMatchParts: repeating a part with nothing new yields no progress", () => {
+    const result = tryMatchParts("b", ["a", "b", "c"], new Set(["a", "b"]), "front", false);
+    assert.equal(result.length, 0);
+});
+
 // ---------------------------------------------------------------------------
 // cardParts
 // ---------------------------------------------------------------------------

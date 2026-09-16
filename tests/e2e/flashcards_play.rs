@@ -1587,6 +1587,109 @@ async fn flashcards_multipart_skip_after_partial_progress_scores_zero() -> TestR
     Ok(())
 }
 
+/// Practising a multi-part card you got wrong must hand it back blank.
+///
+/// The question object is stored by reference when its outcome is recorded and
+/// replayed as-is by "oefen fouten opnieuw", so without a per-session reset it
+/// returns with every part still marked found: the card reveals its whole
+/// answer, the progress line reads 3/3, and nothing the learner types is
+/// accepted because there is no unmatched part left to match.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_practising_a_mistake_starts_blank() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-retry-blank",
+        "sfinx",
+        &["wachter van de zon", "half man", "half leeuw"],
+        None,
+    )
+    .await?;
+
+    // Find one part, then skip — the card is scored wrong and becomes a mistake.
+    set_input_value(driver, "#answer", "wachter van de zon").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip:not([hidden])", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(5)).await?;
+
+    click(driver, "#review-button-repeat").await?;
+
+    // The replayed card must arrive with no progress carried over.
+    wait_for_text(driver, ".fc-mp-progress", "0/3", Duration::from_secs(10)).await?;
+    let carried = driver.find_all(By::Css(".mp-part.mp-matched")).await?;
+    assert!(
+        carried.is_empty(),
+        "practising a mistake must not pre-reveal parts, found {} already marked found",
+        carried.len()
+    );
+
+    // ...and must accept answers again, all the way to a clean score.
+    for part in ["wachter van de zon", "half man", "half leeuw"] {
+        wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+        set_input_value(driver, "#answer", part).await?;
+        click(driver, "#button-check").await?;
+    }
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+/// Re-listing parts you already gave is not a mistake: the repeated tokens are
+/// ignored and the genuinely new part still lands as an exact match, rather
+/// than being rejected or downgraded to "bijna goed".
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multipart_repeating_given_parts_still_accepts_the_new_one() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    setup_multipart_exercise(
+        driver,
+        &app.url("/extra/flashcards"),
+        "test-mp-repeat-parts",
+        "trappen van vergelijking",
+        &["groot", "groter", "grootst"],
+        None,
+    )
+    .await?;
+
+    set_input_value(driver, "#answer", "groot").await?;
+    click(driver, "#button-check").await?;
+    wait_for_text(driver, ".fc-mp-progress", "1/3", Duration::from_secs(5)).await?;
+
+    set_input_value(driver, "#answer", "groter").await?;
+    click(driver, "#button-check").await?;
+    wait_for_text(driver, ".fc-mp-progress", "2/3", Duration::from_secs(5)).await?;
+
+    // Restates both known parts and adds the last one. "groot" is close enough
+    // to "grootst" to have stolen it leniently before, which cost the card an
+    // exact score and sent it back to mistake practice.
+    set_input_value(driver, "#answer", "groot, groter, grootst").await?;
+    click(driver, "#button-check").await?;
+
+    // An exact completion needs no reveal step — it goes straight to the score.
+    wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
+
+    let lenient = driver.find_all(By::Css(".item-lenient")).await?;
+    assert!(
+        lenient.is_empty(),
+        "an exactly-typed final part must not be graded as a near-miss"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_multipart_wrong_answer_does_not_count_as_progress() -> TestResult<()> {

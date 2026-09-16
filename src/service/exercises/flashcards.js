@@ -313,56 +313,85 @@ function splitAnswerTokens(raw) {
         .filter((t) => t.length > 0);
 }
 
+// Drop tokens that merely restate a part the learner already gave. Listing what
+// you have so far is not a mistake, and a repeated token left in play is free to
+// fuzzy-claim a part that is still missing — an earlier "lopen" grabbing
+// "gelopen" — which downgrades an otherwise perfect answer to "bijna goed" and
+// sends the card back to mistake practice.
+function dropRestatedParts(tokens, allParts, alreadyMatched) {
+    return tokens.filter(
+        (token) => !allParts.some((part) => alreadyMatched.has(part) && classifyAnswerMatch(token, part).exact),
+    );
+}
+
+// First unclaimed part that `token` matches, or null. `exactOnly` restricts the
+// sweep to verbatim matches.
+function findPartForToken(token, remaining, newlyMatched, exactOnly) {
+    for (const part of remaining) {
+        if (newlyMatched.some((m) => m.part === part)) continue;
+        const match = classifyAnswerMatch(token, part);
+        if (!match.accepted || (exactOnly && !match.exact)) continue;
+        return { part, match };
+    }
+    return null;
+}
+
+// Pass 1: match tokens against unmatched parts, sweeping exact before lenient so
+// a fuzzy near-miss can never claim a part that another token in the same answer
+// names outright. Flags each consumed token in `tokenUsed` so pass 2 cannot
+// spend it a second time.
+function matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, front, trackLenient) {
+    for (const exactOnly of [true, false]) {
+        for (let i = 0; i < tokens.length; i++) {
+            if (tokenUsed[i]) continue;
+            const hit = findPartForToken(tokens[i], remaining, newlyMatched, exactOnly);
+            if (!hit) continue;
+            if (trackLenient && hit.match.practiceAgain) pushLenientMatch(tokens[i], hit.part, front);
+            newlyMatched.push({ part: hit.part, ...hit.match });
+            tokenUsed[i] = true;
+        }
+    }
+}
+
+// Pass 2 (phrase-contains fallback): if the leftover words cover all content
+// words of a remaining part, count it as matched. Handles any separator the user
+// picks (space, "en", "+", etc.) without needing to enumerate them all. Only
+// reached for parts pass 1 left open, and always lenient by definition.
+function matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched, given, front, trackLenient) {
+    for (const part of remaining) {
+        if (newlyMatched.some((m) => m.part === part)) continue;
+        const contentWords = normalize(part)
+            .split(" ")
+            .filter((w) => w.length > 0 && !PHRASE_STOPWORDS.has(w));
+        if (contentWords.length === 0) continue;
+        const covered = contentWords.filter((cw) => leftoverWords.some((aw) => fuzzyEqual(aw, cw))).length;
+        // Require ALL content words present AND at most one extra word per content word
+        // (prevents single-word parts from matching long unrelated phrases).
+        if (covered !== contentWords.length || leftoverWords.length > contentWords.length * 2 + 1) continue;
+        if (trackLenient) pushLenientMatch(given, part, front);
+        newlyMatched.push({ part, accepted: true, exact: false, practiceAgain: true });
+    }
+}
+
 // Try to match one or more tokens from `given` against unmatched parts.
 // `front` is the card's front text, used for lenient-match tracking.
 // Returns match objects for newly matched parts.
 function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = true) {
-    const tokens = splitAnswerTokens(given);
     const newlyMatched = [];
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
+    const tokens = dropRestatedParts(splitAnswerTokens(given), allParts, alreadyMatched);
+    const tokenUsed = new Array(tokens.length).fill(false);
 
-    // Pass 1: match each split token against an unmatched part.
-    for (const token of tokens) {
-        for (const part of remaining) {
-            if (newlyMatched.some((m) => m.part === part)) continue;
-            const match = trackLenient ? matchAndTrackLenient(token, part, front) : classifyAnswerMatch(token, part);
-            if (match?.accepted) {
-                newlyMatched.push({ part, ...match });
-                break;
-            }
-        }
-    }
+    matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, front, trackLenient);
 
-    // Pass 2 (phrase-contains fallback): if the full input contains all content words
-    // of a remaining part, count it as matched.  Handles any separator the user picks
-    // (space, "en", "+", etc.) without needing to enumerate them all.
-    // Only runs when pass 1 left parts unmatched.  Always lenient by definition.
-    for (const part of remaining) {
-        if (newlyMatched.some((m) => m.part === part)) continue;
-        const bWords = normalize(part)
-            .split(" ")
-            .filter((w) => w.length > 0);
-        const contentWords = bWords.filter((w) => !PHRASE_STOPWORDS.has(w));
-        if (contentWords.length === 0) continue;
-        const aWords = normalize(given)
-            .split(" ")
-            .filter((w) => w.length > 0);
-        let matched = 0;
-        for (const cw of contentWords) {
-            if (aWords.some((aw) => fuzzyEqual(aw, cw))) matched++;
-        }
-        // Require ALL content words present AND at most one extra word per content word
-        // (prevents single-word parts from matching long unrelated phrases).
-        if (matched === contentWords.length && aWords.length <= contentWords.length * 2 + 1) {
-            if (trackLenient) pushLenientMatch(given, part, front);
-            newlyMatched.push({
-                part,
-                accepted: true,
-                exact: false,
-                practiceAgain: true,
-            });
-        }
-    }
+    // Pass 2 sees only the tokens pass 1 could not place, so one token can never
+    // name two parts. Reading the whole input here let a single answer of
+    // "groot" claim both "groot" (exactly) and "grootst" (fuzzyEqual tolerates
+    // the two-letter gap) — handing the learner a part they never gave.
+    const leftoverWords = normalize(tokens.filter((_, i) => !tokenUsed[i]).join(" "))
+        .split(" ")
+        .filter((w) => w.length > 0);
+    matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched, given, front, trackLenient);
 
     return newlyMatched;
 }
@@ -2503,6 +2532,28 @@ runExercise({
             blankIndices,
         }));
         return [...imageQuestions, ...fillInQuestions];
+    },
+
+    // Reset the progress a question accumulated during an earlier session.
+    //
+    // A question object outlives the session it was built for: recordOutcome()
+    // stores it by reference, and "fouten oefenen" replays that very object —
+    // straight from memory for an immediate retry, or structured-cloned out of
+    // IndexedDB later, which preserves a Set intact. Without this reset a
+    // multi-part card comes back with every part still marked as matched, so it
+    // reveals the whole answer and rejects everything the learner types: there
+    // is nothing left to match. Fill-in results are module-level and normally
+    // cleared by buildDeck(), which a mistakes session never calls.
+    prepareQuestion(q) {
+        if (q.kind === "multi-part") {
+            q.matched = new Set();
+            q.revealAtEnd = false;
+            q.revealPracticeAgain = false;
+            q.revealShown = false;
+            q._lastSeenMatchedSize = 0;
+        } else if (q.kind === "fill-in") {
+            clearFillInState();
+        }
     },
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: question-kind fan-out with per-kind render logic
