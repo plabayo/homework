@@ -123,10 +123,14 @@ pub(crate) async fn wait_for_css(
     selector: &str,
     timeout: Duration,
 ) -> TestResult<()> {
-    poll_until(timeout, || async {
-        let matches = driver.find_all(By::Css(selector)).await?;
-        Ok(!matches.is_empty())
-    })
+    poll_until(
+        &format!("an element matching {selector:?}"),
+        timeout,
+        || async {
+            let matches = driver.find_all(By::Css(selector)).await?;
+            Ok(!matches.is_empty())
+        },
+    )
     .await
 }
 
@@ -139,10 +143,14 @@ pub(crate) async fn wait_for_css_count(
     min: usize,
     timeout: Duration,
 ) -> TestResult<()> {
-    poll_until(timeout, || async {
-        let matches = driver.find_all(By::Css(selector)).await?;
-        Ok(matches.len() >= min)
-    })
+    poll_until(
+        &format!("at least {min} elements matching {selector:?}"),
+        timeout,
+        || async {
+            let matches = driver.find_all(By::Css(selector)).await?;
+            Ok(matches.len() >= min)
+        },
+    )
     .await
 }
 
@@ -152,8 +160,9 @@ pub(crate) async fn wait_for_text(
     expected: &str,
     timeout: Duration,
 ) -> TestResult<()> {
+    let what = format!("{selector:?} to contain {expected:?}");
     let expected = expected.to_owned();
-    poll_until(timeout, || async {
+    poll_until(&what, timeout, || async {
         let matches = driver.find_all(By::Css(selector)).await?;
         if matches.is_empty() {
             return Ok(false);
@@ -257,7 +266,10 @@ pub(crate) async fn wait_for_enabled(
     }
 }
 
-pub(crate) async fn poll_until<F, Fut>(timeout: Duration, mut f: F) -> TestResult<()>
+/// Polls `f` until it reports success or `timeout` elapses. `what` describes
+/// what is being waited for and is the only thing a CI log has to go on when
+/// the wait times out — always make it identify the exact condition.
+pub(crate) async fn poll_until<F, Fut>(what: &str, timeout: Duration, mut f: F) -> TestResult<()>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = TestResult<bool>>,
@@ -268,7 +280,7 @@ where
             return Ok(());
         }
         if Instant::now() >= deadline {
-            return Err(format!("condition not met within {timeout:?}").into());
+            return Err(format!("timed out after {timeout:?} waiting for {what}").into());
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }

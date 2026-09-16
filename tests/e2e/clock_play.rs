@@ -143,19 +143,23 @@ async fn clock_zet_retry_feedback_keeps_single_clickable_phrase() -> TestResult<
     // showing exactly one face.
     click(driver, "#exercise-feedback .phrase-flip").await?;
     // Wait for the actual crossfade endpoint, independent of rendering speed.
-    poll_until(TIMEOUT, || async {
-        Ok(driver
-            .execute(
-                "const flip = document.querySelector('#exercise-feedback .phrase-flip'); \
+    poll_until(
+        "the phrase-flip crossfade to land on the back face",
+        TIMEOUT,
+        || async {
+            Ok(driver
+                .execute(
+                    "const flip = document.querySelector('#exercise-feedback .phrase-flip'); \
                  return getComputedStyle(flip.querySelector('.phrase-flip-front')).opacity === '0' \
                      && getComputedStyle(flip.querySelector('.phrase-flip-back')).opacity === '1';",
-                vec![],
-            )
-            .await?
-            .json()
-            .as_bool()
-            .unwrap_or(false))
-    })
+                    vec![],
+                )
+                .await?
+                .json()
+                .as_bool()
+                .unwrap_or(false))
+        },
+    )
     .await?;
     let pressed = driver
         .execute(

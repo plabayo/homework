@@ -2113,7 +2113,6 @@ async function initManager() {
     if (importParam) {
         try {
             const data = await decodeDeckParam(importParam);
-            history.replaceState({}, "", location.pathname);
             const incomingKey = deckContentKey(data);
             const decks = loadDecks();
             const exactMatch = decks.find((d) => deckContentKey(d) === incomingKey);
@@ -2122,11 +2121,16 @@ async function initManager() {
                 selectedDeckId = exactMatch.id;
                 if (hiddenDeckInput) hiddenDeckInput.value = exactMatch.id;
                 showToast("Dit deck staat al in je collectie! ✅");
+                history.replaceState({}, "", location.pathname);
             } else {
                 const nameConflict = decks.find((d) => d.name.trim() === data.name.trim());
                 // Store conflict id on the pending object so renderImport() can offer
                 // overwrite vs. save-as-new options.
                 importPending = nameConflict ? { ...data, _conflictId: nameConflict.id } : data;
+                // Keep ?import= in the URL until the user resolves the dialog —
+                // doImport() and the cancel button both clear it. Consuming it
+                // here instead lets any reload in between (a refresh, a restored
+                // tab, a service worker upgrade) silently drop the shared deck.
             }
         } catch (_e) {
             history.replaceState({}, "", location.pathname);

@@ -9,6 +9,11 @@ use super::helpers::{
 };
 use super::{BrowserHarness, By, Duration, TestApp, TestResult};
 
+/// Index of the card the review viewer currently has in focus, or `""` when
+/// the viewer is not showing one yet.
+const ACTIVE_REVIEW_CARD_INDEX: &str =
+    "return document.querySelector('.fc-review-card.is-active')?.dataset.index || '';";
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_one_sided_deck_completes_session() -> TestResult<()> {
@@ -38,15 +43,19 @@ async fn flashcards_one_sided_deck_completes_session() -> TestResult<()> {
         ".deck-item[data-deck-id='test-one'] .deck-select-btn",
     )
     .await?;
-    poll_until(Duration::from_secs(5), || async {
-        let value = driver
-            .execute(
-                "return document.querySelector('#selected-deck-id')?.value || '';",
-                vec![],
-            )
-            .await?;
-        Ok(value.json().as_str().unwrap_or("") == "test-one")
-    })
+    poll_until(
+        "#selected-deck-id to hold the clicked deck id",
+        Duration::from_secs(5),
+        || async {
+            let value = driver
+                .execute(
+                    "return document.querySelector('#selected-deck-id')?.value || '';",
+                    vec![],
+                )
+                .await?;
+            Ok(value.json().as_str().unwrap_or("") == "test-one")
+        },
+    )
     .await?;
     click(driver, "#form-setup button[type='submit']").await?;
 
@@ -837,27 +846,25 @@ async fn flashcards_review_mode_flips_and_navigates_inside_frame() -> TestResult
     );
 
     click(driver, "#fc-review-next").await?;
-    poll_until(Duration::from_secs(10), || async {
-        let active = driver
-            .execute(
-                "return document.querySelector('.fc-review-card.is-active')?.dataset.index || '';",
-                vec![],
-            )
-            .await?;
-        Ok(active.json().as_str().unwrap_or("") == "1")
-    })
+    poll_until(
+        "the review viewer to advance to card 1",
+        Duration::from_secs(10),
+        || async {
+            let active = driver.execute(ACTIVE_REVIEW_CARD_INDEX, vec![]).await?;
+            Ok(active.json().as_str().unwrap_or("") == "1")
+        },
+    )
     .await?;
 
     click(driver, "#fc-review-prev").await?;
-    poll_until(Duration::from_secs(10), || async {
-        let active = driver
-            .execute(
-                "return document.querySelector('.fc-review-card.is-active')?.dataset.index || '';",
-                vec![],
-            )
-            .await?;
-        Ok(active.json().as_str().unwrap_or("") == "0")
-    })
+    poll_until(
+        "the review viewer to go back to card 0",
+        Duration::from_secs(10),
+        || async {
+            let active = driver.execute(ACTIVE_REVIEW_CARD_INDEX, vec![]).await?;
+            Ok(active.json().as_str().unwrap_or("") == "0")
+        },
+    )
     .await?;
 
     let fits = driver
@@ -1036,7 +1043,7 @@ async fn flashcards_review_mode_multipart_card_shows_chips() -> TestResult<()> {
     wait_for_css(driver, ".fc-review-viewer", Duration::from_secs(10)).await?;
 
     click(driver, ".fc-review-card.is-active").await?;
-    poll_until(Duration::from_secs(10), || async {
+    poll_until("the active review card to flip", Duration::from_secs(10), || async {
         let result = driver
             .execute(
                 "return document.querySelector('.fc-review-card.is-active')?.classList.contains('is-flipped') ?? false;",
@@ -1252,7 +1259,7 @@ async fn flashcards_legacy_multiline_back_rendered_as_multipart_in_review() -> T
 
     // Flip the card to see the back face with parts chips.
     click(driver, ".fc-review-card.is-active").await?;
-    poll_until(Duration::from_secs(10), || async {
+    poll_until("the active review card to flip", Duration::from_secs(10), || async {
         let result = driver
             .execute(
                 "return document.querySelector('.fc-review-card.is-active')?.classList.contains('is-flipped') ?? false;",

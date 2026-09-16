@@ -1221,16 +1221,20 @@ function versionedAssetPath(path) {
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     if (location.protocol === "file:") return;
-    // When a new service worker activates it posts SW_ACTIVATED. Reload the
-    // page so fresh HTML (with matching asset hashes) is loaded — but only
-    // when the user is not in the middle of an active exercise session, AND
-    // only on upgrades (hadController=true). A fresh install means the page
-    // already loaded from the network so no reload is needed; reloading on
-    // fresh installs also breaks e2e tests where every session starts clean.
-    const hadController = !!navigator.serviceWorker.controller;
+    // When a new service worker activates it posts SW_ACTIVATED with the build
+    // it belongs to. Reload the page so fresh HTML (with matching asset hashes)
+    // is loaded — but only when the user is not in the middle of an active
+    // exercise session, AND only when that build differs from the one this HTML
+    // was rendered from. Same version means our markup and assets already match
+    // the worker, so a reload would achieve nothing but throw away client-side
+    // state (an unconfirmed ?import= deck, a half-filled setup form).
+    //
+    // `navigator.serviceWorker.controller` cannot stand in for that test: the
+    // activate handler calls clients.claim() before it posts, so a page loaded
+    // during a first install is already controlled by the time this runs.
     navigator.serviceWorker.addEventListener("message", (e) => {
         if (e.data?.type !== "SW_ACTIVATED") return;
-        if (!hadController) return;
+        if (e.data.version === currentAssetVersion()) return;
         const exercisesSection = document.getElementById("page-exercises");
         if (!exercisesSection || exercisesSection.hidden) {
             location.reload();

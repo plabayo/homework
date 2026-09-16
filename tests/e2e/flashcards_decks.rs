@@ -355,6 +355,45 @@ async fn flashcards_import_via_url_is_client_side() -> TestResult<()> {
     Ok(())
 }
 
+/// The shared-deck dialog must survive a reload: `?import=` stays in the URL
+/// until the user confirms or cancels. Anything can reload the page while the
+/// dialog is up — a refresh, a restored tab, a service worker taking over a
+/// new build — and consuming the param as soon as it decoded used to drop the
+/// shared deck silently, leaving the visitor on a plain deck list.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_import_dialog_survives_a_reload() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    let param = generate_import_param(driver).await?;
+
+    driver
+        .goto(app.url(&format!("/extra/flashcards?import={param}")))
+        .await?;
+    wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
+
+    driver.refresh().await?;
+    wait_for_css(driver, ".fc-import-box", Duration::from_secs(10)).await?;
+
+    click(driver, "#fc-confirm-import").await?;
+    wait_for_css(driver, ".deck-item.selected", Duration::from_secs(5)).await?;
+
+    // Resolving the dialog does clear the param, so a later reload re-imports
+    // nothing and the visitor keeps a clean, shareable URL.
+    let url = driver.current_url().await?;
+    assert!(
+        !url.as_str().contains("import="),
+        "confirming the import should drop ?import= from the URL, got {url}"
+    );
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_import_exact_duplicate_selects_existing() -> TestResult<()> {
