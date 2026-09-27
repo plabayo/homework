@@ -1569,7 +1569,7 @@ function bindImageSearch(row) {
 
 function hintToggleHtml(hint) {
     if (!hint) return "";
-    return `<button type="button" class="fc-hint-chip"><span class="fc-hint-q">?</span><span class="fc-hint-body">${escapeHtml(hint)}</span></button>`;
+    return `<button type="button" class="fc-hint-chip"><span class="fc-hint-q">?</span><span class="fc-hint-body"><span class="fc-hint-text">${escapeHtml(hint)}</span></span></button>`;
 }
 
 function wireHintToggle(root) {

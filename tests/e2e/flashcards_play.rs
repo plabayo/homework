@@ -160,7 +160,7 @@ async fn flashcards_hint_button_appears_and_reveals_hint() -> TestResult<()> {
     wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
     inject_deck_json(
         driver,
-        r#"{"id":"test-hint","name":"Test hint","mode":"two-sided","bidirectional":false,"cards":[{"front":"chat","back":"kat","hint":"een dier dat miauw zegt"}],"createdAt":1}"#,
+        r#"{"id":"test-hint","name":"Test hint","mode":"two-sided","bidirectional":false,"cards":[{"front":"chat","back":"kat","hint":"een dier dat miauw zegt en graag op de vensterbank in de zon ligt te slapen"}],"createdAt":1}"#,
     )
     .await?;
     driver.refresh().await?;
@@ -221,6 +221,28 @@ async fn flashcards_hint_button_appears_and_reveals_hint() -> TestResult<()> {
         open_after.json().as_bool().unwrap_or(false),
         "hint chip should be open after clicking"
     );
+
+    // Regression: a hint longer than one line used to be clipped (nowrap +
+    // fixed chip height). Once the open transition settles, the full text
+    // must fit inside both the hint body and the chip — wrapped, not cut off.
+    let fits_script = format!(
+        "const c = document.querySelector('.fc-hint-chip'); \
+         const b = c.querySelector('.fc-hint-body'); \
+         return b.scrollWidth <= b.clientWidth \
+             && b.scrollHeight <= b.clientHeight \
+             && c.scrollWidth <= c.clientWidth \
+             && c.scrollHeight <= c.clientHeight \
+             && c.offsetHeight > {chip_h};"
+    );
+    poll_until(
+        "the opened hint chip to show its full text wrapped onto several lines",
+        Duration::from_secs(3),
+        || async {
+            let fits = driver.execute(&fits_script, vec![]).await?;
+            Ok(fits.json().as_bool().unwrap_or(false))
+        },
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())

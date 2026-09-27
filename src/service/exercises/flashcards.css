@@ -513,14 +513,20 @@
 /*
  * height + min-width on the chip itself guarantee a square (= circle) when
  * collapsed — sizing a child span and hoping the button wraps it squarely is
- * unreliable across browsers. fc-hint-q uses flex-basis + align-self:stretch
- * so it always fills the circle exactly.
+ * unreliable across browsers. fc-hint-q is a fixed 2.4em square pinned to
+ * the top, so it fills the circle exactly and stays on the first line when
+ * the opened hint wraps onto several lines.
+ *
+ * border-radius is half the collapsed height: a circle when collapsed, a
+ * pill for one line of hint, a rounded box (not a stadium that clips the
+ * text) for longer hints.
  */
 .fc-hint-chip {
     align-self: flex-end;
     display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
+    align-items: flex-start;
+    max-width: 100%;
+    border-radius: 1.2em;
     border: none;
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 28%, transparent);
     padding: 0;
@@ -534,6 +540,8 @@
     height: 2.4em;
     min-height: 2.4em;
     min-width: 2.4em;
+    /* Lets the height transition to `auto` on open (progressive enhancement). */
+    interpolate-size: allow-keywords;
 }
 .fc-hint-chip:hover {
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 60%, transparent);
@@ -541,26 +549,46 @@
 }
 .fc-hint-q {
     flex: 0 0 2.4em;
-    align-self: stretch;
+    height: 2.4em;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0.5;
     font-weight: 600;
 }
-/* Hint text — hidden behind the circle until .open */
+/*
+ * Hint text — hidden behind the circle until .open.
+ *
+ * fc-hint-body is the clipping window whose max-width animates open;
+ * fc-hint-text inside it already has its final width, so long hints wrap
+ * onto extra lines once instead of reflowing word-by-word while the window
+ * widens (and are never cut off). Its cap leaves room for the `?` circle
+ * and the body padding inside the question column (the container).
+ * With line-height 1.2 and 0.6em block padding, one line is exactly 2.4em.
+ */
 .fc-hint-body {
+    display: block;
     max-width: 0;
     opacity: 0;
     overflow: hidden;
-    white-space: nowrap;
     font-style: italic;
-    padding-inline-start: 0;
-    padding-inline-end: 0;
+    line-height: 1.2;
+    text-align: start;
+    padding: 0;
+}
+.fc-hint-text {
+    display: block;
+    width: max-content;
+    max-width: min(28ch, calc(100cqi - 3.65em));
+    overflow-wrap: anywhere;
+}
+.fc-hint-chip.open {
+    height: auto;
 }
 .fc-hint-chip.open .fc-hint-body {
-    max-width: 28ch;
+    max-width: 32ch;
     opacity: 0.82;
+    padding-block: 0.6em;
     padding-inline-start: 0.25em;
     padding-inline-end: 1em;
 }
@@ -580,6 +608,16 @@
     line-height: 1.3;
     margin: 0.5rem 0 1rem;
     word-break: break-word;
+}
+
+/*
+ * Size container for the hint chip's wrapped text (cqi). It sits on
+ * #exercise-content rather than .flash-question: the latter is shrink-wrapped
+ * by its centering flex parent, so inline-size containment would collapse it
+ * to 0; #exercise-content is stretched to the full form width.
+ */
+#exercise-content {
+    container-type: inline-size;
 }
 
 .flash-question {
@@ -1246,6 +1284,7 @@
     /* Hint chip — morphs from `?` circle into a pill of hint text */
     .fc-hint-chip {
         transition:
+            height 0.3s ease,
             box-shadow 0.25s,
             background 0.25s;
     }
@@ -1256,6 +1295,7 @@
         transition:
             max-width 0.35s ease,
             opacity 0.3s ease,
+            padding-block 0.3s ease,
             padding-inline-start 0.3s ease,
             padding-inline-end 0.35s ease;
     }
