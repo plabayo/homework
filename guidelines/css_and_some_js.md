@@ -1571,6 +1571,19 @@ Same `gap` property as Flexbox. `gap: row-gap column-gap` if asymmetric. Legacy:
 - `z-index` works in Grid without `position: relative`.
 - `grid-template-columns: 100%` defines a single column that's exactly 100% wide — children can overflow. Use `1fr` or `minmax(0, 1fr)` to get truly flexible.
 
+### Stacked labels — a control whose text changes without reflowing
+
+When a button swaps its label between states ("🤷 weet het niet" ↔ "👀 toon antwoord?"), a plain text swap resizes the button and shifts everything around it in a centred, wrapping row — a layout jump that can even scroll the page on a phone. Put *every* label in the markup, stack them in one grid cell, and hide the inactive ones with `visibility`:
+
+```css
+.swap-button            { display: inline-grid; place-items: center; }
+.swap-button > .label   { grid-area: 1 / 1; }       /* all labels share one cell */
+.swap-button:not([data-state="armed"]) > .label-armed,
+.swap-button[data-state="armed"]       > .label-idle { visibility: hidden; }
+```
+
+The cell is as wide as the longest label, so the button never changes size. `visibility: hidden` (unlike `opacity: 0`) also drops the inactive label from the accessibility tree, so the accessible name is always just the visible text. Keep font, padding and border *width* identical across states (change `border-color` to `transparent` instead of removing the border). Used by `#button-skip` in `theme.css`.
+
 ### Masonry layout — the `column-count` fallback
 
 Native masonry (`grid-template-rows: masonry`) is still not broadly shipped. For now, the CSS-only approach uses CSS multi-column layout:
@@ -1804,6 +1817,8 @@ The "impossible problem" container queries had to solve: applying styles inside 
 - `container-type: inline-size` — only the *inline* dimension (width in LTR) is decoupled. Height still grows with content. Lets you query `min-width` / `max-width`. **This is almost always what you want.**
 
 **Golden rule (Miriam Suzanne):** *you can't query a dimension that responds to content.* With `inline-size`, querying `min-height` won't work.
+
+**Gotcha — shrink-to-fit containers collapse to 0.** `inline-size` containment means the element's width no longer comes from its content. If its width *was* content-derived — a child of a flex column with `align-items: center`, an inline-block, a float — it collapses to zero, and any `cqi`-based size inside it resolves to ~0. Put `container-type` on the nearest ancestor that gets its width from *its* parent (a stretched block/flex child), not on the shrink-wrapped element. Example: the flashcards hint chip uses `#exercise-content` as its container, not the centred `.flash-question` inside it.
 
 #### Named containers
 

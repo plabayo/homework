@@ -1742,6 +1742,69 @@ export function runExercise(spec) {
         chip.classList.toggle("is-active", active);
         chip.setAttribute("aria-hidden", active ? "false" : "true");
     }
+
+    // "weet het niet" is available from the very first moment of a question,
+    // so a child never has to answer wrong on purpose just to see the answer.
+    // It lives in one fixed slot and only its *look* changes, so the action
+    // row never reflows:
+    //   quiet — before any attempt: muted, borderless. The first press only
+    //           arms it, so a stray tap next to "antwoord" does nothing.
+    //   armed — "👀 toon antwoord?" for a short window; a second press
+    //           reveals the answer. Typing or waiting disarms it again.
+    //   full  — after a wrong attempt (or a matched part): the regular
+    //           button, one press, exactly as before.
+    // Keyboard / assistive-tech presses (click with detail 0) get a longer
+    // window: hearing the announcement takes longer than seeing the label.
+    const SKIP_ARM_MS = 3000;
+    const SKIP_ARM_KEYBOARD_MS = 6000;
+    const skipAnnounceEl = document.getElementById("skip-announce");
+    // Captured once so every question starts from the pristine two-label
+    // markup, even after an exercise replaced the label (e.g. flashcards'
+    // fill-in mode turns it into "🛑 stop oefening").
+    const skipDefaultHtml = skipBtn?.innerHTML ?? "";
+    let skipArmTimer = null;
+
+    function setSkipState(next) {
+        clearTimeout(skipArmTimer);
+        skipArmTimer = null;
+        if (!skipBtn) return;
+        skipBtn.dataset.skipState = next;
+        if (skipAnnounceEl) {
+            skipAnnounceEl.textContent = next === "armed" ? "Druk nog een keer om het antwoord te zien." : "";
+        }
+    }
+
+    function armSkip(ms) {
+        setSkipState("armed");
+        skipBtn.style.setProperty("--skip-arm-ms", `${ms}ms`);
+        skipArmTimer = setTimeout(() => setSkipState("quiet"), ms);
+    }
+
+    function disarmSkip() {
+        if (skipBtn?.dataset.skipState === "armed") setSkipState("quiet");
+    }
+
+    // Fresh question: restore the default labels and show the quiet state.
+    // Runs *before* spec.renderQuestion so an exercise can still restyle or
+    // hide the button for its own question kinds. Questions whose skip is
+    // already guarded by a confirm dialog start at "full" — a second
+    // confirmation step on top of the dialog would only be friction.
+    function resetSkipForQuestion(q) {
+        if (!skipBtn) return;
+        skipBtn.innerHTML = skipDefaultHtml;
+        skipBtn.hidden = false;
+        setSkipState(spec.skipConfirmDialog?.(q) ? "full" : "quiet");
+    }
+
+    function hideSkip() {
+        setSkipState(skipBtn?.dataset.skipState === "full" ? "full" : "quiet");
+        if (skipBtn) skipBtn.hidden = true;
+    }
+
+    function showFullSkip() {
+        setSkipState("full");
+        if (skipBtn) skipBtn.hidden = false;
+    }
     const errorEl = document.getElementById("config-error");
 
     const clockEl = document.getElementById("exercise-clock");
@@ -2111,7 +2174,7 @@ export function runExercise(spec) {
         state.questionStartedAt = Date.now();
         feedbackEl.textContent = " ";
         feedbackEl.classList.remove("is-bad");
-        if (skipBtn) skipBtn.hidden = true;
+        resetSkipForQuestion(state.currentQuestion);
 
         // Clean up any lock/animation state left over from a previous question.
         contentEl.classList.remove("locked", "is-wrong", "question-enter", "review-enter");
@@ -2198,7 +2261,7 @@ export function runExercise(spec) {
 
         const checkBtn = document.getElementById("button-check");
         if (checkBtn) checkBtn.hidden = true;
-        if (skipBtn) skipBtn.hidden = true;
+        hideSkip();
         // Review state: lock the chip into its dormant (invisible) state.
         syncClearChips();
         showAdvanceButton();
@@ -2300,7 +2363,7 @@ export function runExercise(spec) {
         void contentEl.offsetWidth; // one forced reflow re-arms both animations
         feedbackEl.classList.add("is-bad");
         contentEl.classList.add("is-wrong");
-        if (skipBtn) skipBtn.hidden = false;
+        showFullSkip();
     }
 
     // Brief green glow on the exercise card; intensity scales with streak.
@@ -2543,6 +2606,9 @@ export function runExercise(spec) {
             feedbackEl.classList.remove("is-bad");
             contentEl.innerHTML = "";
             setQuestionController(spec.renderQuestion(state.currentQuestion, contentEl, { kind: "play" }));
+            // The child is clearly engaged, so skipping the remaining parts
+            // is a plain one-press action from here on.
+            showFullSkip();
             prepareQuestionInputs();
             ensureClearChip();
             syncClearChips();
@@ -2561,10 +2627,17 @@ export function runExercise(spec) {
     // One delegated listener covers whichever inputs the active question
     // rendered — no per-question wiring required.
     contentEl?.addEventListener("input", syncClearChips);
+    // Typing means the child is having a go after all: stand the armed
+    // "toon antwoord?" back down so a later tap starts from scratch.
+    contentEl?.addEventListener("input", disarmSkip);
 
     // skip is type=reset; intercept to log + advance
     skipBtn?.addEventListener("click", (e) => {
         e.preventDefault();
+        if (skipBtn.dataset.skipState === "quiet") {
+            armSkip(e.detail === 0 ? SKIP_ARM_KEYBOARD_MS : SKIP_ARM_MS);
+            return;
+        }
         const confirmSpec = spec.skipConfirmDialog ? spec.skipConfirmDialog(state.currentQuestion) : null;
         if (confirmSpec) {
             void showLeaveGuardDialog(confirmSpec).then((choice) => {

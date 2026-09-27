@@ -312,12 +312,24 @@ pub fn exercise_scaffold(
                             class = "default-button primary btn-lift",
                             "👉 antwoord",
                         ),
+                        // Both labels share one grid cell so the button is
+                        // always as wide as the longer one: switching between
+                        // them (quiet → armed → full) never reflows the row.
+                        // homework.js drives the state via `data-skip-state`.
                         button!(
                             r#type = "reset",
                             id = "button-skip",
                             class = "default-button btn-lift",
+                            "data-skip-state" = "quiet",
                             hidden? = true,
-                            "🤷 weet het niet",
+                            span!(class = "skip-label skip-label-idle", "🤷 weet het niet"),
+                            span!(class = "skip-label skip-label-armed", "👀 toon antwoord?"),
+                        ),
+                        span!(
+                            id = "skip-announce",
+                            class = "visually-hidden",
+                            role = "status",
+                            "aria-live" = "polite",
                         ),
                     ),
                 ),

@@ -2289,7 +2289,6 @@ function renderFillInReview(q, root) {
 
 function renderMultiPartQuestion(q, root, mode) {
     const { allParts, partsRequired, matched } = q;
-    const skipBtn = document.getElementById("button-skip");
     const checkBtn = document.getElementById("button-check");
 
     // Review mode: show all parts with matched/missed status.
@@ -2317,8 +2316,8 @@ function renderMultiPartQuestion(q, root, mode) {
     }
 
     // Play mode: show already-matched parts and an input for the next one.
-    // Skip is hidden at the start; onWrongAttempt in the framework shows it.
-    if (skipBtn) skipBtn.hidden = matched.size === 0;
+    // The framework owns "weet het niet": quiet before the first try, a
+    // plain one-press button after a wrong attempt or a matched part.
     if (checkBtn) {
         checkBtn.hidden = false;
         checkBtn.textContent = "👉 antwoord";
@@ -2556,7 +2555,6 @@ runExercise({
         }
     },
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: question-kind fan-out with per-kind render logic
     renderQuestion(q, root, mode) {
         switch (q.kind) {
             case "multi-part":
@@ -2568,7 +2566,6 @@ runExercise({
                 }
                 return renderFillInQuestion(q, root);
             case "image": {
-                const skipBtn = document.getElementById("button-skip");
                 const checkBtn = document.getElementById("button-check");
                 const imgSrc = imageObjectURLs.get(q.wikimedia) || "";
                 if (mode.kind === "review") {
@@ -2606,7 +2603,6 @@ runExercise({
                         <input type="text" id="answer" autocomplete="off"
                             placeholder="wat zie je?" aria-label="jouw antwoord">
                     </div>`;
-                if (skipBtn) skipBtn.hidden = true;
                 if (checkBtn) {
                     checkBtn.hidden = false;
                     checkBtn.textContent = "👉 antwoord";
@@ -2625,7 +2621,6 @@ runExercise({
                 return () => input?.value ?? "";
             }
             case "two-sided": {
-                const skipBtn = document.getElementById("button-skip");
                 const checkBtn = document.getElementById("button-check");
                 if (mode.kind === "review") {
                     const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
@@ -2650,7 +2645,6 @@ runExercise({
                         <input type="text" id="answer" autocomplete="off"
                             placeholder="jouw antwoord…" aria-label="jouw antwoord">
                     </div>`;
-                if (skipBtn) skipBtn.hidden = true;
                 if (checkBtn) checkBtn.textContent = "👉 antwoord";
                 wireHintToggle(root);
                 const input = root.querySelector("#answer");

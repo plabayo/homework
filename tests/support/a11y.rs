@@ -12,9 +12,19 @@ pub async fn check_a11y(driver: &WebDriver) -> Result<(), BoxError> {
         .execute(include_str!("../fixtures/axe.min.js"), vec![])
         .await?;
 
+    // Let finite animations (page / question entrance fades) settle first:
+    // axe blends in ancestor opacity, so auditing mid-fade measures colours
+    // that never persist on screen and flags muted-but-compliant text.
+    // Infinite animations (e.g. a ticking clock hand) never finish and are
+    // skipped.
     let ret = driver
         .execute_async(
-            "axe.run().then(r => arguments[arguments.length - 1](r))",
+            "const done = arguments[arguments.length - 1]; \
+             const finite = document.getAnimations().filter( \
+                 (a) => a.effect?.getComputedTiming().endTime !== Infinity); \
+             Promise.allSettled(finite.map((a) => a.finished)) \
+                 .then(() => axe.run()) \
+                 .then(done);",
             vec![],
         )
         .await?;

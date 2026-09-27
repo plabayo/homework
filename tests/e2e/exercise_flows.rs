@@ -3,10 +3,10 @@
 // Source-available; non-commercial use only.
 
 use super::helpers::{
-    click, parse_product_answer, selector_has_disabled, set_checkbox, set_input_value, text_of,
-    wait_for_css, wait_for_nonempty_text, wait_for_text,
+    click, parse_product_answer, poll_until, selector_has_disabled, set_checkbox, set_input_value,
+    text_of, wait_for_css, wait_for_nonempty_text, wait_for_text,
 };
-use super::{BrowserHarness, By, Duration, TestApp, TestResult};
+use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
@@ -781,6 +781,134 @@ async fn skip_shows_correct_answer() -> TestResult<()> {
 
     click(driver, "#button-next").await?;
     wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+async fn skip_state(driver: &WebDriver) -> TestResult<String> {
+    Ok(driver
+        .find(By::Css("#button-skip"))
+        .await?
+        .attr("data-skip-state")
+        .await?
+        .unwrap_or_default())
+}
+
+async fn wait_for_skip_state(
+    driver: &WebDriver,
+    expected: &str,
+    timeout: Duration,
+) -> TestResult<()> {
+    poll_until(
+        &format!("#button-skip to reach data-skip-state={expected:?}"),
+        timeout,
+        || async { Ok(skip_state(driver).await? == expected) },
+    )
+    .await
+}
+
+/// Layout box of the skip button (offset* ignores transforms, so the
+/// btn-lift hover nudge under the WebDriver cursor doesn't count as a move).
+async fn skip_layout_box(driver: &WebDriver) -> TestResult<serde_json::Value> {
+    Ok(driver
+        .execute(
+            "const b = document.getElementById('button-skip'); \
+             return [b.offsetLeft, b.offsetTop, b.offsetWidth, b.offsetHeight];",
+            vec![],
+        )
+        .await?
+        .json()
+        .clone())
+}
+
+async fn start_single_multiplication(app: &TestApp, driver: &WebDriver) -> TestResult<()> {
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#num-exercises", "1").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn skip_before_first_try_needs_a_second_press() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    start_single_multiplication(&app, driver).await?;
+
+    // Available straight away — no wrong answer needed — but quiet.
+    // (Polled: the play section fades in, and WebDriver counts opacity 0 as
+    // not displayed.)
+    let skip = driver.find(By::Css("#button-skip")).await?;
+    poll_until(
+        "#button-skip to be displayed before any attempt",
+        Duration::from_secs(3),
+        || async { Ok(skip.is_displayed().await?) },
+    )
+    .await?;
+    assert_eq!(skip_state(driver).await?, "quiet");
+    let quiet_box = skip_layout_box(driver).await?;
+
+    // First press only arms it: nothing is revealed yet.
+    click(driver, "#button-skip").await?;
+    wait_for_skip_state(driver, "armed", Duration::from_secs(2)).await?;
+    wait_for_text(
+        driver,
+        "#button-skip",
+        "toon antwoord",
+        Duration::from_secs(2),
+    )
+    .await?;
+    assert!(
+        driver.find_all(By::Css("#button-next")).await?.is_empty(),
+        "a single press must not reveal the answer"
+    );
+    // Same slot, same size: arming never reflows the action row.
+    assert_eq!(
+        quiet_box,
+        skip_layout_box(driver).await?,
+        "skip button moved or resized when armed"
+    );
+
+    // Second press reveals the answer and records the question as missed.
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#exercise-content.locked", Duration::from_secs(5)).await?;
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "0 / 1", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn armed_skip_stands_down_then_goes_one_press_after_wrong_answer() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    start_single_multiplication(&app, driver).await?;
+
+    // Typing means the child is having a go: disarm.
+    click(driver, "#button-skip").await?;
+    wait_for_skip_state(driver, "armed", Duration::from_secs(2)).await?;
+    set_input_value(driver, "#answer", "1").await?;
+    wait_for_skip_state(driver, "quiet", Duration::from_secs(2)).await?;
+
+    // Left alone, the armed state times out (3s for a pointer press).
+    click(driver, "#button-skip").await?;
+    wait_for_skip_state(driver, "armed", Duration::from_secs(2)).await?;
+    wait_for_skip_state(driver, "quiet", Duration::from_secs(6)).await?;
+
+    // After a real wrong attempt it is the plain one-press button again.
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_skip_state(driver, "full", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
 
     driver.clone().quit().await?;
     Ok(())

@@ -523,6 +523,69 @@
         justify-content: center;
         margin-block-start: 14px;
     }
+    /* Hidden from sight, still read by screen readers (live announcements). */
+    .visually-hidden {
+        position: absolute;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        width: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        white-space: nowrap;
+    }
+    /* ---------- "weet het niet" (skip) ----------
+       One slot, three looks (driven by data-skip-state from homework.js):
+       quiet → armed → full. Only colours change between them — font, padding
+       and border width stay identical — and both labels share one grid cell
+       (the hidden one via visibility, which also drops it from the
+       accessibility tree), so the button keeps the width of the longer label
+       and the action row never reflows.
+
+       Quiet text is --muted mixed 85% into the card paper: visibly softer
+       than the other buttons but still ≥ 4.5:1 (≈5.0:1 light, ≈7.4:1 dark),
+       so it stays readable — no opacity, which would also fade the focus
+       ring. */
+    #button-skip {
+        --skip-arm-ms: 3000ms;
+        position: relative;
+        display: inline-grid;
+        place-items: center;
+    }
+    #button-skip > .skip-label {
+        grid-area: 1 / 1;
+    }
+    #button-skip[data-skip-state="armed"] > .skip-label-idle,
+    #button-skip:not([data-skip-state="armed"]) > .skip-label-armed {
+        visibility: hidden;
+    }
+    #button-skip[data-skip-state="quiet"] {
+        background: transparent;
+        border-color: transparent;
+        color: color-mix(in srgb, var(--muted) 85%, var(--paper));
+    }
+    #button-skip[data-skip-state="quiet"]:hover {
+        border-color: var(--border-soft);
+    }
+    #button-skip[data-skip-state="armed"] {
+        background: var(--accent-tint);
+        border-color: var(--accent);
+        color: var(--fg);
+    }
+    /* Countdown line along the bottom edge: how long the armed state lasts.
+       Static (full width) under reduced motion — the label already says
+       what a second press does. */
+    #button-skip[data-skip-state="armed"]::after {
+        content: "";
+        position: absolute;
+        inset-inline: 12px;
+        inset-block-end: 5px;
+        block-size: 2px;
+        border-radius: 1px;
+        background: var(--accent);
+        transform-origin: left center;
+    }
     /* ---------- floating clear chip ----------
        The chip floats in the exercise card's top-right corner via absolute
        positioning. It never touches inline layout (so exercises like
@@ -1231,6 +1294,31 @@
             transform: translateY(1px) scale(0.98);
             box-shadow: none;
             transition-duration: 50ms;
+        }
+
+        /* Skip armed: one soft ring pulse on arming, then the countdown
+           line drains over the armed window. */
+        #button-skip[data-skip-state="armed"] {
+            animation: skip-armed-pulse 450ms ease-out;
+        }
+        #button-skip[data-skip-state="armed"]::after {
+            animation: skip-arm-countdown var(--skip-arm-ms) linear forwards;
+        }
+        @keyframes skip-armed-pulse {
+            from {
+                box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+            }
+            to {
+                box-shadow: 0 0 0 8px transparent;
+            }
+        }
+        @keyframes skip-arm-countdown {
+            from {
+                transform: scaleX(1);
+            }
+            to {
+                transform: scaleX(0);
+            }
         }
 
         /* Input: accent border on focus */

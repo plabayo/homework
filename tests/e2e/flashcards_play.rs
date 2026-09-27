@@ -1353,6 +1353,50 @@ async fn flashcards_skip_two_sided_reveals_answer() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_skip_available_before_first_try() -> TestResult<()> {
+    // A child who simply doesn't know a card must not have to answer wrong
+    // on purpose first: "weet het niet" is there from the start (quiet, two
+    // presses), and reveals the card like a regular skip.
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    inject_deck_json(
+        driver,
+        r#"{"id":"test-skip-first","name":"Skip meteen","mode":"two-sided",
+            "cards":[{"front":"chat","back":"kat"}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    select_deck_and_start(driver, "test-skip-first").await?;
+
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+    wait_for_css(
+        driver,
+        "#button-skip:not([hidden])[data-skip-state='quiet']",
+        Duration::from_secs(3),
+    )
+    .await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(
+        driver,
+        "#button-skip[data-skip-state='armed']",
+        Duration::from_secs(2),
+    )
+    .await?;
+    click(driver, "#button-skip").await?;
+
+    wait_for_css(driver, "#exercise-content.locked", Duration::from_secs(5)).await?;
+    wait_for_text(driver, "#exercise-feedback", "kat", Duration::from_secs(5)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_fill_in_stop_skips_all_remaining_blanks() -> TestResult<()> {
     // One click of "stop oefening" on a fill-in question must skip all remaining
     // blanks at once rather than requiring a click per blank.
