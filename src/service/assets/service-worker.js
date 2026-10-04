@@ -31,6 +31,7 @@ function versionedAsset(path) {
 const PRECACHE = [
     versionedAsset("/theme.css"),
     versionedAsset("/homework.js"),
+    versionedAsset("/flashcards-data.js"),
     versionedAsset("/manifest.webmanifest"),
     versionedAsset("/favicon.svg"),
     versionedAsset("/apple-touch-icon.png"),
@@ -41,6 +42,7 @@ const PRECACHE = [
     "/about",
     "/privacy",
     "/extra/flashcards",
+    "/extra/flashcards/import",
     "/1/mathbox",
     "/1/multiplications",
     "/1/thermometer",
@@ -88,6 +90,7 @@ function isStaticAsset(url) {
     return (
         url.pathname === "/theme.css" ||
         url.pathname === "/homework.js" ||
+        url.pathname === "/flashcards-data.js" ||
         url.pathname === "/manifest.webmanifest" ||
         url.pathname === "/favicon.svg" ||
         url.pathname === "/apple-touch-icon.png" ||

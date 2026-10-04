@@ -21,6 +21,7 @@ mod clock_seconds;
 mod decimals;
 mod exercise_flows;
 mod flashcards_decks;
+mod flashcards_json;
 mod flashcards_play;
 mod fraction_sense;
 mod fractions;

@@ -2,6 +2,18 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
+import {
+    downloadDeck,
+    findImportMatch,
+    inferDeckMode,
+    parseDeckData,
+    portableDeck,
+    practiceConfig,
+    practiceFromConfig,
+    readPractice,
+    storeImportedDeck,
+} from "@flashcards-data";
+
 import { clearLeaveGuard, escapeHtml, refreshLeaveGuards, runExercise, setLeaveGuard, shuffle } from "@homework";
 
 // ---------- Fuzzy matching ----------
@@ -141,12 +153,7 @@ function normalizeStoredDeck(deck) {
     if (!name) return null;
     if (name !== deck.name) changed = true;
 
-    const mode =
-        deck.mode === "one-sided" || deck.mode === "two-sided"
-            ? deck.mode
-            : normalizedCards.some((card) => card.back)
-              ? "two-sided"
-              : "one-sided";
+    const mode = deck.mode === "one-sided" || deck.mode === "two-sided" ? deck.mode : inferDeckMode(normalizedCards);
     if (mode !== deck.mode) changed = true;
 
     const bidirectional = deck.bidirectional === true;
@@ -407,37 +414,6 @@ function buildRevealFeedback(answerText, plural = false) {
     return `${intro} ${answerText}.`;
 }
 
-// ---------- Deck validation ----------
-
-// Validate and normalise raw deck data from any untrusted source (import URL,
-// future sync, etc.).  Returns a clean object or null if data is unusable.
-function validateDeckData(raw) {
-    if (!raw || typeof raw.name !== "string" || !Array.isArray(raw.cards)) return null;
-    const name = raw.name.trim();
-    if (!name) return null;
-    const cards = raw.cards
-        .filter((c) => {
-            if (!c) return false;
-            if (typeof c.wikimedia === "string" && c.wikimedia.trim()) return true;
-            return typeof c.front === "string" && c.front.trim();
-        })
-        .map((c) => normalizeStoredCard(c))
-        .filter(Boolean);
-    if (cards.length === 0) return null;
-    const mode =
-        raw.mode === "one-sided" || raw.mode === "two-sided"
-            ? raw.mode
-            : cards.some((card) => card.back)
-              ? "two-sided"
-              : "one-sided";
-    return {
-        name,
-        mode,
-        bidirectional: raw.bidirectional === true,
-        cards,
-    };
-}
-
 // ---------- Storage ----------
 
 const STORAGE_KEY = "homework_flashcard_decks";
@@ -467,7 +443,11 @@ function loadDecks() {
 function saveDecks(decks) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
-    } catch (_e) {}
+        return true;
+    } catch {
+        showToast("Opslaan mislukt: lokale opslag is niet beschikbaar of vol.");
+        return false;
+    }
 }
 
 function getDeck(id) {
@@ -478,36 +458,81 @@ function getDeck(id) {
 // inferred from whether any card has a back.
 function deckMode(deck) {
     if (deck.mode === "one-sided" || deck.mode === "two-sided") return deck.mode;
-    return deck.cards.some((c) => c.back) ? "two-sided" : "one-sided";
-}
-
-// Canonical JSON key for comparing deck *content* independent of ID / createdAt /
-// editor-only fields such as thumbUrl.  Two decks with the same key are identical.
-function deckContentKey(deck) {
-    return JSON.stringify({
-        name: (deck.name || "").trim(),
-        mode: deck.mode === "one-sided" ? "one-sided" : "two-sided",
-        bidirectional: deck.bidirectional === true,
-        cards: (deck.cards || []).map((c) => {
-            if (c.wikimedia) {
-                const card = { wikimedia: c.wikimedia.trim() };
-                if (c.back) card.back = c.back;
-                if (c.hint) card.hint = c.hint;
-                return card;
-            }
-            const card = { front: c.front };
-            if (c.back) card.back = c.back;
-            if (c.parts) card.parts = c.parts;
-            if (c.partsRequired != null) card.partsRequired = c.partsRequired;
-            if (c.hint) card.hint = c.hint;
-            if (c.hintReverse) card.hintReverse = c.hintReverse;
-            return card;
-        }),
-    });
+    return inferDeckMode(deck.cards);
 }
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function currentPractice(deck) {
+    const form = document.getElementById("form-setup");
+    return practiceFromConfig(
+        {
+            fcMode: form.querySelector("input[name='fc-mode']:checked")?.value || "all",
+            fcCount: Number(form.querySelector("#fc-count")?.value),
+            fcOrderImportant: form.querySelector("#fc-order-important")?.checked || false,
+            timeMode: form.querySelector("#time-mode")?.checked || false,
+            deadlineOn: form.querySelector("#deadline-on")?.checked || false,
+            deadlineSeconds: Number(form.querySelector("#deadline-seconds")?.value),
+        },
+        deck,
+    );
+}
+
+function restoreDeckPractice() {
+    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
+    if (!deck) return;
+    if (hiddenDeckInput) hiddenDeckInput.value = deck.id;
+    const config = practiceConfig(deck, readPractice(deck));
+    const mode = managerRoot.querySelector(`input[name='fc-mode'][value='${config.fcMode}']`);
+    if (mode) mode.checked = true;
+    const count = managerRoot.querySelector("#fc-count");
+    if (count) {
+        count.value = String(config.fcCount);
+        count.disabled = config.fcMode !== "partial";
+    }
+    for (const [id, checked] of [
+        ["fc-order-important", config.fcOrderImportant],
+        ["time-mode", config.timeMode],
+        ["deadline-on", config.deadlineOn],
+    ]) {
+        const field = document.getElementById(id);
+        if (field) field.checked = checked;
+    }
+    const seconds = document.getElementById("deadline-seconds");
+    if (seconds) seconds.value = String(config.deadlineSeconds);
+    const section = document.getElementById("deadline-section");
+    if (section) section.hidden = !config.timeMode;
+    const field = document.getElementById("deadline-field");
+    if (field) field.hidden = !(config.timeMode && config.deadlineOn);
+}
+
+function persistDeckPractice() {
+    if (!selectedDeckId || editorState || importPending) return;
+    const decks = loadDecks();
+    const deck = decks.find((item) => item.id === selectedDeckId);
+    if (!deck) return;
+    try {
+        const practice = currentPractice(deck);
+        if (JSON.stringify(deck.practice) === JSON.stringify(practice)) return;
+        deck.practice = practice;
+        saveDecks(decks);
+    } catch {
+        // A half-entered count/deadline is validated by the setup form or export.
+    }
+}
+
+function exportDeck(id) {
+    const deck = getDeck(id);
+    if (!deck) return;
+    try {
+        const practice = id === selectedDeckId ? currentPractice(deck) : readPractice(deck);
+        downloadDeck(deck, practice);
+        showToast(`JSON-export van “${deck.name}” gestart.`);
+    } catch (error) {
+        showToast(`Exporteren mislukt: ${error.message}`);
+    }
 }
 
 // ---------- Wikimedia Commons image cache ----------
@@ -684,26 +709,7 @@ async function decompress(bytes) {
 }
 
 async function encodeDeck(deck) {
-    const json = JSON.stringify({
-        name: deck.name,
-        mode: deck.mode,
-        bidirectional: deck.bidirectional || false,
-        // Strip editor-only fields (thumbUrl) so shared deck URLs stay lean.
-        cards: deck.cards.map((c) => {
-            if (c.wikimedia) {
-                const card = { wikimedia: c.wikimedia };
-                if (c.back) card.back = c.back;
-                return card;
-            }
-            const card = { front: c.front };
-            if (c.back) card.back = c.back;
-            if (c.parts) card.parts = c.parts;
-            if (c.partsRequired != null) card.partsRequired = c.partsRequired;
-            if (c.hint) card.hint = c.hint;
-            if (c.hintReverse) card.hintReverse = c.hintReverse;
-            return card;
-        }),
-    });
+    const json = JSON.stringify(portableDeck(deck, readPractice(deck)));
     const buf = await compress(json);
     let bin = "";
     for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
@@ -715,8 +721,7 @@ async function decodeDeckParam(param) {
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const json = await decompress(bytes);
-    const data = validateDeckData(JSON.parse(json));
-    if (!data) throw new Error("invalid deck data");
+    const data = parseDeckData(JSON.parse(json));
     return data;
 }
 
@@ -905,6 +910,7 @@ function renderList() {
     const decks = loadDecks();
 
     let html = `<div class="deck-list-header">
+        <a class="fc-btn-new fc-import-link" href="/extra/flashcards/import">📥 Importeer JSON</a>
         <button type="button" class="fc-btn-new btn-lift" id="fc-new-deck">＋ Nieuw deck</button>
     </div>`;
 
@@ -926,6 +932,10 @@ function renderList() {
                     <button type="button" class="fc-btn-sm" data-action="edit" data-deck-id="${escapeHtml(deck.id)}" title="Bewerk" aria-label="Bewerk ${escapeHtml(deck.name)}">✏️</button>
                     <button type="button" class="fc-btn-sm" data-action="share" data-deck-id="${escapeHtml(deck.id)}" title="Deel" aria-label="Deel ${escapeHtml(deck.name)}">🔗</button>
                     <button type="button" class="fc-btn-sm fc-btn-delete" data-action="delete" data-deck-id="${escapeHtml(deck.id)}" title="Verwijder" aria-label="Verwijder ${escapeHtml(deck.name)}">🗑️</button>
+                </div>
+                <div class="fc-export-actions">
+                    <button type="button" class="fc-btn-sm fc-export-button" data-action="export" data-deck-id="${escapeHtml(deck.id)}">↓ Exporteer JSON</button>
+                    <a class="fc-json-help" href="/extra/flashcards/import#json-uitleg" aria-label="Uitleg over JSON importeren en exporteren">?</a>
                 </div>
             </li>`;
         }
@@ -972,6 +982,7 @@ function renderList() {
 
     // Wire up the count input enable/disable based on which radio is selected.
     wireModeOptions();
+    restoreDeckPractice();
 
     // Tell homework.js to refresh the history panel for the newly-selected deck.
     document.dispatchEvent(new CustomEvent("homework:refresh-history"));
@@ -1381,7 +1392,11 @@ function handleDeckAction(e) {
             renderManager();
             break;
         case "share":
+            persistDeckPractice();
             shareDeck(deckId);
+            break;
+        case "export":
+            exportDeck(deckId);
             break;
         case "delete": {
             const deck = getDeck(deckId);
@@ -1924,7 +1939,12 @@ function saveDeckFromEditor(existingId) {
     if (existingId) {
         const idx = decks.findIndex((d) => d.id === existingId);
         if (idx >= 0) {
+            const config = practiceConfig(decks[idx], readPractice(decks[idx]));
             decks[idx] = { ...decks[idx], name, mode, bidirectional: isBidirectional, cards };
+            const textCount = cards.filter((card) => !card.wikimedia).length;
+            if (mode !== "one-sided" || textCount < 2) config.fcMode = "all";
+            config.fcCount = Math.min(config.fcCount, Math.max(1, textCount - 1));
+            decks[idx].practice = practiceFromConfig(config, decks[idx]);
             savedId = existingId;
         }
     }
@@ -1932,7 +1952,7 @@ function saveDeckFromEditor(existingId) {
         savedId = generateId();
         decks.push({ id: savedId, name, mode, bidirectional: isBidirectional, cards, createdAt: Date.now() });
     }
-    saveDecks(decks);
+    if (!saveDecks(decks)) return;
 
     selectedDeckId = savedId;
     if (hiddenDeckInput) hiddenDeckInput.value = savedId;
@@ -1943,7 +1963,7 @@ function saveDeckFromEditor(existingId) {
 
 function deleteDeck(id) {
     const decks = loadDecks().filter((d) => d.id !== id);
-    saveDecks(decks);
+    if (!saveDecks(decks)) return;
     if (selectedDeckId === id) {
         selectedDeckId = null;
         if (hiddenDeckInput) hiddenDeckInput.value = "";
@@ -1975,6 +1995,7 @@ function showToast(message) {
     document.querySelector(".fc-toast")?.remove();
     const toast = document.createElement("div");
     toast.className = "fc-toast";
+    toast.setAttribute("role", "status");
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
@@ -1986,62 +2007,25 @@ function showToast(message) {
 // `name` is the final deck name; `replaceId` (optional) replaces an existing deck.
 async function doImport(name, replaceId) {
     const deck = importPending;
-    const isTwo = deckMode(deck) === "two-sided";
-    const imageCount = deck.cards.filter((c) => c.wikimedia).length;
-
-    // Disable all action buttons in the import box while saving.
-    managerRoot.querySelectorAll(".fc-import-box button").forEach((b) => {
-        b.disabled = true;
-    });
-    if (imageCount > 0) {
-        const primary = managerRoot.querySelector(".fc-import-box .primary");
-        if (primary) primary.textContent = "⏳ Afbeeldingen laden…";
+    let saved;
+    try {
+        saved = storeImportedDeck(deck, { name, replaceId });
+    } catch {
+        showToast(
+            "Importeren mislukt: lokale opslag is niet beschikbaar of vol. Je bestaande decks zijn niet gewijzigd.",
+        );
+        return;
     }
-
-    const decks = loadDecks();
-    let id;
-    if (replaceId) {
-        const idx = decks.findIndex((d) => d.id === replaceId);
-        if (idx >= 0) {
-            decks[idx] = {
-                ...decks[idx],
-                name,
-                mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
-                bidirectional: deck.bidirectional || false,
-                cards: deck.cards,
-            };
-            id = replaceId;
-        }
-    }
-    if (!id) {
-        id = generateId();
-        decks.push({
-            id,
-            name,
-            mode: deck.mode || (isTwo ? "two-sided" : "one-sided"),
-            bidirectional: deck.bidirectional || false,
-            cards: deck.cards,
-            createdAt: Date.now(),
-        });
-    }
-    saveDecks(decks);
-    selectedDeckId = id;
-    if (hiddenDeckInput) hiddenDeckInput.value = id;
+    selectedDeckId = saved.id;
+    if (hiddenDeckInput) hiddenDeckInput.value = saved.id;
     importPending = null;
     history.replaceState({}, "", location.pathname);
-
-    if (imageCount > 0) {
-        const { failed } = await wmPreloadDeck({ cards: deck.cards });
-        showToast(
-            failed.length > 0
-                ? `Deck geïmporteerd, maar ${failed.length} afbeelding${failed.length === 1 ? "" : "en"} kon niet worden geladen.`
-                : `Deck "${name}" is geïmporteerd! 🎉`,
-        );
-    } else {
-        showToast(`Deck "${name}" is geïmporteerd! 🎉`);
-    }
     _highlightNewDeck = true;
     renderManager();
+    showToast(`Deck “${name}” is geïmporteerd.`);
+    const { failed } = await wmPreloadDeck(deck);
+    if (failed.length > 0)
+        showToast(`Deck geïmporteerd, maar ${failed.length} afbeelding(en) kon niet worden geladen.`);
 }
 
 function renderImport() {
@@ -2142,9 +2126,8 @@ async function initManager() {
     if (importParam) {
         try {
             const data = await decodeDeckParam(importParam);
-            const incomingKey = deckContentKey(data);
             const decks = loadDecks();
-            const exactMatch = decks.find((d) => deckContentKey(d) === incomingKey);
+            const { exact: exactMatch, conflict: nameConflict } = findImportMatch(data, decks);
             if (exactMatch) {
                 // Identical content already in collection — just select it.
                 selectedDeckId = exactMatch.id;
@@ -2152,7 +2135,6 @@ async function initManager() {
                 showToast("Dit deck staat al in je collectie! ✅");
                 history.replaceState({}, "", location.pathname);
             } else {
-                const nameConflict = decks.find((d) => d.name.trim() === data.name.trim());
                 // Store conflict id on the pending object so renderImport() can offer
                 // overwrite vs. save-as-new options.
                 importPending = nameConflict ? { ...data, _conflictId: nameConflict.id } : data;
@@ -2161,7 +2143,8 @@ async function initManager() {
                 // here instead lets any reload in between (a refresh, a restored
                 // tab, a service worker upgrade) silently drop the shared deck.
             }
-        } catch (_e) {
+        } catch (error) {
+            showToast(`Dit deck kon niet worden geïmporteerd: ${error.message}`);
             history.replaceState({}, "", location.pathname);
         }
     }
@@ -2177,15 +2160,16 @@ async function initManager() {
     }
 }
 
-initManager();
-
 // Restore the last used deck so spec.id immediately returns the right namespace
 // before runExercise calls loadSavedConfig().
 (function restoreLastDeck() {
     try {
-        const lastId = localStorage.getItem(FC_LAST_DECK_KEY);
+        const requestedId = new URLSearchParams(location.hash.slice(1)).get("deck");
+        const lastId = requestedId || localStorage.getItem(FC_LAST_DECK_KEY);
         if (lastId && loadDecks().some((d) => d.id === lastId)) {
             selectedDeckId = lastId;
+            localStorage.setItem(FC_LAST_DECK_KEY, lastId);
+            if (requestedId) history.replaceState({}, "", location.pathname + location.search);
             // Set data-exercise-id now so setupHistoryView() (called by runExercise)
             // reads the correct deck ID even when there is no saved config to trigger
             // a loadConfig() → renderList() cycle.
@@ -2194,6 +2178,8 @@ initManager();
         }
     } catch {}
 })();
+
+initManager();
 
 // ---------- Fill-in question renderer (one-sided decks) ----------
 // fillInResults is cleared at the start of each session (buildDeck call) and
@@ -2381,26 +2367,7 @@ runExercise({
         } catch {}
         if (hiddenDeckInput) hiddenDeckInput.value = saved.deckId;
         renderList();
-        // Re-apply mode options that were saved alongside the deck selection.
-        // renderList() creates the mode-options HTML with defaults, so we overwrite
-        // them here after the DOM exists.
-        if (saved.fcMode) {
-            const modeRadio = managerRoot?.querySelector(`input[name='fc-mode'][value='${saved.fcMode}']`);
-            if (modeRadio) {
-                modeRadio.checked = true;
-                const countInput = managerRoot.querySelector("#fc-count");
-                if (countInput) {
-                    countInput.disabled = saved.fcMode !== "partial";
-                    if (saved.fcMode === "partial" && saved.fcCount) {
-                        countInput.value = String(saved.fcCount);
-                    }
-                }
-            }
-        }
-        if (saved.fcOrderImportant) {
-            const orderCheck = managerRoot?.querySelector("#fc-order-important");
-            if (orderCheck) orderCheck.checked = true;
-        }
+        Object.assign(saved, practiceConfig(deck, readPractice(deck)));
     },
 
     readConfig(form) {
@@ -2422,6 +2389,9 @@ runExercise({
         if (!deck) return "Dit deck bestaat niet meer — kies een ander deck.";
         if (deck.cards.length === 0) return "Dit deck heeft geen kaarten.";
         const isOneSided = deckMode(deck) === "one-sided";
+        if (!isOneSided && deck.cards.some((card) => !card.wikimedia && cardParts(card).length === 0)) {
+            return "Dit deck bevat kaartjes zonder antwoord. Vul die eerst in via Bewerken.";
+        }
         if (isOneSided && cfg.fcMode === "partial") {
             const textCount = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
             if (textCount < 2) {
@@ -2872,3 +2842,7 @@ if (pageExercisesEl) {
         if (!pageExercisesEl.hidden) lenientMatches.length = 0;
     }).observe(pageExercisesEl, { attributes: true, attributeFilter: ["hidden"] });
 }
+
+// Save changed setup preferences with the deck so export includes choices made
+// before starting a session, and an imported deck can restore them atomically.
+document.getElementById("form-setup")?.addEventListener("change", persistDeckPractice);

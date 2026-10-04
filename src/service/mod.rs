@@ -90,6 +90,7 @@ pub async fn load_https_app_service()
         .with_get("/offline", pages::offline::offline)
         .with_get("/theme.css", assets::theme_css)
         .with_get("/homework.js", assets::homework_js)
+        .with_get("/flashcards-data.js", assets::flashcards_data_js)
         .with_get("/service-worker.js", assets::service_worker_js)
         .with_get("/manifest.webmanifest", assets::manifest)
         .with_get("/favicon.svg", assets::favicon_svg)
@@ -115,6 +116,10 @@ pub async fn load_https_app_service()
         .with_get("/3/decimals", exercises::decimals::handler)
         .with_get("/3/advanced-mathbox", exercises::advanced_mathbox::handler)
         .with_get("/extra/flashcards", exercises::flashcards::handler)
+        .with_get(
+            "/extra/flashcards/import",
+            pages::flashcards_import::handler,
+        )
         .with_not_found(pages::offline::not_found);
 
     let middlewares = (

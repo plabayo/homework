@@ -120,15 +120,20 @@ lighthouse-ci:
 	#!/usr/bin/env sh
 	set -eu
 	cargo build
-	./target/debug/homework --http 127.0.0.1:8080 &
+	audit_addr="127.0.0.1:${HOMEWORK_LIGHTHOUSE_PORT:-8080}"
+	./target/debug/homework --http "$audit_addr" &
 	pid=$!
 	trap 'kill "$pid" 2>/dev/null || true' EXIT
 	for _ in $(seq 1 20); do
-	    if curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1; then break; fi
+	    if ! kill -0 "$pid" 2>/dev/null; then
+	        echo "Lighthouse test server failed to start on $audit_addr" >&2
+	        exit 1
+	    fi
+	    if curl -sf "http://${audit_addr}/" >/dev/null 2>&1; then break; fi
 	    sleep 0.5
 	done
 	for path in / /1/multiplications; do
-	    score=$(npx --yes lighthouse@12 "http://127.0.0.1:8080${path}" \
+	    score=$(npx --yes lighthouse@12 "http://${audit_addr}${path}" \
 	        --only-categories=accessibility --output=json \
 	        --chrome-flags="--headless=new" --quiet 2>/dev/null \
 	        | python3 -c "import json,sys; print(json.load(sys.stdin)['categories']['accessibility']['score'])")

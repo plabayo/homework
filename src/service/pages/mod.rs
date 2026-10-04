@@ -3,6 +3,7 @@
 // Source-available; non-commercial use only.
 
 pub mod about;
+pub mod flashcards_import;
 pub mod home;
 pub mod offline;
 pub mod privacy;

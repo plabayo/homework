@@ -49,7 +49,9 @@ fn emit_importmap_hash() -> std::io::Result<()> {
         .expect("git short sha is ASCII")
         .trim();
 
-    let body = format!(r#"{{"imports":{{"@homework":"/homework.js?v={sha}"}}}}"#);
+    let body = format!(
+        r#"{{"imports":{{"@homework":"/homework.js?v={sha}","@flashcards-data":"/flashcards-data.js?v={sha}"}}}}"#
+    );
     let hash_b64 = BASE64.encode(Sha256::digest(body.as_bytes()));
 
     let out = format!(

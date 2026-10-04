@@ -84,6 +84,12 @@ pub async fn homework_js() -> impl IntoResponse {
     res
 }
 
+pub async fn flashcards_data_js() -> impl IntoResponse {
+    let mut res = Script(include_str!("assets/flashcards-data.js")).into_response();
+    res.headers_mut().typed_insert(cache_immutable());
+    res
+}
+
 pub async fn service_worker_js() -> impl IntoResponse {
     let mut res = Script(SERVICE_WORKER_JS).into_response();
     let headers = res.headers_mut();
@@ -177,7 +183,7 @@ pub async fn security_txt() -> impl IntoResponse {
 fn build_sitemap_xml() -> String {
     // Static, indexable HTML routes. `/offline` is excluded because it's
     // a fallback page (also marked noindex via X-Robots-Tag).
-    const STATIC_PATHS: &[&str] = &["/", "/about", "/privacy"];
+    const STATIC_PATHS: &[&str] = &["/", "/about", "/privacy", "/extra/flashcards/import"];
 
     let mut xml = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\

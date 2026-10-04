@@ -1,0 +1,216 @@
+/* Copyright (C) 2024-2026 Plabayo
+   License: https://github.com/plabayo/homework/blob/main/LICENSE
+   Source-available; non-commercial use only. */
+
+.fc-json-page {
+    max-inline-size: 46rem;
+    margin-inline: auto;
+    overflow-wrap: anywhere;
+}
+
+.fc-json-page p,
+.fc-json-page ul,
+.fc-json-page dl {
+    margin-block: 0.75rem;
+}
+
+.fc-json-upload {
+    padding: 1rem;
+    margin-block: 1.5rem 2.5rem;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    background: light-dark(#ffffff, #1f2530);
+}
+
+.fc-json-drop {
+    display: grid;
+    gap: 0.75rem;
+    border: 2px dashed var(--border-soft);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-block-start: 1rem;
+    background: var(--bg);
+}
+
+.fc-json-drop.is-dragging {
+    border-color: var(--accent);
+    background: var(--accent-tint);
+}
+
+.fc-json-drop label {
+    font-weight: 600;
+}
+
+.fc-json-drop input {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+}
+
+.fc-json-drop input::file-selector-button {
+    font: inherit;
+    color: inherit;
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    background: var(--bg);
+    padding: 0.6rem;
+    margin-inline-end: 0.5rem;
+    cursor: pointer;
+}
+
+.fc-json-note {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.fc-json-page details {
+    border-block-start: 1px solid var(--border-soft);
+    padding-block: 1rem;
+    margin-block-start: 1rem;
+}
+
+.fc-json-page summary {
+    font-weight: 600;
+    cursor: pointer;
+    min-block-size: 44px;
+    align-content: center;
+}
+
+.fc-json-page textarea {
+    inline-size: 100%;
+    min-block-size: 10rem;
+    resize: vertical;
+    padding: 0.75rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--fg);
+    font:
+        1rem / 1.5 ui-monospace,
+        monospace;
+}
+
+.fc-json-preview {
+    border-block-start: 1px solid var(--border-soft);
+    margin-block-start: 1rem;
+    padding-block-start: 1rem;
+}
+
+.fc-json-open {
+    display: inline-flex;
+    text-decoration: none;
+}
+
+.fc-json-docs,
+.fc-json-section {
+    scroll-margin-block-start: 1.5rem;
+}
+
+.fc-json-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-block: 1rem;
+}
+
+.fc-json-nav a {
+    padding-block: 0.5rem;
+}
+
+.fc-json-section {
+    border-block-start: 1px solid var(--border-soft);
+    padding-block: 1.5rem;
+}
+
+.fc-json-section li {
+    margin-block: 0.5rem;
+}
+
+.fc-json-example {
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    margin-block: 1rem;
+    overflow: clip;
+}
+
+.fc-json-example-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    padding: 0.25rem 0.85rem;
+    border-block-end: 1px solid var(--border-soft);
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.fc-json-use {
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    min-block-size: 44px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.fc-json-page pre {
+    margin: 0;
+    padding: 1rem;
+    background: light-dark(#edf0f5, #1b2029);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font:
+        0.85rem / 1.7 ui-monospace,
+        monospace;
+    tab-size: 2;
+}
+
+.fc-json-page code {
+    font-family: ui-monospace, monospace;
+}
+
+.fc-json-key {
+    color: light-dark(#194baa, #9ac5ff);
+}
+
+.fc-json-string {
+    color: light-dark(#326133, #ade0a4);
+}
+
+.fc-json-number {
+    color: light-dark(#8c397b, #e7a3d8);
+}
+
+.fc-json-tip {
+    border-inline-start: 3px solid var(--accent);
+    background: var(--accent-tint);
+    padding: 0.75rem 1rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.fc-json-page dl > div {
+    display: grid;
+    gap: 0.25rem 1rem;
+    padding-block: 0.75rem;
+    border-block-end: 1px solid var(--border-soft);
+}
+
+.fc-json-page dt {
+    font-weight: 600;
+}
+
+.fc-json-page dd {
+    margin: 0;
+    color: var(--muted);
+}
+
+@media (min-width: 36rem) {
+    .fc-json-upload {
+        padding: 1.5rem;
+    }
+
+    .fc-json-page dl > div {
+        grid-template-columns: minmax(10rem, 1fr) 2fr;
+    }
+}

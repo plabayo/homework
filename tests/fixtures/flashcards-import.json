@@ -1,0 +1,12 @@
+{
+  "name": "Fietswoorden",
+  "cards": [
+    {
+      "front": "Een ander woord voor fiets",
+      "parts": ["rijwiel", "velo"],
+      "partsRequired": 1,
+      "hint": "Twee wielen"
+    }
+  ],
+  "practice": { "timeMode": true }
+}

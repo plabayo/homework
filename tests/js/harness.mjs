@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as flashcardData from "../../src/service/assets/flashcards-data.js";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/flashcards.js"), "utf8");
@@ -22,7 +23,7 @@ const src = readFileSync(join(dir, "../../src/service/exercises/flashcards.js"),
 // Strip the @homework ES-module import — those exports are DOM-bound and not
 // needed for the pure logic under test.
 const patched = src.replace(
-    /^import\s*\{[^}]*\}\s*from\s*["']@homework["'];?\s*\n/m,
+    /^import\s*\{[^}]*\}\s*from\s*["']@(?:homework|flashcards-data)["'];?\s*\n/gm,
     "// @homework import removed for pure-function testing\n",
 );
 
@@ -30,6 +31,7 @@ const patched = src.replace(
 // bottom of flashcards.js that wires MutationObservers) do not throw.
 // The pure functions under test never touch DOM or storage.
 const ctx = createContext({
+    ...flashcardData,
     // Standard JS built-ins
     Array,
     Object,
