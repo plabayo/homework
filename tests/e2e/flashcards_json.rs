@@ -118,13 +118,13 @@ async fn flashcards_json_file_import_export_and_practice() -> TestResult<()> {
     click(driver, "#button-check").await?;
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
     click(driver, "#page-result .button-reset").await?;
-    click(driver, ".deck-item.selected .fc-json-help").await?;
+    click(driver, ".fc-import-link").await?;
     assert!(
         driver
             .current_url()
             .await?
             .as_str()
-            .ends_with("/extra/flashcards/import#json-uitleg")
+            .ends_with("/extra/flashcards/import")
     );
     wait_for_css(driver, "#json-uitleg", Duration::from_secs(5)).await?;
     // Re-importing the downloaded content selects the same deck, preserving history.

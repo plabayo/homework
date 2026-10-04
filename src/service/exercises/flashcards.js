@@ -931,11 +931,8 @@ function renderList() {
                 <div class="deck-actions">
                     <button type="button" class="fc-btn-sm" data-action="edit" data-deck-id="${escapeHtml(deck.id)}" title="Bewerk" aria-label="Bewerk ${escapeHtml(deck.name)}">✏️</button>
                     <button type="button" class="fc-btn-sm" data-action="share" data-deck-id="${escapeHtml(deck.id)}" title="Deel" aria-label="Deel ${escapeHtml(deck.name)}">🔗</button>
+                    <button type="button" class="fc-btn-sm" data-action="export" data-deck-id="${escapeHtml(deck.id)}" title="Exporteer JSON" aria-label="Exporteer ${escapeHtml(deck.name)} als JSON"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></button>
                     <button type="button" class="fc-btn-sm fc-btn-delete" data-action="delete" data-deck-id="${escapeHtml(deck.id)}" title="Verwijder" aria-label="Verwijder ${escapeHtml(deck.name)}">🗑️</button>
-                </div>
-                <div class="fc-export-actions">
-                    <button type="button" class="fc-btn-sm fc-export-button" data-action="export" data-deck-id="${escapeHtml(deck.id)}">↓ Exporteer JSON</button>
-                    <a class="fc-json-help" href="/extra/flashcards/import#json-uitleg" aria-label="Uitleg over JSON importeren en exporteren">?</a>
                 </div>
             </li>`;
         }
