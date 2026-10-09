@@ -203,6 +203,8 @@
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
+    line-height: 1.5;
+    min-block-size: 44px;
     opacity: 0.75;
 }
 .fc-btn-new:hover {
@@ -1448,16 +1450,6 @@
             opacity: 0;
         }
     }
-}
-
-/* Multi-deck practice stays an opt-in beside the ordinary deck list. */
-.fc-selection-toolbar {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.fc-selection-toolbar button {
-    min-block-size: 44px;
 }
 
 .fc-selection-help,

@@ -974,10 +974,7 @@ function renderList() {
     let html = `<div class="deck-list-header">
         <a class="fc-btn-new fc-import-link" href="/extra/flashcards/import">📥 Importeer JSON</a>
         <button type="button" class="fc-btn-new btn-lift" id="fc-new-deck">＋ Nieuw deck</button>
-    </div>`;
-
-    html += `<div class="fc-selection-toolbar">
-        <button type="button" class="fc-btn-new" id="fc-toggle-multiple" aria-pressed="${multiDeckMode}">${multiDeckMode ? "Eén deck" : "Meerdere decks"}</button>
+        <button type="button" class="fc-btn-new btn-lift" id="fc-toggle-multiple" aria-pressed="${multiDeckMode}">${multiDeckMode ? "📖 Eén deck" : "📚 Meerdere decks"}</button>
     </div>`;
     if (multiDeckMode) {
         html += `<p class="fc-selection-help">Je oefent de gekozen decks door elkaar. Invuloefeningen blijven bij elkaar.
