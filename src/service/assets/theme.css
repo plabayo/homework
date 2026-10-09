@@ -1042,7 +1042,9 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         padding: 10px 14px;
-        background: color-mix(in srgb, var(--bg) 85%, var(--fg) 15%);
+        /* Status colors are designed for the base surface. A grey tint here
+           reduces the green status text below AA contrast in light mode. */
+        background: var(--bg);
     }
     .history summary {
         cursor: pointer;

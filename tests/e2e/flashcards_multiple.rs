@@ -48,6 +48,15 @@ async fn setup(driver: &WebDriver, app: &TestApp) -> TestResult<()> {
     Ok(())
 }
 
+// Exercise both schemes explicitly; the host OS default differs on CI.
+async fn check_history_a11y_in_both_themes(driver: &WebDriver) -> TestResult<()> {
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+    Ok(())
+}
+
 // Answers come from our fixture, not application internals. For a fill-in grid,
 // choose a missing word by reading which fixture words are already visible.
 async fn complete_session(driver: &WebDriver) -> TestResult<()> {
@@ -150,7 +159,7 @@ async fn flashcards_multiple_complete_browse_and_preserve_settings() -> TestResu
     let driver = &browser.driver;
     setup(driver, &app).await?;
     driver.set_window_rect(0, 0, 390, 844).await?;
-    check_a11y(driver).await?;
+    check_history_a11y_in_both_themes(driver).await?;
     let overflow = driver
         .execute(
             "return document.documentElement.scrollWidth > innerWidth;",
@@ -233,7 +242,7 @@ async fn flashcards_multiple_complete_browse_and_preserve_settings() -> TestResu
             .len(),
         5
     );
-    check_a11y(driver).await?;
+    check_history_a11y_in_both_themes(driver).await?;
     let overflow = driver
         .execute(
             "return document.documentElement.scrollWidth > innerWidth;",
@@ -501,7 +510,7 @@ async fn flashcards_single_history_and_legacy_week_details() -> TestResult<()> {
             .len(),
         2
     );
-    check_a11y(driver).await?;
+    check_history_a11y_in_both_themes(driver).await?;
     driver.clone().quit().await?;
     Ok(())
 }
