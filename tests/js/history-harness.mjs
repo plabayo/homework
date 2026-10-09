@@ -91,6 +91,7 @@ export const {
     lcm,
     partitionForHistoryView,
     randomInt,
+    renderHistoryGroups,
     simplifyFraction,
     weeklyBuckets,
 } = ctx;

@@ -29,10 +29,25 @@ const patched = src.replace(
 
 // Minimal stubs so module-level declarations (including the IIFE at the
 // bottom of flashcards.js that wires MutationObservers) do not throw.
-// The pure functions under test never touch DOM or storage.
+// Matching functions never touch DOM; deck generation can read practice settings.
+// Imported ESM helpers run outside the VM and cannot see its browser globals.
+// Always inject storage: Node 22 has none, while newer Node may expose a real one.
+export const storage = {
+    values: new Map(),
+    getItem(key) {
+        return this.values.get(key) ?? null;
+    },
+    setItem(key, value) {
+        this.values.set(key, String(value));
+    },
+    removeItem(key) {
+        this.values.delete(key);
+    },
+};
 let exerciseSpec;
 const ctx = createContext({
     ...flashcardData,
+    readPractice: (deck) => flashcardData.readPractice(deck, storage),
     // Standard JS built-ins
     Array,
     Object,
@@ -67,7 +82,7 @@ const ctx = createContext({
     // Stubbed window with no-op event-listener: flashcards.js registers a
     // `pagehide` handler at module init for blob-URL cleanup.
     window: { addEventListener: () => {}, removeEventListener: () => {} },
-    localStorage: null,
+    localStorage: storage,
     indexedDB: null,
     MutationObserver: class {
         observe() {}
@@ -92,6 +107,7 @@ runInContext(patched, ctx);
 // All are top-level `function` declarations so they land on ctx directly.
 export const {
     buildDeckQuestions,
+    flashcardHistoryGroups,
     buildCombinedQuestions,
     groupQuestions,
     preparePracticeDeck,

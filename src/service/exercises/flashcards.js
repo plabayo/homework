@@ -2436,7 +2436,38 @@ function renderMultiPartQuestion(q, root, mode) {
     return () => input?.value ?? "";
 }
 
+// Store the source with every generated question, including single-deck runs.
+// It survives IndexedDB, retries, and later deck renames or deletions.
 function buildDeckQuestions(deck, cfg) {
+    return generateDeckQuestions(deck, cfg).map((q) => ({
+        ...q,
+        historySource: { id: deck.id, name: deck.name },
+    }));
+}
+
+function flashcardHistoryGroups(session, decks = loadDecks()) {
+    const groups = new Map();
+    for (const outcome of session.questions || []) {
+        const q = outcome.question || {};
+        const id =
+            q.historySource?.id ||
+            q.deckId ||
+            session.config?.deckId ||
+            (session.exerciseId?.startsWith("flashcards-") ? session.exerciseId.slice(11) : null);
+        const savedName = q.historySource?.name || q.deckName;
+        const currentName = decks.find((deck) => deck.id === id)?.name;
+        const name = savedName || (currentName ? `${currentName} (huidige naam)` : "Onbekend deck");
+        const key = id || savedName || "unknown";
+        if (!groups.has(key)) groups.set(key, { name, questions: [] });
+        // Older combined sessions included the deck name in every label.
+        const prefix = q.deckName ? `${q.deckName}: ` : "";
+        const label = prefix && outcome.label?.startsWith(prefix) ? outcome.label.slice(prefix.length) : outcome.label;
+        groups.get(key).questions.push({ ...outcome, label });
+    }
+    return [...groups.values()];
+}
+
+function generateDeckQuestions(deck, cfg) {
     if (!deck) return [];
     // Image cards always produce standalone questions regardless of deck mode.
     const imageCards = deck.cards.filter((c) => c.wikimedia?.trim());
@@ -2776,6 +2807,8 @@ runExercise({
 
     prepareDeck: preparePracticeDeck,
 
+    historyGroups: flashcardHistoryGroups,
+
     // Reset the progress a question accumulated during an earlier session.
     //
     // A question object outlives the session it was built for: recordOutcome()
@@ -2957,7 +2990,7 @@ runExercise({
             case "two-sided":
                 return `${source}${q.front} → ${q.back}`;
             case "image":
-                return `${source}[🖼️ ${q.wikimedia}] → ${q.back}`;
+                return `${source}[🖼️ ${q.wikimedia}] → ${q.parts?.length ? `[${q.parts.join(" / ")}]` : q.back}`;
             case "fill-in":
                 return source + q.front;
             default:

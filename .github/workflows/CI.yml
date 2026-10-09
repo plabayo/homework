@@ -63,9 +63,11 @@ jobs:
         id: setup-chrome
         with:
           install-dependencies: true
+          install-chromedriver: true
       - name: Run browser smoke tests
         env:
           CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CHROMEDRIVER: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: cargo test --test e2e -- --ignored --test-threads=1
 
   test-js:

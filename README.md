@@ -104,9 +104,15 @@ just qa-full
 just test-e2e
 ```
 
+JavaScript unit tests (`just test-js`, also included in QA) use Node 22
+through `npx`, matching CI even when your default Node version is newer.
+The first run may download that runtime.
+
 The browser smoke tests auto-download a compatible WebDriver when Chrome
 or Chromium is installed; set `CHROME_BIN` (or `CHROMEDRIVER`) if you
-need to point at a non-default install.
+need to point at a non-default install. Setting `CHROMEDRIVER` to a compatible
+installed driver also avoids version-catalogue requests for every test session;
+CI installs the matching driver once and passes that path explicitly.
 
 The dev server runs plain HTTP by default. Pass `--https <addr>` (with
 the cert-issuer env vars wired up) to enable TLS locally.

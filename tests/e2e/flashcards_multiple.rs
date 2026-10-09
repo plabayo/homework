@@ -199,6 +199,58 @@ async fn flashcards_multiple_complete_browse_and_preserve_settings() -> TestResu
     click(driver, "#form-setup button[type='submit']").await?;
     complete_session(driver).await?;
     click(driver, "#page-result .button-reset").await?;
+    wait_for_text(
+        driver,
+        ".history-session > summary",
+        "5 oefenvragen · 3 decks",
+        Duration::from_secs(5),
+    )
+    .await?;
+    let summary = driver.find(By::Css(".history-session > summary")).await?;
+    let text = summary.text().await?;
+    for name in ["Seizoenen", "Kleuren", "Frans", "alles vlekkeloos"] {
+        assert!(text.contains(name), "missing history summary: {name}");
+    }
+    // Native disclosure must work by keyboard even for a perfect session.
+    summary.send_keys(thirtyfour::prelude::Key::Enter).await?;
+    wait_for_css(
+        driver,
+        ".history-session[open] .history-deck",
+        Duration::from_secs(5),
+    )
+    .await?;
+    assert_eq!(
+        driver
+            .find_all(By::Css(".history-session[open] .history-deck"))
+            .await?
+            .len(),
+        3
+    );
+    assert_eq!(
+        driver
+            .find_all(By::Css(".history-session[open] .item-correct"))
+            .await?
+            .len(),
+        5
+    );
+    check_a11y(driver).await?;
+    let overflow = driver
+        .execute(
+            "return document.documentElement.scrollWidth > innerWidth;",
+            vec![],
+        )
+        .await?;
+    assert_eq!(overflow.json().as_bool(), Some(false));
+    // Reloading after a rename must keep the historical name snapshot.
+    driver.execute("const decks = JSON.parse(localStorage.getItem('homework_flashcard_decks')); decks.find(d => d.id === 'words').name = 'Nieuwe naam'; localStorage.setItem('homework_flashcard_decks', JSON.stringify(decks));", vec![]).await?;
+    driver.refresh().await?;
+    wait_for_text(
+        driver,
+        ".history-deck-names",
+        "Frans",
+        Duration::from_secs(10),
+    )
+    .await?;
     click(driver, "#fc-toggle-multiple").await?;
     wait_for_css(driver, "#fc-count", Duration::from_secs(5)).await?;
     assert_eq!(
@@ -239,6 +291,28 @@ async fn flashcards_multiple_skip_and_retry_from_stored_history() -> TestResult<
         Duration::from_secs(10),
     )
     .await?;
+    wait_for_text(
+        driver,
+        ".history-session > summary",
+        "5 oefenvragen · 3 decks",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, ".history-session > summary").await?;
+    wait_for_text(
+        driver,
+        ".history-session[open]",
+        "overgeslagen",
+        Duration::from_secs(5),
+    )
+    .await?;
+    assert_eq!(
+        driver
+            .find_all(By::Css(".history-session[open] .item-wrong"))
+            .await?
+            .len(),
+        5
+    );
     click(driver, "#history [data-action='practice-mistakes']").await?;
     wait_for_css(driver, "#picker-start", Duration::from_secs(5)).await?;
     click(driver, "#picker-start").await?;
@@ -306,6 +380,128 @@ async fn flashcards_multiple_empty_selection_keyboard_and_deleted_deck() -> Test
             .await?)
     })
     .await?;
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser and its driver; run via `just test-e2e`"]
+async fn flashcards_single_history_and_legacy_week_details() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    setup(driver, &app).await?;
+    click(driver, "#fc-toggle-multiple").await?;
+    click(driver, "[data-deck-id='words'] .deck-select-btn").await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    for number in 1..=2 {
+        wait_for_text(
+            driver,
+            "#exercise-title",
+            &format!("oefening {number} van 2"),
+            Duration::from_secs(5),
+        )
+        .await?;
+        wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(5)).await?;
+        // The entrance animation can briefly make WebDriver's visible-text
+        // accessor empty; read the rendered card's textContent instead.
+        let front = driver
+            .find(By::Css("#exercise-content .flash-text"))
+            .await?
+            .prop("textContent")
+            .await?
+            .unwrap_or_default();
+        set_input_value(
+            driver,
+            "#answer",
+            if front == "chat" { "kat" } else { "hallo, dag" },
+        )
+        .await?;
+        driver
+            .find(By::Css("#answer"))
+            .await?
+            .send_keys(thirtyfour::prelude::Key::Enter)
+            .await?;
+    }
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(5)).await?;
+    click(driver, "#page-result .button-reset").await?;
+    wait_for_text(
+        driver,
+        ".history-session > summary",
+        "2 oefenvragen · 1 deck",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, ".history-session > summary").await?;
+    wait_for_text(
+        driver,
+        ".history-deck",
+        "chat → kat",
+        Duration::from_secs(5),
+    )
+    .await?;
+    assert_eq!(
+        driver
+            .find_all(By::Css(".history-deck .item-correct"))
+            .await?
+            .len(),
+        2
+    );
+
+    // Convert the real persisted session to the old single-deck format and
+    // age it into a weekly bucket. The fallback must also expose every card.
+    let result = driver
+        .execute_async(
+            r#"
+        const done = arguments[arguments.length - 1];
+        const req = indexedDB.open('homework', 1);
+        req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction('sessions', 'readwrite');
+            const store = tx.objectStore('sessions');
+            const rows = store.getAll();
+            rows.onsuccess = () => {
+                for (const session of rows.result) {
+                    session.finishedAt = Date.now() - 21 * 86400000;
+                    for (const outcome of session.questions) delete outcome.question.historySource;
+                    store.put(session);
+                }
+            };
+            tx.oncomplete = () => { db.close(); done(true); };
+            tx.onerror = () => done(false);
+        };
+        req.onerror = () => done(false);
+    "#,
+            vec![],
+        )
+        .await?;
+    assert_eq!(result.json().as_bool(), Some(true));
+    driver.refresh().await?;
+    wait_for_css(driver, ".history-week", Duration::from_secs(10)).await?;
+    click(driver, ".history-week > summary").await?;
+    wait_for_text(
+        driver,
+        ".history-week .history-session > summary",
+        "Frans (huidige naam)",
+        Duration::from_secs(5),
+    )
+    .await?;
+    click(driver, ".history-week .history-session > summary").await?;
+    wait_for_text(
+        driver,
+        ".history-week .history-deck",
+        "chat → kat",
+        Duration::from_secs(5),
+    )
+    .await?;
+    assert_eq!(
+        driver
+            .find_all(By::Css(".history-week .history-deck .item-correct"))
+            .await?
+            .len(),
+        2
+    );
+    check_a11y(driver).await?;
     driver.clone().quit().await?;
     Ok(())
 }

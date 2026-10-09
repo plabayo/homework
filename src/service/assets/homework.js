@@ -1503,6 +1503,36 @@ function renderOutcomeItems({ wrong, tricky }) {
     ].join("");
 }
 
+// Exercises can group their complete history by source, while the default
+// history keeps its existing focus on mistakes. All labels are stored text.
+function renderHistoryGroups(groups) {
+    return groups
+        .map(
+            (group) => `
+        <section class="history-deck">
+            <h3>${escapeHtml(group.name)} · ${group.questions.length} ${group.questions.length === 1 ? "oefenvraag" : "oefenvragen"}</h3>
+            <ul class="result-detail-list history-detail-list">${group.questions
+                .map((q) => {
+                    const kind = !q.correct ? "wrong" : isPracticeMistake(q) ? "tricky" : "correct";
+                    const status = q.timedOut
+                        ? "⏰ te traag"
+                        : q.skipped
+                          ? "overgeslagen"
+                          : !q.correct
+                            ? "niet goed"
+                            : q.practiceAgain
+                              ? "bijna goed · opnieuw oefenen"
+                              : "✓ goed";
+                    const attempts = q.attempts > 0 ? ` · ${q.attempts}× fout vooraf` : "";
+                    const desc = q.label || JSON.stringify(q.question);
+                    return `<li class="item-${kind}"><span class="item-desc">${escapeHtml(desc)}</span><span class="item-meta">${status}${attempts}</span></li>`;
+                })
+                .join("")}</ul>
+        </section>`,
+        )
+        .join("");
+}
+
 function renderTrickyList(session) {
     const { wrong, tricky } = splitQuestionOutcomes(session);
     if (wrong.length === 0 && tricky.length === 0) return "";
@@ -2466,7 +2496,7 @@ export function runExercise(spec) {
         const session = buildCurrentSession();
         if (!session) return;
         await saveSession(session);
-        await setupHistoryView();
+        await setupHistoryView(spec);
     }
 
     function finish() {
@@ -2480,7 +2510,7 @@ export function runExercise(spec) {
         saveSession(session).then(() => {
             // Re-evaluate the parent history block (mistakes/clear buttons,
             // session list) so it's accurate when the user goes back to setup.
-            setupHistoryView();
+            setupHistoryView(spec);
         });
         renderResult(session);
         show("result");
@@ -2701,14 +2731,14 @@ export function runExercise(spec) {
     enableTouchSubmit(formSetup);
     enableTouchSubmit(formExercise);
     show("setup");
-    setupHistoryView();
+    setupHistoryView(spec);
     // Allow exercise scripts to trigger a history refresh when the deck/variant changes.
-    document.addEventListener("homework:refresh-history", setupHistoryView);
+    document.addEventListener("homework:refresh-history", () => setupHistoryView(spec));
 }
 
 // ---------- parent history view ----------
 
-async function setupHistoryView() {
+async function setupHistoryView(spec) {
     const root = document.getElementById("history");
     if (!root) return;
     if (!root.dataset.exerciseId) return;
@@ -2771,11 +2801,22 @@ async function setupHistoryView() {
             buckets.length > 0
                 ? `<section class="history-weeks" aria-label="oudere weken samengevat">
                        <h3 class="history-weeks-title">Eerdere weken</h3>
-                       ${buckets.map(renderWeeklyBucket).join("")}
+                       ${buckets
+                           .map((bucket) =>
+                               renderWeeklyBucket(
+                                   bucket,
+                                   aggregated.filter(
+                                       (session) =>
+                                           isoWeekStart(session.finishedAt || session.startedAt) === bucket.weekStart,
+                                   ),
+                               ),
+                           )
+                           .join("")}
                    </section>`
                 : "";
 
         list.innerHTML = `
+            <h2 class="visually-hidden">Oefengeschiedenis</h2>
             <p class="history-summary">${summaryParts.join(" · ")}</p>
             <div class="history-recent">
                 ${visibleRecent.map(renderSessionCard).join("")}
@@ -2797,6 +2838,24 @@ async function setupHistoryView() {
         if (s.config?.deadlineSeconds) scoreParts.push(`⏰ ${s.config.deadlineSeconds}s`);
         if (s.mode === "mistakes") scoreParts.push("foutenmodus");
 
+        const groups = spec?.historyGroups?.(s);
+        if (groups) {
+            const count = groups.reduce((total, group) => total + group.questions.length, 0);
+            const status = hasMistakes
+                ? `${wrong.length} niet goed · ${tricky.length} opnieuw oefenen`
+                : "✨ alles vlekkeloos";
+            return `<details class="history-session history-session-expandable">
+                <summary>
+                    <span class="history-session-header"><span>${formatDate(s.finishedAt || s.startedAt)}</span><span>${scoreParts.join(" · ")}</span></span>
+                    <span class="history-deck-names">${groups.map((group) => escapeHtml(group.name)).join(" + ")}</span>
+                    <span class="history-session-count">${count} ${count === 1 ? "oefenvraag" : "oefenvragen"} · ${groups.length} ${groups.length === 1 ? "deck" : "decks"}</span>
+                    <span class="${hasMistakes ? "history-session-count" : "history-perfect"}">${status}</span>
+                    <span class="history-disclosure">Bekijk oefenvragen</span>
+                </summary>
+                ${renderHistoryGroups(groups)}
+            </details>`;
+        }
+
         return `
             <article class="history-session">
                 <div class="history-session-header">
@@ -2814,7 +2873,7 @@ async function setupHistoryView() {
 
     /** Render a weekly aggregation card. Uses `<details>` so disclosure
      *  behaviour is keyboard-/screen-reader-native — no custom JS. */
-    function renderWeeklyBucket(bucket) {
+    function renderWeeklyBucket(bucket, sessions) {
         const start = new Date(bucket.weekStart);
         const weekLabel = `${start.getDate()} ${
             ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"][start.getMonth()]
@@ -2844,6 +2903,7 @@ async function setupHistoryView() {
             <details class="history-week">
                 <summary>${summary}</summary>
                 ${mistakes}
+                ${spec?.historyGroups ? sessions.map(renderSessionCard).join("") : ""}
             </details>
         `;
     }

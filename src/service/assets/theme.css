@@ -1071,6 +1071,56 @@
         font-size: 0.9rem;
         color: var(--good);
     }
+    .history-session-expandable > summary {
+        cursor: pointer;
+        list-style: none;
+        border-radius: var(--radius);
+    }
+    .history-session-expandable > summary:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+    }
+    .history-session-expandable > summary::-webkit-details-marker {
+        display: none;
+    }
+    .history-deck-names,
+    .history-session-count,
+    .history-session-expandable .history-perfect,
+    .history-disclosure {
+        display: block;
+        margin-block-start: 6px;
+        overflow-wrap: anywhere;
+    }
+    .history-session-count,
+    .history-disclosure {
+        font-size: 0.85rem;
+        color: var(--muted);
+    }
+    .history-disclosure::before {
+        content: "▸ ";
+    }
+    .history-session-expandable[open] > summary .history-disclosure::before {
+        content: "▾ ";
+    }
+    .history-deck {
+        border-block-start: 1px solid var(--border);
+        margin-block-start: 12px;
+        padding-block-start: 12px;
+        overflow-wrap: anywhere;
+    }
+    .history-deck h3 {
+        margin: 0;
+        font-size: 0.95rem;
+    }
+    .history-deck .history-detail-list {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+    }
+    .history-deck .item-correct {
+        border-color: var(--good);
+    }
+    .history-week > .history-session {
+        margin-block-start: 10px;
+    }
     .history-empty {
         color: var(--muted);
         font-style: italic;

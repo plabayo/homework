@@ -73,9 +73,10 @@ doc:
 test:
 	cargo test --all-features
 
-# Run pure-logic JavaScript unit tests (no browser required)
+# Run pure-logic JavaScript unit tests with CI's Node major (no browser required).
+# Newer Node versions expose browser globals that can hide missing test stubs.
 test-js:
-	node --test tests/js/*.test.mjs
+	npx --yes --package=node@22 node --test tests/js/*.test.mjs
 
 # Local run uses 4 threads for speed. CI uses 1 (see CI.yml) to avoid port
 # conflicts when multiple browser tests start servers concurrently.
