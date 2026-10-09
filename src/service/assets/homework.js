@@ -1620,6 +1620,7 @@ export function createScreenWakeLockController({
  *   readConfig: (form) => config              — read submitted form
  *   validateConfig?: (config) => string|null  — error message or null
  *   buildDeck: (config) => questions[]        — full deck for a session
+ *   prepareDeck?: (questions, mode) => questions[] — group questions before any session
  *   prepareQuestion?: (q) => void             — reset per-session runtime state
  *   renderQuestion: (q, root, mode) => getAnswer | { getAnswer, cleanup }
  *      mode = { kind: 'play' } | { kind: 'review', given, correct }
@@ -2121,7 +2122,8 @@ export function runExercise(spec) {
 
     // --- play ---
 
-    function startSession(deck, config, mode) {
+    function startSession(questions, config, mode) {
+        const deck = spec.prepareDeck ? spec.prepareDeck(questions, mode) : questions;
         if (spec.prepareQuestion) {
             deck.forEach((question) => {
                 spec.prepareQuestion(question);

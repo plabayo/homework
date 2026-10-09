@@ -1449,3 +1449,58 @@
         }
     }
 }
+
+/* Multi-deck practice stays an opt-in beside the ordinary deck list. */
+.fc-selection-toolbar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.fc-selection-toolbar button {
+    min-block-size: 44px;
+}
+
+.fc-selection-help,
+.fc-selection-count {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-block: 0.5rem;
+}
+
+.fc-deck-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.65rem;
+    min-inline-size: 0;
+}
+
+.fc-deck-check input {
+    flex: none;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    accent-color: var(--accent);
+}
+
+.fc-deck-check:has(input:focus-visible) {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+}
+
+.fc-deck-text {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+.fc-source-deck {
+    margin-block: 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.fc-review-viewport:has(.fc-source-deck) {
+    flex-direction: column;
+    align-items: center;
+}

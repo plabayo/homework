@@ -30,6 +30,7 @@ const patched = src.replace(
 // Minimal stubs so module-level declarations (including the IIFE at the
 // bottom of flashcards.js that wires MutationObservers) do not throw.
 // The pure functions under test never touch DOM or storage.
+let exerciseSpec;
 const ctx = createContext({
     ...flashcardData,
     // Standard JS built-ins
@@ -73,12 +74,14 @@ const ctx = createContext({
         disconnect() {}
     },
     // @homework stubs — these names appear in flashcards.js after the import
-    // is stripped.  runExercise is called once at end-of-file; making it a
-    // no-op prevents any exercise-wiring code from running.
+    // is stripped. Capture the exercise spec for session-logic tests without
+    // running the DOM-bound framework.
     clearLeaveGuard: () => {},
     escapeHtml: (s) => String(s),
     refreshLeaveGuards: () => {},
-    runExercise: () => {},
+    runExercise: (spec) => {
+        exerciseSpec = spec;
+    },
     setLeaveGuard: () => {},
     shuffle: (arr) => arr,
 });
@@ -88,6 +91,14 @@ runInContext(patched, ctx);
 // Re-export the pure functions under test.
 // All are top-level `function` declarations so they land on ctx directly.
 export const {
+    buildDeckQuestions,
+    buildCombinedQuestions,
+    groupQuestions,
+    preparePracticeDeck,
+    selectionExerciseId,
+    validateDeckConfig,
+    fillInState,
+    renderFillInReview,
     normalize,
     levenshtein,
     fuzzyEqual,
@@ -99,3 +110,5 @@ export const {
     normalizeStoredCard,
     normalizeStoredDeck,
 } = ctx;
+
+export { exerciseSpec };

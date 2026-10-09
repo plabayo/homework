@@ -418,6 +418,7 @@ function buildRevealFeedback(answerText, plural = false) {
 
 const STORAGE_KEY = "homework_flashcard_decks";
 const FC_LAST_DECK_KEY = "homework_fc_last_deck";
+const FC_SELECTION_KEY = "homework_fc_selection";
 
 function loadDecks() {
     try {
@@ -481,6 +482,7 @@ function currentPractice(deck) {
 }
 
 function restoreDeckPractice() {
+    if (multiDeckMode) return;
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
     if (!deck) return;
     if (hiddenDeckInput) hiddenDeckInput.value = deck.id;
@@ -509,7 +511,7 @@ function restoreDeckPractice() {
 }
 
 function persistDeckPractice() {
-    if (!selectedDeckId || editorState || importPending) return;
+    if (multiDeckMode || !selectedDeckId || editorState || importPending) return;
     const decks = loadDecks();
     const deck = decks.find((item) => item.id === selectedDeckId);
     if (!deck) return;
@@ -527,7 +529,7 @@ function exportDeck(id) {
     const deck = getDeck(id);
     if (!deck) return;
     try {
-        const practice = id === selectedDeckId ? currentPractice(deck) : readPractice(deck);
+        const practice = !multiDeckMode && id === selectedDeckId ? currentPractice(deck) : readPractice(deck);
         downloadDeck(deck, practice);
         showToast(`JSON-export van “${deck.name}” gestart.`);
     } catch (error) {
@@ -769,6 +771,8 @@ function ensureExamples() {
 let managerRoot = null;
 let hiddenDeckInput = null;
 let selectedDeckId = null;
+let multiDeckMode = false;
+let combinedDeckIds = new Set();
 let editorState = null; // null | { mode: 'new' } | { mode: 'edit', id: string }
 let importPending = null; // { name, cards, _conflictId? } | null
 let _highlightNewDeck = false; // true → animate selected deck item on next renderList()
@@ -903,44 +907,98 @@ function renderManager() {
     syncReviewLaunchButton();
 }
 
+function selectedDeckIds() {
+    return multiDeckMode ? [...combinedDeckIds] : selectedDeckId ? [selectedDeckId] : [];
+}
+
+function selectedDecks() {
+    return selectedDeckIds().map(getDeck).filter(Boolean);
+}
+
+function rememberSelection() {
+    try {
+        localStorage.setItem(FC_SELECTION_KEY, JSON.stringify(multiDeckMode ? selectedDeckIds() : null));
+        if (selectedDeckId) localStorage.setItem(FC_LAST_DECK_KEY, selectedDeckId);
+    } catch {}
+}
+
+function preloadSelection() {
+    // Preload once for the union: per-deck calls revoke each other's image URLs.
+    void wmPreloadDeck({ cards: selectedDecks().flatMap((deck) => deck.cards) });
+}
+
+function toggleMultiDeckMode() {
+    persistDeckPractice();
+    multiDeckMode = !multiDeckMode;
+    if (multiDeckMode) combinedDeckIds = new Set(selectedDeckId ? [selectedDeckId] : []);
+    else if (!combinedDeckIds.has(selectedDeckId)) selectedDeckId = [...combinedDeckIds][0] || null;
+    renderList();
+    document.getElementById("fc-toggle-multiple")?.focus();
+    preloadSelection();
+}
+
 // ---------- Deck list view ----------
+
+function deckListItemHtml(deck) {
+    const isTwo = deckMode(deck) === "two-sided";
+    const modeLabel = !isTwo ? "uit het hoofd" : deck.bidirectional ? "twee richtingen" : "voor-achterkant";
+    const count = deck.cards.length;
+    const sel = selectedDeckIds().includes(deck.id);
+    return `<li class="deck-item${sel ? " selected" : ""}" data-deck-id="${escapeHtml(deck.id)}">
+    ${
+        multiDeckMode
+            ? `<label class="deck-select-btn fc-deck-check"><input type="checkbox" data-action="select" data-deck-id="${escapeHtml(deck.id)}" ${sel ? "checked" : ""}>
+            <span class="fc-deck-text"><span class="deck-name">${escapeHtml(deck.name)}</span><span class="deck-meta">${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}</span></span></label>`
+            : `<button type="button" class="deck-select-btn" data-action="select" data-deck-id="${escapeHtml(deck.id)}" aria-pressed="${sel}">
+            <span class="deck-name">${escapeHtml(deck.name)}</span>
+            <span class="deck-meta">${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}</span>
+        </button>`
+    }
+
+    <div class="deck-actions">
+        <button type="button" class="fc-btn-sm" data-action="edit" data-deck-id="${escapeHtml(deck.id)}" title="Bewerk" aria-label="Bewerk ${escapeHtml(deck.name)}">✏️</button>
+        <button type="button" class="fc-btn-sm" data-action="share" data-deck-id="${escapeHtml(deck.id)}" title="Deel" aria-label="Deel ${escapeHtml(deck.name)}">🔗</button>
+        <button type="button" class="fc-btn-sm" data-action="export" data-deck-id="${escapeHtml(deck.id)}" title="Exporteer JSON" aria-label="Exporteer ${escapeHtml(deck.name)} als JSON"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></button>
+        <button type="button" class="fc-btn-sm fc-btn-delete" data-action="delete" data-deck-id="${escapeHtml(deck.id)}" title="Verwijder" aria-label="Verwijder ${escapeHtml(deck.name)}">🗑️</button>
+    </div>
+</li>`;
+}
 
 function renderList() {
     clearEditorLeaveGuard();
     const decks = loadDecks();
+    combinedDeckIds = new Set([...combinedDeckIds].filter((id) => decks.some((deck) => deck.id === id)));
+    rememberSelection();
+    if (hiddenDeckInput) hiddenDeckInput.value = selectedDeckId || "";
 
     let html = `<div class="deck-list-header">
         <a class="fc-btn-new fc-import-link" href="/extra/flashcards/import">📥 Importeer JSON</a>
         <button type="button" class="fc-btn-new btn-lift" id="fc-new-deck">＋ Nieuw deck</button>
     </div>`;
 
+    html += `<div class="fc-selection-toolbar">
+        <button type="button" class="fc-btn-new" id="fc-toggle-multiple" aria-pressed="${multiDeckMode}">${multiDeckMode ? "Eén deck" : "Meerdere decks"}</button>
+    </div>`;
+    if (multiDeckMode) {
+        html += `<p class="fc-selection-help">Je oefent de gekozen decks door elkaar. Invuloefeningen blijven bij elkaar.
+            Elk deck gebruikt zijn eigen oefeninstellingen. De tijdinstelling hieronder geldt voor de hele sessie.</p>`;
+    }
+
     if (decks.length === 0) {
         html += `<p class="fc-empty">Nog geen decks — maak een nieuw deck aan!</p>`;
     } else {
         html += `<ul class="deck-list" role="list">`;
-        for (const deck of decks) {
-            const isTwo = deckMode(deck) === "two-sided";
-            const modeLabel = !isTwo ? "uit het hoofd" : deck.bidirectional ? "twee richtingen" : "voor-achterkant";
-            const count = deck.cards.length;
-            const sel = deck.id === selectedDeckId;
-            html += `<li class="deck-item${sel ? " selected" : ""}" data-deck-id="${escapeHtml(deck.id)}">
-                <button type="button" class="deck-select-btn" data-action="select" data-deck-id="${escapeHtml(deck.id)}" aria-pressed="${sel}">
-                    <span class="deck-name">${escapeHtml(deck.name)}</span>
-                    <span class="deck-meta">${count} kaart${count === 1 ? "" : "en"} · ${modeLabel}</span>
-                </button>
-                <div class="deck-actions">
-                    <button type="button" class="fc-btn-sm" data-action="edit" data-deck-id="${escapeHtml(deck.id)}" title="Bewerk" aria-label="Bewerk ${escapeHtml(deck.name)}">✏️</button>
-                    <button type="button" class="fc-btn-sm" data-action="share" data-deck-id="${escapeHtml(deck.id)}" title="Deel" aria-label="Deel ${escapeHtml(deck.name)}">🔗</button>
-                    <button type="button" class="fc-btn-sm" data-action="export" data-deck-id="${escapeHtml(deck.id)}" title="Exporteer JSON" aria-label="Exporteer ${escapeHtml(deck.name)} als JSON"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></button>
-                    <button type="button" class="fc-btn-sm fc-btn-delete" data-action="delete" data-deck-id="${escapeHtml(deck.id)}" title="Verwijder" aria-label="Verwijder ${escapeHtml(deck.name)}">🗑️</button>
-                </div>
-            </li>`;
-        }
+        html += decks.map(deckListItemHtml).join("");
         html += `</ul>`;
     }
 
+    if (multiDeckMode) {
+        const count = combinedDeckIds.size;
+        html += `<p class="fc-selection-count" role="status">${count} deck${count === 1 ? "" : "s"} geselecteerd</p>`;
+    }
+
     // For a selected one-sided deck, show fill-in mode options.
-    if (selectedDeckId) {
+    if (!multiDeckMode && selectedDeckId) {
         const sel = getDeck(selectedDeckId);
         if (sel && sel.cards.length > 0 && deckMode(sel) === "one-sided") {
             html += renderModeOptionsHtml(sel);
@@ -950,7 +1008,7 @@ function renderList() {
     // Sync history section so it shows the selected deck's sessions.
     const histEl = document.getElementById("history");
     if (histEl) {
-        histEl.dataset.exerciseId = selectedDeckId ? `flashcards-${selectedDeckId}` : "flashcards";
+        histEl.dataset.exerciseId = selectionExerciseId(selectedDeckIds(), multiDeckMode);
     }
 
     // Leave editing mode — show the start button, time-mode fieldset, and history.
@@ -976,6 +1034,8 @@ function renderList() {
         editorState = { mode: "new" };
         renderManager();
     });
+
+    managerRoot.querySelector("#fc-toggle-multiple")?.addEventListener("click", toggleMultiDeckMode);
 
     // Wire up the count input enable/disable based on which radio is selected.
     wireModeOptions();
@@ -1006,8 +1066,7 @@ function ensureReviewLaunchButton() {
 function syncReviewLaunchButton() {
     const btn = ensureReviewLaunchButton();
     if (!btn) return;
-    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    const hasCards = deck?.cards?.length > 0;
+    const hasCards = selectedDecks().some((deck) => deck.cards.length > 0);
     btn.disabled = !hasCards;
     btn.hidden = reviewState.active;
 }
@@ -1077,7 +1136,7 @@ function reviewFaceHtml(label, kind, value, wikimedia = "", parts = null, partsR
 function buildReviewCardHtml(index) {
     const card = reviewState.cards[index];
     const total = reviewState.cards.length;
-    return `<button type="button" class="fc-review-card is-active${card.oneSided ? " no-flip" : ""}${reviewState.flipped.has(index) ? " is-flipped" : ""}" data-index="${index}" aria-label="kaart ${index + 1} van ${total}">
+    return `${card.deckName ? `<p class="fc-source-deck">${escapeHtml(card.deckName)}</p>` : ""}<button type="button" class="fc-review-card is-active${card.oneSided ? " no-flip" : ""}${reviewState.flipped.has(index) ? " is-flipped" : ""}" data-index="${index}" aria-label="kaart ${index + 1} van ${total}">
         <span class="fc-review-card-inner">
             <span class="fc-review-face fc-review-face-front">
                 ${reviewFaceHtml(card.frontLabel, card.frontKind, card.frontText, card.wikimedia)}
@@ -1268,12 +1327,14 @@ function stopReviewSession({ keepPage = false } = {}) {
 }
 
 async function startReviewSession() {
-    const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    if (deck?.cards?.length === 0) return;
+    const decks = selectedDecks();
+    if (!decks.some((deck) => deck.cards.length > 0)) return;
     stopReviewSession({ keepPage: true });
     reviewState.active = true;
-    reviewState.deckId = deck.id;
-    reviewState.cards = buildReviewCards(deck);
+    reviewState.deckId = decks[0].id;
+    reviewState.cards = decks.flatMap((deck) =>
+        buildReviewCards(deck).map((card) => ({ ...card, deckName: multiDeckMode ? deck.name : null })),
+    );
     reviewState.currentIndex = 0;
     reviewState.flipped.clear();
     exerciseForm()?.setAttribute("data-review-mode", "true");
@@ -1314,6 +1375,7 @@ async function startReviewSession() {
     showReviewPage();
     renderReviewViewer();
     syncReviewLaunchButton();
+    const deck = { cards: decks.flatMap((item) => item.cards) };
     const imageCards = deck.cards.some((card) => card.wikimedia?.trim());
     if (imageCards)
         wmPreloadDeck(deck)
@@ -1372,6 +1434,22 @@ function handleDeckAction(e) {
 
     switch (action) {
         case "select":
+            if (multiDeckMode) {
+                if (btn.checked) combinedDeckIds.add(deckId);
+                else combinedDeckIds.delete(deckId);
+                // Keep the native checkbox in place so keyboard focus and its
+                // screen-reader announcement survive each selection.
+                btn.closest(".deck-item").classList.toggle("selected", btn.checked);
+                managerRoot.querySelector(".fc-selection-count").textContent =
+                    `${combinedDeckIds.size} deck${combinedDeckIds.size === 1 ? "" : "s"} geselecteerd`;
+                rememberSelection();
+                const hist = document.getElementById("history");
+                if (hist) hist.dataset.exerciseId = selectionExerciseId(selectedDeckIds(), true);
+                document.dispatchEvent(new CustomEvent("homework:refresh-history"));
+                syncReviewLaunchButton();
+                preloadSelection();
+                break;
+            }
             selectedDeckId = deckId;
             if (hiddenDeckInput) hiddenDeckInput.value = deckId;
             try {
@@ -1952,6 +2030,7 @@ function saveDeckFromEditor(existingId) {
     if (!saveDecks(decks)) return;
 
     selectedDeckId = savedId;
+    if (multiDeckMode) combinedDeckIds.add(savedId);
     if (hiddenDeckInput) hiddenDeckInput.value = savedId;
     editorState = null;
     _highlightNewDeck = true;
@@ -2013,6 +2092,7 @@ async function doImport(name, replaceId) {
         );
         return;
     }
+    multiDeckMode = false;
     selectedDeckId = saved.id;
     if (hiddenDeckInput) hiddenDeckInput.value = saved.id;
     importPending = null;
@@ -2127,6 +2207,7 @@ async function initManager() {
             const { exact: exactMatch, conflict: nameConflict } = findImportMatch(data, decks);
             if (exactMatch) {
                 // Identical content already in collection — just select it.
+                multiDeckMode = false;
                 selectedDeckId = exactMatch.id;
                 if (hiddenDeckInput) hiddenDeckInput.value = exactMatch.id;
                 showToast("Dit deck staat al in je collectie! ✅");
@@ -2150,11 +2231,7 @@ async function initManager() {
     ensureReviewLaunchButton();
     syncReviewLaunchButton();
 
-    // Pre-load image cards for the initially selected deck (set by restoreLastDeck).
-    if (selectedDeckId) {
-        const d = getDeck(selectedDeckId);
-        if (d) wmPreloadDeck(d);
-    }
+    preloadSelection();
 }
 
 // Restore the last used deck so spec.id immediately returns the right namespace
@@ -2163,6 +2240,11 @@ async function initManager() {
     try {
         const requestedId = new URLSearchParams(location.hash.slice(1)).get("deck");
         const lastId = requestedId || localStorage.getItem(FC_LAST_DECK_KEY);
+        const savedSelection = JSON.parse(localStorage.getItem(FC_SELECTION_KEY) || "null");
+        if (!requestedId && Array.isArray(savedSelection)) {
+            multiDeckMode = true;
+            combinedDeckIds = new Set(savedSelection.filter((id) => getDeck(id)));
+        }
         if (lastId && loadDecks().some((d) => d.id === lastId)) {
             selectedDeckId = lastId;
             localStorage.setItem(FC_LAST_DECK_KEY, lastId);
@@ -2179,18 +2261,19 @@ async function initManager() {
 initManager();
 
 // ---------- Fill-in question renderer (one-sided decks) ----------
-// fillInResults is cleared at the start of each session (buildDeck call) and
-// populated by isCorrect() as the user works through the blanks.
-const fillInResults = {}; // card-index → true | false
+// Keys are shared within a grid and survive IndexedDB structured cloning.
+const fillInStates = new WeakMap();
 
-// Card-index that was just flipped in evaluateAnswer's fill-in branch.
-// Read+cleared by renderFillInQuestion so only that row pops in on
-// re-render, instead of every row replaying its entrance.
-let _lastFillInResolvedIdx = null;
-
-function clearFillInState() {
-    for (const k of Object.keys(fillInResults)) delete fillInResults[k];
-    _lastFillInResolvedIdx = null;
+function fillInState(q) {
+    if (!fillInStates.has(q.blankIndices)) {
+        fillInStates.set(q.blankIndices, {
+            results: {},
+            lastResolved: null,
+            blankIndices: q.blankIndices,
+            questions: [q],
+        });
+    }
+    return fillInStates.get(q.blankIndices);
 }
 
 // Shows the full list with all positions visible:
@@ -2199,14 +2282,22 @@ function clearFillInState() {
 //   • future blank     → static "___" placeholder
 //   • hint card        → revealed text (muted)
 function renderFillInQuestion(q, root) {
-    const blankSet = new Set(q.blankIndices);
+    const state = fillInState(q);
+    const fillInResults = state.results;
+    const blankSet = new Set(fillInState(q).blankIndices);
     // Active input goes at the first unanswered blank — order of typing doesn't matter.
-    const activeIdx = q.blankIndices.find((i) => !(i in fillInResults));
+    const activeIdx = state.blankIndices.find((i) => !(i in fillInResults));
+    // Answers may be supplied in any order. Record the actual blank, so a
+    // later retry and its result label refer to the word that was answered.
+    if (activeIdx !== undefined) {
+        q.index = activeIdx;
+        q.front = q.allCards[activeIdx];
+    }
 
     // The row that just flipped from blank → green/red (set in evaluateAnswer)
     // gets `is-just-resolved` so it can pop in. Consumed once per render.
-    const justResolved = _lastFillInResolvedIdx;
-    _lastFillInResolvedIdx = null;
+    const justResolved = state.lastResolved;
+    state.lastResolved = null;
 
     let html = `<div class="flash-fill-grid">`;
     q.allCards.forEach((cardFront, i) => {
@@ -2238,7 +2329,7 @@ function renderFillInQuestion(q, root) {
     const checkBtn = document.getElementById("button-check");
     if (skipBtn) {
         skipBtn.hidden = false;
-        skipBtn.textContent = "🛑 stop oefening";
+        skipBtn.textContent = q.deckName ? "sla invuloefening over" : "🛑 stop oefening";
     }
     if (checkBtn) checkBtn.textContent = "✅ controleer";
 
@@ -2248,7 +2339,9 @@ function renderFillInQuestion(q, root) {
 }
 
 function renderFillInReview(q, root) {
-    const blankSet = new Set(q.blankIndices);
+    const fillInResults = fillInState(q).results;
+    if (!(q.index in fillInResults)) fillInResults[q.index] = false;
+    const blankSet = new Set(fillInState(q).blankIndices);
 
     let html = `<div class="flash-fill-grid flash-fill-review">`;
     q.allCards.forEach((cardFront, i) => {
@@ -2343,6 +2436,285 @@ function renderMultiPartQuestion(q, root, mode) {
     return () => input?.value ?? "";
 }
 
+function buildDeckQuestions(deck, cfg) {
+    if (!deck) return [];
+    // Image cards always produce standalone questions regardless of deck mode.
+    const imageCards = deck.cards.filter((c) => c.wikimedia?.trim());
+    const textCards = deck.cards.filter((c) => !c.wikimedia && c.front?.trim());
+    const isOneSided = deckMode(deck) === "one-sided";
+
+    const imageQuestions = imageCards.map((c) => {
+        const iParts = cardParts(c);
+        const q = {
+            kind: "image",
+            wikimedia: c.wikimedia,
+            back: c.back || "",
+            hint: c.hint || null,
+        };
+        if (iParts.length > 1) q.parts = iParts;
+        return q;
+    });
+
+    if (!isOneSided) {
+        // Two-sided text cards: per-card groups, shuffle groups so multi-part entries stay consecutive.
+        const isBidirectional = deck.bidirectional === true;
+        const cardGroups = textCards.map((c) => {
+            if (isBidirectional && Math.random() < 0.5) {
+                const parts = cardParts(c);
+                return [
+                    {
+                        kind: "two-sided",
+                        front: parts[0] || c.back || "",
+                        back: c.front,
+                        hint: c.hintReverse || null,
+                        direction: "bwd",
+                    },
+                ];
+            }
+            const parts = cardParts(c);
+            const isMultiPart = parts.length > 1;
+            if (isMultiPart) {
+                // One queue entry per card; state lives directly on the question
+                // object so there is no shared-reference coupling between entries.
+                // partsRequired is only stored when strictly < parts.length.
+                return [
+                    {
+                        kind: "multi-part",
+                        front: c.front,
+                        allParts: parts,
+                        partsRequired: c.partsRequired ?? parts.length,
+                        partialMode: c.partsRequired != null,
+                        matched: new Set(),
+                        revealAtEnd: false,
+                        revealPracticeAgain: false,
+                        revealShown: false,
+                        hint: c.hint || null,
+                        direction: "fwd",
+                    },
+                ];
+            }
+            return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
+        });
+        // Wrap each image question as a single-item group so it shuffles in
+        // with text card groups rather than always appearing first.
+        const allGroups = [...imageQuestions.map((q) => [q]), ...cardGroups];
+        shuffle(allGroups);
+        return allGroups.flat();
+    }
+
+    // One-sided fill-in mode (text cards only).
+    // Image cards are shuffled among themselves and come before the fill-in
+    // grid, which is a single compound exercise covering all text cards.
+    shuffle(imageQuestions);
+    if (textCards.length === 0) return imageQuestions;
+
+    // Shuffle card positions unless the user opted in to strict ordering.
+    const orderedTextCards = cfg.fcOrderImportant ? textCards : shuffle([...textCards]);
+    const allFronts = orderedTextCards.map((c) => c.front);
+    let blankIndices;
+
+    if (cfg.fcMode === "partial") {
+        const count = Math.min(Math.max(1, cfg.fcCount), textCards.length - 1);
+        const idx = textCards.map((_, i) => i);
+        shuffle(idx);
+        blankIndices = idx.slice(0, count).sort((a, b) => a - b);
+    } else {
+        blankIndices = textCards.map((_, i) => i);
+    }
+
+    const fillInQuestions = blankIndices.map((idx) => ({
+        kind: "fill-in",
+        front: allFronts[idx],
+        index: idx,
+        allCards: allFronts,
+        blankIndices,
+    }));
+    return [...imageQuestions, ...fillInQuestions];
+}
+
+function renderFlashQuestion(q, root, mode) {
+    switch (q.kind) {
+        case "multi-part":
+            return renderMultiPartQuestion(q, root, mode);
+        case "fill-in":
+            if (mode.kind === "review") {
+                renderFillInReview(q, root);
+                return;
+            }
+            return renderFillInQuestion(q, root);
+        case "image": {
+            const checkBtn = document.getElementById("button-check");
+            const imgSrc = imageObjectURLs.get(q.wikimedia) || "";
+            if (mode.kind === "review") {
+                const backBodyHtml =
+                    q.parts && q.parts.length > 1
+                        ? `<span class="fc-review-parts">${q.parts.map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`).join("")}</span>`
+                        : `<p class="flash-text">${escapeHtml(q.back)}</p>`;
+                root.innerHTML = `
+                    <div class="flash-review">
+                        <div class="flash-side flash-front-side flash-image-side">
+                            <span class="flash-side-label">afbeelding</span>
+                            ${
+                                imgSrc
+                                    ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
+                                    : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`
+                            }
+                        </div>
+                        <div class="flash-side flash-back-side">
+                            <span class="flash-side-label">antwoord</span>
+                            ${backBodyHtml}
+                        </div>
+                    </div>`;
+                return;
+            }
+            root.innerHTML = `
+                <div class="flash-question">
+                    <div class="flash-image-container">
+                        ${
+                            imgSrc
+                                ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
+                                : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`
+                        }
+                    </div>
+                    ${hintToggleHtml(q.hint)}
+                    <input type="text" id="answer" autocomplete="off"
+                        placeholder="wat zie je?" aria-label="jouw antwoord">
+                </div>`;
+            if (checkBtn) {
+                checkBtn.hidden = false;
+                checkBtn.textContent = "👉 antwoord";
+            }
+            wireHintToggle(root);
+            // If not cached yet, retry once the load completes in the background.
+            if (!imgSrc) {
+                wmLoad(q.wikimedia)
+                    .then((url) => {
+                        const container = root.querySelector(".flash-image-container");
+                        if (container) container.innerHTML = `<img src="${url}" alt="" class="flash-card-image">`;
+                    })
+                    .catch(() => {});
+            }
+            const input = root.querySelector("#answer");
+            return () => input?.value ?? "";
+        }
+        case "two-sided": {
+            const checkBtn = document.getElementById("button-check");
+            if (mode.kind === "review") {
+                const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
+                const answerLabel = q.direction === "bwd" ? "voorkant" : "achterkant";
+                root.innerHTML = `
+                    <div class="flash-review">
+                        <div class="flash-side flash-front-side">
+                            <span class="flash-side-label">${shownLabel}</span>
+                            <p class="flash-text">${escapeHtml(q.front)}</p>
+                        </div>
+                        <div class="flash-side flash-back-side">
+                            <span class="flash-side-label">${answerLabel}</span>
+                            <p class="flash-text">${escapeHtml(q.back)}</p>
+                        </div>
+                    </div>`;
+                return;
+            }
+            root.innerHTML = `
+                <div class="flash-question">
+                    <p class="flash-text">${escapeHtml(q.front)}</p>
+                    ${hintToggleHtml(q.hint)}
+                    <input type="text" id="answer" autocomplete="off"
+                        placeholder="jouw antwoord…" aria-label="jouw antwoord">
+                </div>`;
+            if (checkBtn) checkBtn.textContent = "👉 antwoord";
+            wireHintToggle(root);
+            const input = root.querySelector("#answer");
+            return () => input.value;
+        }
+        default:
+            throw new Error(`Unknown card kind: ${q.kind}`);
+    }
+}
+
+// Each fill-in grid is one shuffle unit. Ordinary cards remain independent.
+function groupQuestions(questions) {
+    const groups = [];
+    const grids = new Map();
+    for (const q of questions) {
+        if (q.kind !== "fill-in") {
+            groups.push([q]);
+            continue;
+        }
+        let group = grids.get(q.blankIndices);
+        if (!group) {
+            group = [];
+            grids.set(q.blankIndices, group);
+            groups.push(group);
+        }
+        group.push(q);
+    }
+    return groups;
+}
+
+function buildCombinedQuestions(decks) {
+    const questions = decks.flatMap((deck) =>
+        buildDeckQuestions(deck, practiceConfig(deck, readPractice(deck))).map((q) => ({
+            ...q,
+            deckId: deck.id,
+            deckName: deck.name,
+        })),
+    );
+    return shuffle(groupQuestions(questions)).flat();
+}
+
+// The framework shuffles retries, including ones restored from history. Regroup
+// grids and reveal the blanks that weren't selected for this retry.
+function preparePracticeDeck(questions, mode) {
+    const groups = groupQuestions(questions);
+    for (const group of groups) {
+        const q = group[0];
+        if (q.kind !== "fill-in") continue;
+        fillInStates.set(q.blankIndices, {
+            results: {},
+            lastResolved: null,
+            blankIndices:
+                mode === "mistakes"
+                    ? [...new Set(group.map((item) => item.index))].sort((a, b) => a - b)
+                    : q.blankIndices,
+            questions: group,
+        });
+    }
+    return mode === "mistakes" ? groups.flat() : questions;
+}
+
+function configDeckIds(cfg) {
+    return cfg.deckIds || (cfg.deckId ? [cfg.deckId] : []);
+}
+
+function selectionExerciseId(ids, multiple) {
+    return multiple
+        ? `flashcards:mix:${JSON.stringify([...new Set(ids)].sort())}`
+        : ids[0]
+          ? `flashcards-${ids[0]}`
+          : "flashcards";
+}
+
+function validateDeckConfig(deck, cfg) {
+    if (!deck) return "Dit deck bestaat niet meer — kies een ander deck.";
+    if (deck.cards.length === 0) return "Dit deck heeft geen kaarten.";
+    const isOneSided = deckMode(deck) === "one-sided";
+    if (!isOneSided && deck.cards.some((card) => !card.wikimedia && cardParts(card).length === 0)) {
+        return "Dit deck bevat kaartjes zonder antwoord. Vul die eerst in via Bewerken.";
+    }
+    if (isOneSided && cfg.fcMode === "partial") {
+        const textCount = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
+        if (textCount < 2) {
+            return "Deze modus heeft minstens 2 tekstkaarten nodig.";
+        }
+        const max = textCount - 1;
+        if (!cfg.fcCount || cfg.fcCount < 1 || cfg.fcCount > max) {
+            return `Kies een aantal tussen 1 en ${max}.`;
+        }
+    }
+    return null;
+}
+
 // ---------- Exercise spec ----------
 
 runExercise({
@@ -2350,11 +2722,12 @@ runExercise({
     // each deck gets its own history.  Falls back to "flashcards" when no deck
     // is selected (e.g. on first load before restoreLastDeck runs).
     get id() {
-        return selectedDeckId ? `flashcards-${selectedDeckId}` : "flashcards";
+        return selectionExerciseId(selectedDeckIds(), multiDeckMode);
     },
     label: "flitskaarten",
 
     loadConfig(_form, saved) {
+        if (multiDeckMode) return;
         if (!saved?.deckId) return;
         const deck = getDeck(saved.deckId);
         if (!deck) return;
@@ -2368,6 +2741,7 @@ runExercise({
     },
 
     readConfig(form) {
+        if (multiDeckMode) return { deckIds: selectedDeckIds() };
         return {
             deckId: form.querySelector("#selected-deck-id")?.value || "",
             fcMode: form.querySelector("input[name='fc-mode']:checked")?.value || "all",
@@ -2381,124 +2755,26 @@ runExercise({
     },
 
     validateConfig(cfg) {
-        if (!cfg.deckId) return "Kies een deck om te oefenen.";
-        const deck = getDeck(cfg.deckId);
-        if (!deck) return "Dit deck bestaat niet meer — kies een ander deck.";
-        if (deck.cards.length === 0) return "Dit deck heeft geen kaarten.";
-        const isOneSided = deckMode(deck) === "one-sided";
-        if (!isOneSided && deck.cards.some((card) => !card.wikimedia && cardParts(card).length === 0)) {
-            return "Dit deck bevat kaartjes zonder antwoord. Vul die eerst in via Bewerken.";
-        }
-        if (isOneSided && cfg.fcMode === "partial") {
-            const textCount = deck.cards.filter((c) => !c.wikimedia && c.front?.trim()).length;
-            if (textCount < 2) {
-                return "Deze modus heeft minstens 2 tekstkaarten nodig.";
-            }
-            const max = textCount - 1;
-            if (!cfg.fcCount || cfg.fcCount < 1 || cfg.fcCount > max) {
-                return `Kies een aantal tussen 1 en ${max}.`;
-            }
+        const ids = configDeckIds(cfg);
+        if (ids.length === 0) return "Kies een deck om te oefenen.";
+        for (const id of ids) {
+            const deck = getDeck(id);
+            const error = validateDeckConfig(
+                deck,
+                cfg.deckIds && deck ? practiceConfig(deck, readPractice(deck)) : cfg,
+            );
+            if (error) return cfg.deckIds && deck ? `${deck.name}: ${error}` : error;
         }
         return null;
     },
 
     buildDeck(cfg) {
-        const deck = getDeck(cfg.deckId);
-        if (!deck) return [];
-        // Image cards always produce standalone questions regardless of deck mode.
-        const imageCards = deck.cards.filter((c) => c.wikimedia?.trim());
-        const textCards = deck.cards.filter((c) => !c.wikimedia && c.front?.trim());
-        const isOneSided = deckMode(deck) === "one-sided";
-
-        const imageQuestions = imageCards.map((c) => {
-            const iParts = cardParts(c);
-            const q = {
-                kind: "image",
-                wikimedia: c.wikimedia,
-                back: c.back || "",
-                hint: c.hint || null,
-            };
-            if (iParts.length > 1) q.parts = iParts;
-            return q;
-        });
-
-        if (!isOneSided) {
-            // Two-sided text cards: per-card groups, shuffle groups so multi-part entries stay consecutive.
-            const isBidirectional = deck.bidirectional === true;
-            const cardGroups = textCards.map((c) => {
-                if (isBidirectional && Math.random() < 0.5) {
-                    const parts = cardParts(c);
-                    return [
-                        {
-                            kind: "two-sided",
-                            front: parts[0] || c.back || "",
-                            back: c.front,
-                            hint: c.hintReverse || null,
-                            direction: "bwd",
-                        },
-                    ];
-                }
-                const parts = cardParts(c);
-                const isMultiPart = parts.length > 1;
-                if (isMultiPart) {
-                    // One queue entry per card; state lives directly on the question
-                    // object so there is no shared-reference coupling between entries.
-                    // partsRequired is only stored when strictly < parts.length.
-                    return [
-                        {
-                            kind: "multi-part",
-                            front: c.front,
-                            allParts: parts,
-                            partsRequired: c.partsRequired ?? parts.length,
-                            partialMode: c.partsRequired != null,
-                            matched: new Set(),
-                            revealAtEnd: false,
-                            revealPracticeAgain: false,
-                            revealShown: false,
-                            hint: c.hint || null,
-                            direction: "fwd",
-                        },
-                    ];
-                }
-                return [{ kind: "two-sided", front: c.front, back: c.back, hint: c.hint || null, direction: "fwd" }];
-            });
-            // Wrap each image question as a single-item group so it shuffles in
-            // with text card groups rather than always appearing first.
-            const allGroups = [...imageQuestions.map((q) => [q]), ...cardGroups];
-            shuffle(allGroups);
-            return allGroups.flat();
-        }
-
-        // One-sided fill-in mode (text cards only).
-        // Image cards are shuffled among themselves and come before the fill-in
-        // grid, which is a single compound exercise covering all text cards.
-        shuffle(imageQuestions);
-        clearFillInState();
-        if (textCards.length === 0) return imageQuestions;
-
-        // Shuffle card positions unless the user opted in to strict ordering.
-        const orderedTextCards = cfg.fcOrderImportant ? textCards : shuffle([...textCards]);
-        const allFronts = orderedTextCards.map((c) => c.front);
-        let blankIndices;
-
-        if (cfg.fcMode === "partial") {
-            const count = Math.min(Math.max(1, cfg.fcCount), textCards.length - 1);
-            const idx = textCards.map((_, i) => i);
-            shuffle(idx);
-            blankIndices = idx.slice(0, count).sort((a, b) => a - b);
-        } else {
-            blankIndices = textCards.map((_, i) => i);
-        }
-
-        const fillInQuestions = blankIndices.map((idx) => ({
-            kind: "fill-in",
-            front: allFronts[idx],
-            index: idx,
-            allCards: allFronts,
-            blankIndices,
-        }));
-        return [...imageQuestions, ...fillInQuestions];
+        const decks = configDeckIds(cfg).map(getDeck).filter(Boolean);
+        if (!cfg.deckIds) return buildDeckQuestions(decks[0], cfg);
+        return buildCombinedQuestions(decks);
     },
+
+    prepareDeck: preparePracticeDeck,
 
     // Reset the progress a question accumulated during an earlier session.
     //
@@ -2508,8 +2784,7 @@ runExercise({
     // IndexedDB later, which preserves a Set intact. Without this reset a
     // multi-part card comes back with every part still marked as matched, so it
     // reveals the whole answer and rejects everything the learner types: there
-    // is nothing left to match. Fill-in results are module-level and normally
-    // cleared by buildDeck(), which a mistakes session never calls.
+    // is nothing left to match. Each fill-in grid also starts with fresh progress.
     prepareQuestion(q) {
         if (q.kind === "multi-part") {
             q.matched = new Set();
@@ -2517,109 +2792,18 @@ runExercise({
             q.revealPracticeAgain = false;
             q.revealShown = false;
             q._lastSeenMatchedSize = 0;
-        } else if (q.kind === "fill-in") {
-            clearFillInState();
         }
     },
 
     renderQuestion(q, root, mode) {
-        switch (q.kind) {
-            case "multi-part":
-                return renderMultiPartQuestion(q, root, mode);
-            case "fill-in":
-                if (mode.kind === "review") {
-                    renderFillInReview(q, root);
-                    return;
-                }
-                return renderFillInQuestion(q, root);
-            case "image": {
-                const checkBtn = document.getElementById("button-check");
-                const imgSrc = imageObjectURLs.get(q.wikimedia) || "";
-                if (mode.kind === "review") {
-                    const backBodyHtml =
-                        q.parts && q.parts.length > 1
-                            ? `<span class="fc-review-parts">${q.parts.map((p) => `<span class="fc-review-part-chip">${escapeHtml(p)}</span>`).join("")}</span>`
-                            : `<p class="flash-text">${escapeHtml(q.back)}</p>`;
-                    root.innerHTML = `
-                        <div class="flash-review">
-                            <div class="flash-side flash-front-side flash-image-side">
-                                <span class="flash-side-label">afbeelding</span>
-                                ${
-                                    imgSrc
-                                        ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
-                                        : `<div class="flash-image-missing">Afbeelding niet beschikbaar</div>`
-                                }
-                            </div>
-                            <div class="flash-side flash-back-side">
-                                <span class="flash-side-label">antwoord</span>
-                                ${backBodyHtml}
-                            </div>
-                        </div>`;
-                    return;
-                }
-                root.innerHTML = `
-                    <div class="flash-question">
-                        <div class="flash-image-container">
-                            ${
-                                imgSrc
-                                    ? `<img src="${imgSrc}" alt="" class="flash-card-image">`
-                                    : `<div class="flash-image-loading">⏳ afbeelding laden…</div>`
-                            }
-                        </div>
-                        ${hintToggleHtml(q.hint)}
-                        <input type="text" id="answer" autocomplete="off"
-                            placeholder="wat zie je?" aria-label="jouw antwoord">
-                    </div>`;
-                if (checkBtn) {
-                    checkBtn.hidden = false;
-                    checkBtn.textContent = "👉 antwoord";
-                }
-                wireHintToggle(root);
-                // If not cached yet, retry once the load completes in the background.
-                if (!imgSrc) {
-                    wmLoad(q.wikimedia)
-                        .then((url) => {
-                            const container = root.querySelector(".flash-image-container");
-                            if (container) container.innerHTML = `<img src="${url}" alt="" class="flash-card-image">`;
-                        })
-                        .catch(() => {});
-                }
-                const input = root.querySelector("#answer");
-                return () => input?.value ?? "";
-            }
-            case "two-sided": {
-                const checkBtn = document.getElementById("button-check");
-                if (mode.kind === "review") {
-                    const shownLabel = q.direction === "bwd" ? "achterkant" : "voorkant";
-                    const answerLabel = q.direction === "bwd" ? "voorkant" : "achterkant";
-                    root.innerHTML = `
-                        <div class="flash-review">
-                            <div class="flash-side flash-front-side">
-                                <span class="flash-side-label">${shownLabel}</span>
-                                <p class="flash-text">${escapeHtml(q.front)}</p>
-                            </div>
-                            <div class="flash-side flash-back-side">
-                                <span class="flash-side-label">${answerLabel}</span>
-                                <p class="flash-text">${escapeHtml(q.back)}</p>
-                            </div>
-                        </div>`;
-                    return;
-                }
-                root.innerHTML = `
-                    <div class="flash-question">
-                        <p class="flash-text">${escapeHtml(q.front)}</p>
-                        ${hintToggleHtml(q.hint)}
-                        <input type="text" id="answer" autocomplete="off"
-                            placeholder="jouw antwoord…" aria-label="jouw antwoord">
-                    </div>`;
-                if (checkBtn) checkBtn.textContent = "👉 antwoord";
-                wireHintToggle(root);
-                const input = root.querySelector("#answer");
-                return () => input.value;
-            }
-            default:
-                throw new Error(`Unknown card kind: ${q.kind}`);
+        const answer = renderFlashQuestion(q, root, mode);
+        if (q.deckName) {
+            const label = document.createElement("p");
+            label.className = "fc-source-deck";
+            label.textContent = q.deckName;
+            root.prepend(label);
         }
+        return answer;
     },
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: answer-evaluation fan-out with per-kind match logic
@@ -2651,13 +2835,17 @@ runExercise({
                 };
             }
             case "fill-in": {
+                const state = fillInState(q);
+                const fillInResults = state.results;
                 // Order-independent: accept if the answer matches any remaining unmatched blank.
-                for (const idx of q.blankIndices) {
+                for (const idx of state.blankIndices) {
                     if (idx in fillInResults) continue;
                     const match = matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "));
                     if (match) {
+                        q.index = idx;
+                        q.front = q.allCards[idx];
                         fillInResults[idx] = true;
-                        _lastFillInResolvedIdx = idx;
+                        state.lastResolved = idx;
                         return {
                             correct: true,
                             exact: match.exact,
@@ -2669,12 +2857,8 @@ runExercise({
                         };
                     }
                 }
-                // No match — mark the first unanswered blank as wrong.
-                const firstOpen = q.blankIndices.find((i) => !(i in fillInResults));
-                if (firstOpen !== undefined) {
-                    fillInResults[firstOpen] = false;
-                    _lastFillInResolvedIdx = firstOpen;
-                }
+                // Keep the same blank open while the framework allows another
+                // attempt; the review renderer marks it wrong only when done.
                 return { correct: false };
             }
             case "image": {
@@ -2732,9 +2916,15 @@ runExercise({
             };
         }
         if (q.kind === "fill-in") {
-            for (const idx of q.blankIndices) {
-                if (!(idx in fillInResults)) fillInResults[idx] = false;
-            }
+            const state = fillInState(q);
+            const remaining = state.blankIndices.filter((idx) => !(idx in state.results));
+            const pending = state.questions.slice(state.questions.indexOf(q));
+            pending.forEach((question, i) => {
+                if (remaining[i] === undefined) return;
+                question.index = remaining[i];
+                question.front = q.allCards[remaining[i]];
+                state.results[remaining[i]] = false;
+            });
             return { skipRemainingFillIn: true };
         }
         if (q.kind !== "multi-part") return null;
@@ -2748,25 +2938,28 @@ runExercise({
     skipConfirmDialog(q) {
         if (q.kind !== "fill-in") return null;
         return {
-            title: "Invuloefening stoppen?",
-            message: "Alle resterende vakjes worden overgeslagen.",
+            title: q.deckName ? "Invuloefening overslaan?" : "Invuloefening stoppen?",
+            message: q.deckName
+                ? "De resterende vakjes van dit deck worden overgeslagen. Daarna ga je verder met de andere kaarten."
+                : "Alle resterende vakjes worden overgeslagen.",
             buttons: [
                 { value: "stay", label: "Blijf hier", className: "primary", id: "fill-stop-stay", autofocus: true },
-                { value: "stop", label: "Stop oefening", id: "fill-stop-confirm" },
+                { value: "stop", label: q.deckName ? "Sla over" : "Stop oefening", id: "fill-stop-confirm" },
             ],
         };
     },
 
     describe(q) {
+        const source = q.deckName ? `${q.deckName}: ` : "";
         switch (q.kind) {
             case "multi-part":
-                return `${q.front} → [${q.allParts.join(" / ")}]`;
+                return `${source}${q.front} → [${q.allParts.join(" / ")}]`;
             case "two-sided":
-                return `${q.front} → ${q.back}`;
+                return `${source}${q.front} → ${q.back}`;
             case "image":
-                return `[🖼️ ${q.wikimedia}] → ${q.back}`;
+                return `${source}[🖼️ ${q.wikimedia}] → ${q.back}`;
             case "fill-in":
-                return q.front;
+                return source + q.front;
             default:
                 throw new Error(`Unknown card kind: ${q.kind}`);
         }
@@ -2819,7 +3012,7 @@ document.addEventListener("homework:session-finished", (e) => {
     if (!exerciseId?.startsWith("flashcards")) return;
     if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
-    if (deck && deckMode(deck) === "one-sided" && correct > 0 && correct === total) {
+    if (!multiDeckMode && deck && deckMode(deck) === "one-sided" && correct > 0 && correct === total) {
         // Defer briefly so the result page is fully rendered before the
         // wave covers it (the event fires before show("result") finishes).
         setTimeout(() => {
