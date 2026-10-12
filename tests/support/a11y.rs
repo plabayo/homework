@@ -12,25 +12,37 @@ pub async fn check_a11y(driver: &WebDriver) -> Result<(), BoxError> {
         .execute(include_str!("../fixtures/axe.min.js"), vec![])
         .await?;
 
-    // Let finite animations (page / question entrance fades) settle first:
-    // axe blends in ancestor opacity, so auditing mid-fade measures colours
-    // that never persist on screen and flags muted-but-compliant text.
-    // Infinite animations (e.g. a ticking clock hand) never finish and are
-    // skipped.
+    // Audit the colours that persist on screen, not a frame mid-fade: axe
+    // blends in ancestor opacity, so a running entrance fade flags
+    // muted-but-compliant text. Fast-forward every finite animation and
+    // transition to its end instead of *waiting* for it. An animation's
+    // `finished` promise only settles when the browser renders a frame, and
+    // a headless window can go without frames for long enough that awaiting
+    // it hung until the 60s script timeout on CI. `finish()` is synchronous
+    // and needs no frame. Infinite animations (a ticking clock hand) cannot
+    // be finished and are left alone.
     let ret = driver
         .execute_async(
             "const done = arguments[arguments.length - 1]; \
-             const finite = document.getAnimations().filter( \
-                 (a) => a.effect?.getComputedTiming().endTime !== Infinity); \
-             Promise.allSettled(finite.map((a) => a.finished)) \
-                 .then(() => axe.run()) \
-                 .then(done);",
+             for (const a of document.getAnimations()) { \
+                 if (a.effect?.getComputedTiming().endTime === Infinity) continue; \
+                 try { a.finish(); } catch {} \
+             } \
+             axe.run().then(done, (error) => done({ error: String(error) }));",
             vec![],
         )
         .await?;
 
     let result = ret.json();
-    let violations = result["violations"].as_array().cloned().unwrap_or_default();
+    // An audit that could not run must fail, never pass as "no violations".
+    let Some(violations) = result["violations"].as_array().cloned() else {
+        return Err(format!(
+            "axe did not run on {}: {}",
+            driver.current_url().await?,
+            result["error"].as_str().unwrap_or("no result")
+        )
+        .into());
+    };
 
     if violations.is_empty() {
         return Ok(());

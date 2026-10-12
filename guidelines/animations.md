@@ -319,6 +319,8 @@ await anim.finished;
 
 Useful when CSS gets clumsy: dynamically computed end states, orchestrated chains, cancel-and-replay on user input. Anything you'd reach for a JS animation library for, WAAPI usually covers without adding a dependency.
 
+**Gotcha: `finished` needs a rendered frame.** The promise settles during the browser's "update the rendering" step, so a hidden tab — or a headless test browser that is momentarily not producing frames — can leave it pending indefinitely, however short the animation. Never make correctness wait on it without a bound. Where you only need the end state (tests, audits, a "skip animation" action), fast-forward instead: `anim.finish()` jumps to the end synchronously and needs no frame. `document.getAnimations()` covers CSS animations and transitions too; skip the infinite ones (`getComputedTiming().endTime === Infinity`), which cannot be finished. Our `check_a11y` e2e helper used to `await` every `finished` and hung for 60s on CI until it switched to `finish()`.
+
 ---
 
 ## Timing functions & easing
