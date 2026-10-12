@@ -92,8 +92,68 @@ function parseCard(raw, index) {
     return card;
 }
 
+// What "strict" checking can demand, in display and canonical file order.
+// Capitals and punctuation only ever apply to answers that are sentences.
+export const STRICT_RULES = ["accents", "capitals", "punctuation", "spelling"];
+
+function strictRulesField(value, path) {
+    if (!Array.isArray(value)) fail(path, `verwacht een lijst, bijvoorbeeld ["accents", "spelling"].`);
+    for (const [i, rule] of value.entries()) {
+        if (!STRICT_RULES.includes(rule)) fail(`${path}[${i}]`, `kies uit ${STRICT_RULES.join(", ")}.`);
+        if (value.indexOf(rule) !== i) fail(`${path}[${i}]`, "deze regel staat er al.");
+    }
+    return STRICT_RULES.filter((rule) => value.includes(rule));
+}
+
+function normalizeChecking(raw, practice) {
+    if (booleanField(raw.strict, "practice.strict")) practice.strict = true;
+    if (raw.strictRules !== undefined) {
+        const rules = strictRulesField(raw.strictRules, "practice.strictRules");
+        if (!practice.strict) fail("practice.strictRules", "zet ook strict aan.");
+        // All rules is what strict means on its own; only a subset is stored.
+        if (rules.length < STRICT_RULES.length) practice.strictRules = rules;
+    }
+    if (booleanField(raw.nearMissIsMistake, "practice.nearMissIsMistake")) {
+        if (practice.strict)
+            fail("practice.nearMissIsMistake", "laat dit weg: bij strict telt bijna goed al als fout.");
+        practice.nearMissIsMistake = true;
+    }
+    if (booleanField(raw.hintIsMistake, "practice.hintIsMistake")) practice.hintIsMistake = true;
+}
+
+// How answers of a deck are checked, as the play loop needs it. Lenient
+// ("soepel") checking enforces none of the strict rules.
+export function answerChecking(practice = {}) {
+    const strict = practice.strict === true;
+    const rules = strict ? (practice.strictRules ?? STRICT_RULES) : [];
+    return {
+        strict,
+        accents: rules.includes("accents"),
+        capitals: rules.includes("capitals"),
+        punctuation: rules.includes("punctuation"),
+        spelling: rules.includes("spelling"),
+        nearMissIsMistake: strict || practice.nearMissIsMistake === true,
+        hintIsMistake: practice.hintIsMistake === true,
+    };
+}
+
 export function normalizePractice(raw = {}, deck) {
-    objectFields(raw, ["mode", "count", "orderImportant", "timeMode", "deadlineOn", "deadlineSeconds"], "practice");
+    objectFields(
+        raw,
+        [
+            "mode",
+            "count",
+            "orderImportant",
+            "timeMode",
+            "deadlineOn",
+            "deadlineSeconds",
+            "strict",
+            "strictRules",
+            "nearMissIsMistake",
+            "hintIsMistake",
+        ],
+        "practice",
+    );
     const textCount = deck.cards.filter((card) => !card.wikimedia).length;
     const practice = {};
     if (raw.mode !== undefined && raw.mode !== "all" && raw.mode !== "partial")
@@ -124,6 +184,7 @@ export function normalizePractice(raw = {}, deck) {
         if (!practice.deadlineOn) fail("practice.deadlineSeconds", "zet ook deadlineOn aan.");
         if (seconds !== 10) practice.deadlineSeconds = seconds;
     }
+    normalizeChecking(raw, practice);
     return practice;
 }
 
@@ -207,6 +268,15 @@ export function practiceFromConfig(config, deck) {
             raw.deadlineSeconds = config.deadlineSeconds;
         }
     }
+    // The lenient-only option keeps its (hidden) checkbox state while strict
+    // is on, so a switch back restores it; the file only stores what applies.
+    if (config.fcStrict) {
+        raw.strict = true;
+        raw.strictRules = STRICT_RULES.filter((rule) => config.fcStrictRules?.includes(rule));
+    } else if (config.fcNearMissIsMistake) {
+        raw.nearMissIsMistake = true;
+    }
+    if (config.fcHintIsMistake) raw.hintIsMistake = true;
     return normalizePractice(raw, deck);
 }
 
@@ -219,6 +289,10 @@ export function practiceConfig(deck, practice = deck.practice || {}) {
         timeMode: practice.timeMode === true,
         deadlineOn: practice.deadlineOn === true,
         deadlineSeconds: practice.deadlineSeconds ?? 10,
+        fcStrict: practice.strict === true,
+        fcStrictRules: [...(practice.strictRules ?? STRICT_RULES)],
+        fcNearMissIsMistake: practice.nearMissIsMistake === true,
+        fcHintIsMistake: practice.hintIsMistake === true,
     };
 }
 

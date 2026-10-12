@@ -1373,11 +1373,19 @@ function isPracticeMistake(q) {
     return !q.correct || (q.attempts || 0) > 0 || q.practiceAgain === true;
 }
 
+// A near miss that was accepted as "bijna goed" without counting as a
+// mistake: shown with the others so the typed answer can be checked, but not
+// practised again.
+function isNearMiss(q) {
+    return q.correct && q.exact === false && !isPracticeMistake(q);
+}
+
 function splitQuestionOutcomes(session) {
     const questions = session.questions || [];
     return {
         wrong: questions.filter((q) => !q.correct),
         tricky: questions.filter((q) => q.correct && isPracticeMistake(q)),
+        near: questions.filter(isNearMiss),
     };
 }
 
@@ -1480,32 +1488,54 @@ export function weeklyBuckets(sessions, { topMistakesLimit = 3 } = {}) {
     return out;
 }
 
-function renderOutcomeItem(q, kind) {
+// `detail` is the exercise's optional `renderOutcomeDetail` hook: trusted,
+// already-escaped HTML that explains one outcome (e.g. what was typed).
+function renderOutcomeItem(q, kind, detail) {
     const desc = q.label ? escapeHtml(q.label) : escapeHtml(JSON.stringify(q.question));
+    const extra = detail?.(q) || "";
     if (kind === "wrong") {
         const metaParts = [];
         if (q.attempts > 0) metaParts.push(`${q.attempts}×`);
         if (q.timedOut) metaParts.push("⏰ te traag");
         else if (q.skipped) metaParts.push("overgeslagen");
         const metaLine = metaParts.length > 0 ? `<span class="item-meta">${metaParts.join(" · ")}</span>` : "";
-        return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}</li>`;
+        return `<li class="item-wrong"><span class="item-desc">${desc}</span>${metaLine}${extra}</li>`;
+    }
+    if (kind === "near") {
+        return `<li class="item-near"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">bijna goed</span></span>${extra}</li>`;
     }
     if (q.practiceAgain) {
-        return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">bijna goed · opnieuw oefenen</span></span></li>`;
+        const label = escapeHtml(q.practiceLabel || "bijna goed · opnieuw oefenen");
+        return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${label}</span></span>${extra}</li>`;
     }
-    return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span></li>`;
+    return `<li class="item-tricky"><span class="item-desc">${desc}</span><span class="item-meta"><span class="badge tricky">${q.attempts}× fout vooraf</span></span>${extra}</li>`;
 }
 
-function renderOutcomeItems({ wrong, tricky }) {
+function renderOutcomeItems({ wrong, tricky, near = [] }, detail) {
     return [
-        ...wrong.map((q) => renderOutcomeItem(q, "wrong")),
-        ...tricky.map((q) => renderOutcomeItem(q, "tricky")),
+        ...wrong.map((q) => renderOutcomeItem(q, "wrong", detail)),
+        ...tricky.map((q) => renderOutcomeItem(q, "tricky", detail)),
+        ...near.map((q) => renderOutcomeItem(q, "near", detail)),
     ].join("");
+}
+
+function outcomeKind(q) {
+    if (!q.correct) return "wrong";
+    if (isPracticeMistake(q)) return "tricky";
+    return isNearMiss(q) ? "near" : "correct";
+}
+
+function outcomeStatus(q) {
+    if (q.timedOut) return "⏰ te traag";
+    if (q.skipped) return "overgeslagen";
+    if (!q.correct) return "niet goed";
+    if (q.practiceAgain) return q.practiceLabel || "bijna goed · opnieuw oefenen";
+    return q.exact === false ? "bijna goed" : "✓ goed";
 }
 
 // Exercises can group their complete history by source, while the default
 // history keeps its existing focus on mistakes. All labels are stored text.
-function renderHistoryGroups(groups) {
+function renderHistoryGroups(groups, detail) {
     return groups
         .map(
             (group) => `
@@ -1513,19 +1543,9 @@ function renderHistoryGroups(groups) {
             <h3>${escapeHtml(group.name)} · ${group.questions.length} ${group.questions.length === 1 ? "oefenvraag" : "oefenvragen"}</h3>
             <ul class="result-detail-list history-detail-list">${group.questions
                 .map((q) => {
-                    const kind = !q.correct ? "wrong" : isPracticeMistake(q) ? "tricky" : "correct";
-                    const status = q.timedOut
-                        ? "⏰ te traag"
-                        : q.skipped
-                          ? "overgeslagen"
-                          : !q.correct
-                            ? "niet goed"
-                            : q.practiceAgain
-                              ? "bijna goed · opnieuw oefenen"
-                              : "✓ goed";
                     const attempts = q.attempts > 0 ? ` · ${q.attempts}× fout vooraf` : "";
                     const desc = q.label || JSON.stringify(q.question);
-                    return `<li class="item-${kind}"><span class="item-desc">${escapeHtml(desc)}</span><span class="item-meta">${status}${attempts}</span></li>`;
+                    return `<li class="item-${outcomeKind(q)}"><span class="item-desc">${escapeHtml(desc)}</span><span class="item-meta">${escapeHtml(outcomeStatus(q))}${attempts}</span>${detail?.(q) || ""}</li>`;
                 })
                 .join("")}</ul>
         </section>`,
@@ -1533,10 +1553,10 @@ function renderHistoryGroups(groups) {
         .join("");
 }
 
-function renderTrickyList(session) {
-    const { wrong, tricky } = splitQuestionOutcomes(session);
-    if (wrong.length === 0 && tricky.length === 0) return "";
-    const items = renderOutcomeItems({ wrong, tricky });
+function renderTrickyList(session, detail) {
+    const outcomes = splitQuestionOutcomes(session);
+    if (outcomes.wrong.length + outcomes.tricky.length + outcomes.near.length === 0) return "";
+    const items = renderOutcomeItems(outcomes, detail);
     return `
         <section class="result-detail">
             <h3 class="section-title">Wat ging moeilijk</h3>
@@ -1665,7 +1685,16 @@ export function createScreenWakeLockController({
  *                                   re-rendered in place (state mutated by
  *                                   evaluateAnswer) without advancing the deck
  *   }
+ *      feedbackHtml?: string      — trusted, already-escaped HTML shown under
+ *                                   the retry hint of a wrong attempt
  *   evaluateSkip?: (q) => null | { skipRemainingFillIn?: boolean, feedback?: string }
+ *   annotateOutcome?: (outcome) => void       — add exercise data (structured-
+ *                                               cloneable) to a recorded outcome;
+ *                                               may set practiceAgain + practiceLabel.
+ *                                               `outcome.givens` lists every answer
+ *                                               submitted for the question.
+ *   renderOutcomeDetail?: (outcome) => string — trusted HTML explaining an outcome
+ *                                               in the result and history lists
  *   maxAttempts?: number                       — wrong attempts before answer is forced (default 3, 0 = no cap)
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
@@ -1848,6 +1877,8 @@ export function runExercise(spec) {
         currentQuestion: null,
         currentAttempts: 0,
         currentGiven: null,
+        // Every answer submitted for the current question, in order.
+        currentGivens: [],
         getAnswer: null,
         currentCleanup: null,
         startedAt: 0,
@@ -2187,6 +2218,14 @@ export function runExercise(spec) {
         contentEl.querySelectorAll("input:not([autocomplete])").forEach((input) => {
             input.setAttribute("autocomplete", "off");
         });
+        // Phone keyboards would otherwise capitalise the first letter, "fix"
+        // spelling and add or drop accents on the child's behalf — so the app
+        // would grade the keyboard's answer, not the child's.
+        contentEl.querySelectorAll("input:not([autocapitalize])").forEach((input) => {
+            input.setAttribute("autocapitalize", "off");
+            input.setAttribute("autocorrect", "off");
+            input.setAttribute("spellcheck", "false");
+        });
         // Focus the first input before the entrance animation starts so the
         // browser sees a fully-visible element (opacity: 1) at focus time.
         const firstInput = contentEl.querySelector("input, [tabindex]");
@@ -2203,6 +2242,7 @@ export function runExercise(spec) {
         state.currentQuestion = state.deck[state.currentIndex];
         state.currentAttempts = 0;
         state.currentGiven = null;
+        state.currentGivens = [];
         state.questionStartedAt = Date.now();
         feedbackEl.textContent = " ";
         feedbackEl.classList.remove("is-bad");
@@ -2248,11 +2288,13 @@ export function runExercise(spec) {
             timedOut: !!opts.timedOut,
             elapsedMs: Date.now() - state.questionStartedAt,
             given,
+            givens: state.currentGivens.slice(),
             correct,
             exact: opts.exact !== false,
             practiceAgain: !!opts.practiceAgain,
             label: spec.describe ? spec.describe(state.currentQuestion) : null,
         });
+        spec.annotateOutcome?.(state.questions.at(-1));
         // Arm the browser-back sentinel the moment the first answer is recorded
         // so the popstate guard works for the rest of the session.
         if (state.questions.length === 1) refreshLeaveGuards();
@@ -2326,6 +2368,7 @@ export function runExercise(spec) {
         if (pendingGiven !== null && pendingGiven !== undefined && pendingGiven !== "") {
             const evaluation = normalizeAnswerEvaluation(state.currentQuestion, pendingGiven);
             if (evaluation.correct && !evaluation.partialCorrect) {
+                state.currentGivens.push(pendingGiven);
                 cleanupCurrentQuestion();
                 // Streak measures answering cleanly within the deadline, so
                 // a timeout — even with the right answer — still resets it.
@@ -2351,7 +2394,7 @@ export function runExercise(spec) {
         });
     }
 
-    function onWrongAttempt(given, feedback) {
+    function onWrongAttempt(given, feedback, feedbackHtml) {
         state.currentAttempts += 1;
         state.currentGiven = given;
         state.streak = 0;
@@ -2385,9 +2428,11 @@ export function runExercise(spec) {
             feedbackEl.innerHTML = assignmentHtml;
             const hint = document.createElement("small");
             hint.textContent = retryHint;
+            if (feedbackHtml) hint.insertAdjacentHTML("beforeend", feedbackHtml);
             feedbackEl.append(document.createElement("br"), hint);
         } else {
             feedbackEl.textContent = retryHint;
+            if (feedbackHtml) feedbackEl.insertAdjacentHTML("beforeend", feedbackHtml);
         }
         // Remove then re-add so the animation re-fires on repeated wrong answers.
         feedbackEl.classList.remove("is-bad");
@@ -2554,7 +2599,7 @@ export function runExercise(spec) {
 
         const cyclesList = state.cycles.map((c, i) => cycleSummaryLine(c, i + 1)).join("");
 
-        const trickyList = renderTrickyList(session);
+        const trickyList = renderTrickyList(session, spec.renderOutcomeDetail);
 
         const reviewable = session.questions.some(isPracticeMistake);
 
@@ -2629,6 +2674,7 @@ export function runExercise(spec) {
         const given = state.getAnswer();
         if (given === null || given === undefined || given === "") return;
         const evaluation = normalizeAnswerEvaluation(state.currentQuestion, given);
+        state.currentGivens.push(given);
         if (evaluation.partialCorrect) {
             // A part matched but the card is not done yet.  Re-render the same
             // question in place (its state was mutated by evaluateAnswer) so the
@@ -2651,7 +2697,7 @@ export function runExercise(spec) {
         if (evaluation.correct) {
             onCorrect(given, evaluation);
         } else {
-            onWrongAttempt(given, evaluation.feedback);
+            onWrongAttempt(given, evaluation.feedback, evaluation.feedbackHtml);
         }
     });
 
@@ -2829,9 +2875,10 @@ async function setupHistoryView(spec) {
     /** Build the inner HTML for one detailed session card. Shared between the
      *  recent-cards list and the expand-on-click body of a weekly bucket. */
     function renderSessionCard(s) {
-        const { wrong, tricky } = splitQuestionOutcomes(s);
-        const hasMistakes = wrong.length > 0 || tricky.length > 0;
-        const items = renderOutcomeItems({ wrong, tricky });
+        const outcomes = splitQuestionOutcomes(s);
+        const { wrong, tricky, near } = outcomes;
+        const hasMistakes = wrong.length > 0 || tricky.length > 0 || near.length > 0;
+        const items = renderOutcomeItems(outcomes, spec?.renderOutcomeDetail);
 
         const scoreParts = [`${s.correct} / ${s.total}`];
         if (s.timeMode && s.durationMs) scoreParts.push(`⏱️ ${formatMillis(s.durationMs)}`);
@@ -2842,7 +2889,7 @@ async function setupHistoryView(spec) {
         if (groups) {
             const count = groups.reduce((total, group) => total + group.questions.length, 0);
             const status = hasMistakes
-                ? `${wrong.length} niet goed · ${tricky.length} opnieuw oefenen`
+                ? `${wrong.length} niet goed · ${tricky.length} opnieuw oefenen${near.length > 0 ? ` · ${near.length} bijna goed` : ""}`
                 : "✨ alles vlekkeloos";
             return `<details class="history-session history-session-expandable">
                 <summary>
@@ -2852,7 +2899,7 @@ async function setupHistoryView(spec) {
                     <span class="${hasMistakes ? "history-session-count" : "history-perfect"}">${status}</span>
                     <span class="history-disclosure">Bekijk oefenvragen</span>
                 </summary>
-                ${renderHistoryGroups(groups)}
+                ${renderHistoryGroups(groups, spec?.renderOutcomeDetail)}
             </details>`;
         }
 

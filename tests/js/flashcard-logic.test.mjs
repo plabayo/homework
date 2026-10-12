@@ -14,7 +14,6 @@ import assert from "node:assert";
 
 import {
     normalize,
-    levenshtein,
     fuzzyEqual,
     phraseCoverageMatch,
     classifyAnswerMatch,
@@ -56,31 +55,6 @@ test("normalize: handles empty and null-ish input", () => {
     assert.equal(normalize(""), "");
     assert.equal(normalize(null), "");
     assert.equal(normalize(undefined), "");
-});
-
-// ---------------------------------------------------------------------------
-// levenshtein
-// ---------------------------------------------------------------------------
-
-test("levenshtein: identical strings → 0", () => {
-    assert.equal(levenshtein("cat", "cat"), 0);
-});
-
-test("levenshtein: one substitution", () => {
-    assert.equal(levenshtein("cat", "bat"), 1);
-});
-
-test("levenshtein: one insertion", () => {
-    assert.equal(levenshtein("cat", "cart"), 1);
-});
-
-test("levenshtein: one deletion", () => {
-    assert.equal(levenshtein("cart", "cat"), 1);
-});
-
-test("levenshtein: empty string", () => {
-    assert.equal(levenshtein("", "abc"), 3);
-    assert.equal(levenshtein("abc", ""), 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -198,7 +172,7 @@ test("splitAnswerTokens: filters empty tokens", () => {
 // ---------------------------------------------------------------------------
 
 test("tryMatchParts: exact match against one part", () => {
-    const result = tryMatchParts("half man", ["wachter van de zon", "half man", "half leeuw"], new Set(), "sfinx", false);
+    const result = tryMatchParts("half man", ["wachter van de zon", "half man", "half leeuw"], new Set());
     assert.equal(result.length, 1);
     assert.equal(result[0].part, "half man");
     assert.equal(result[0].exact, true);
@@ -206,7 +180,7 @@ test("tryMatchParts: exact match against one part", () => {
 
 test("tryMatchParts: comma-separated matches all parts at once", () => {
     const parts = ["sinaasappelen", "dadels"];
-    const result = tryMatchParts("sinaasappelen, dadels", parts, new Set(), "fruit", false);
+    const result = tryMatchParts("sinaasappelen, dadels", parts, new Set());
     assert.equal(result.length, 2);
     assert.deepEqual(
         result.map((r) => r.part).sort(),
@@ -217,18 +191,18 @@ test("tryMatchParts: comma-separated matches all parts at once", () => {
 test("tryMatchParts: already-matched parts are excluded", () => {
     const parts = ["A", "B", "C"];
     const alreadyMatched = new Set(["A"]);
-    const result = tryMatchParts("A", parts, alreadyMatched, "front", false);
+    const result = tryMatchParts("A", parts, alreadyMatched);
     assert.equal(result.length, 0, "A is already matched, should not match again");
 });
 
 test("tryMatchParts: no match returns empty array", () => {
-    const result = tryMatchParts("olifant", ["aap", "noot", "mies"], new Set(), "front", false);
+    const result = tryMatchParts("olifant", ["aap", "noot", "mies"], new Set());
     assert.equal(result.length, 0);
 });
 
 test("tryMatchParts: phrase-coverage fallback (pass 2)", () => {
     // Full input doesn't split cleanly but contains all content words
-    const result = tryMatchParts("wachter zon", ["wachter van de zon"], new Set(), "sfinx", false);
+    const result = tryMatchParts("wachter zon", ["wachter van de zon"], new Set());
     assert.equal(result.length, 1);
     assert.equal(result[0].part, "wachter van de zon");
     assert.equal(result[0].exact, false);
@@ -236,14 +210,14 @@ test("tryMatchParts: phrase-coverage fallback (pass 2)", () => {
 });
 
 test("tryMatchParts: 'en' separator works as split (pass 1)", () => {
-    const result = tryMatchParts("sinaasappelen en dadels", ["sinaasappelen", "dadels"], new Set(), "fruit", false);
+    const result = tryMatchParts("sinaasappelen en dadels", ["sinaasappelen", "dadels"], new Set());
     assert.equal(result.length, 2);
 });
 
 test("tryMatchParts: repeating an already-given part still yields the new one", () => {
     // Re-listing what you already answered is not a mistake: "b, c" after a
     // and b must land c, exactly, not be rejected for the duplicate.
-    const result = tryMatchParts("b, c", ["a", "b", "c"], new Set(["a", "b"]), "front", false);
+    const result = tryMatchParts("b, c", ["a", "b", "c"], new Set(["a", "b"]));
     assert.deepEqual(
         result.map((r) => r.part),
         ["c"],
@@ -253,7 +227,7 @@ test("tryMatchParts: repeating an already-given part still yields the new one", 
 
 test("tryMatchParts: restating the whole answer lands only the missing part", () => {
     const parts = ["de kat", "de hond", "het paard"];
-    const result = tryMatchParts("de kat, de hond, het paard", parts, new Set(["de kat", "de hond"]), "dieren", false);
+    const result = tryMatchParts("de kat, de hond, het paard", parts, new Set(["de kat", "de hond"]));
     assert.deepEqual(
         result.map((r) => r.part),
         ["het paard"],
@@ -266,7 +240,7 @@ test("tryMatchParts: a repeated part cannot fuzzy-steal a lookalike missing part
     // used to claim "gelopen" leniently, downgrading a perfect answer to
     // "bijna goed" and sending the card back to mistake practice.
     const parts = ["lopen", "liep", "gelopen"];
-    const result = tryMatchParts("lopen, liep, gelopen", parts, new Set(["lopen", "liep"]), "werkwoord", false);
+    const result = tryMatchParts("lopen, liep, gelopen", parts, new Set(["lopen", "liep"]));
     assert.deepEqual(
         result.map((r) => r.part),
         ["gelopen"],
@@ -280,7 +254,7 @@ test("tryMatchParts: exact matches win over fuzzy ones within a single answer", 
     // left-to-right greedy pass would let it claim "grootst" before the token
     // that spells "grootst" out.
     const parts = ["groot", "groter", "grootst"];
-    const result = tryMatchParts("grootst, groter, groot", parts, new Set(), "trappen", false);
+    const result = tryMatchParts("grootst, groter, groot", parts, new Set());
     assert.equal(result.length, 3);
     for (const r of result) {
         assert.equal(r.exact, true, `${r.part} should be an exact match`);
@@ -288,7 +262,7 @@ test("tryMatchParts: exact matches win over fuzzy ones within a single answer", 
 });
 
 test("tryMatchParts: repeating a part with nothing new yields no progress", () => {
-    const result = tryMatchParts("b", ["a", "b", "c"], new Set(["a", "b"]), "front", false);
+    const result = tryMatchParts("b", ["a", "b", "c"], new Set(["a", "b"]));
     assert.equal(result.length, 0);
 });
 

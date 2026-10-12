@@ -92,7 +92,14 @@ const ctx = createContext({
     // is stripped. Capture the exercise spec for session-logic tests without
     // running the DOM-bound framework.
     clearLeaveGuard: () => {},
-    escapeHtml: (s) => String(s),
+    // Real escaping, so rendering tests can prove typed text stays inert.
+    escapeHtml: (s) =>
+        String(s)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;"),
     refreshLeaveGuards: () => {},
     runExercise: (spec) => {
         exerciseSpec = spec;
@@ -116,10 +123,22 @@ export const {
     fillInState,
     renderFillInReview,
     normalize,
-    levenshtein,
     fuzzyEqual,
     phraseCoverageMatch,
+    analyzeAnswer,
+    isSentence,
     classifyAnswerMatch,
+    matchAnswer,
+    closestExpected,
+    nudgeText,
+    kindLabels,
+    diffColumns,
+    answerDiffHtml,
+    attemptHtml,
+    outcomeAnswerPairs,
+    outcomeDetailHtml,
+    reviewDiffHtml,
+    noteHintUsed,
     splitAnswerTokens,
     tryMatchParts,
     cardParts,

@@ -611,7 +611,13 @@ async fn flashcards_lenient_match_shows_bijna_goed() -> TestResult<()> {
     click(driver, "#button-next").await?;
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(5)).await?;
     wait_for_css(driver, "#review-button-repeat", Duration::from_secs(5)).await?;
-    wait_for_css(driver, ".item-lenient", Duration::from_secs(3)).await?;
+    // The lenient match is listed with what was typed against the card.
+    wait_for_css(
+        driver,
+        ".result-detail li.item-tricky .fc-diff",
+        Duration::from_secs(3),
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -1746,9 +1752,9 @@ async fn flashcards_multipart_repeating_given_parts_still_accepts_the_new_one() 
     // An exact completion needs no reveal step — it goes straight to the score.
     wait_for_text(driver, "#result h3", "1 / 1", Duration::from_secs(10)).await?;
 
-    let lenient = driver.find_all(By::Css(".item-lenient")).await?;
+    let listed = driver.find_all(By::Css(".result-detail li")).await?;
     assert!(
-        lenient.is_empty(),
+        listed.is_empty(),
         "an exactly-typed final part must not be graded as a near-miss"
     );
 

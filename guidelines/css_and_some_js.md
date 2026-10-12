@@ -4020,6 +4020,30 @@ For text that should be announced but not seen — icon-only buttons, supplement
 
 Avoid `display: none` (removes from accessibility tree) and `visibility: hidden` (same effect). Don't use `aria-label` if real text will do — translated content and copy-paste both work better with real DOM text.
 
+#### Toggle switches — a checkbox with `role="switch"`
+
+A switch is an on/off checkbox that applies at once. Keep the native input — it brings focus, Space-to-toggle, form state and `change` events — and draw the track beside it:
+
+```html
+<label class="switch">
+  <input type="checkbox" role="switch" class="visually-hidden">
+  <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+  Streng nakijken
+</label>
+```
+
+```css
+.switch-thumb { translate: 0 -50%; }
+input:checked + .switch-track .switch-thumb { translate: 1.2rem -50%; }
+input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 3px; }
+```
+
+Don't paint the switch with `::before` on the `<input>` itself — pseudo-elements on replaced form controls are not reliable across engines. The label keeps the whole row (≥ 44px tall) clickable, the knob moves via `translate` (compositor-friendly, gate the transition behind `prefers-reduced-motion: no-preference`), and a `forced-colors` block maps the knob to `CanvasText`/`HighlightText` so it stays visible in high-contrast mode. See `.fc-switch` in `flashcards.css`.
+
+#### Answer inputs and phone keyboards
+
+A phone keyboard capitalises the first letter, "fixes" spelling and adds or removes accents on its own. For an answer that is graded, that grades the keyboard: set `autocapitalize="off" autocorrect="off" spellcheck="false"` on every answer input (`homework.js` does this in `prepareQuestionInputs`). Note the `autocapitalize` IDL property reports `"off"` as its synonym `"none"` — assert on the attribute in tests.
+
 #### Semantic HTML beats ARIA
 
 Use `<button>` for buttons, `<a href>` for navigation, `<nav>` / `<main>` / `<aside>` / `<header>` / `<footer>` for landmarks, `<h1>`–`<h6>` in a sensible hierarchy. Each of these brings keyboard handling, screen-reader announcements, and default focus management for free. ARIA is the fallback when no semantic element fits.

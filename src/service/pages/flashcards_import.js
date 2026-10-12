@@ -76,8 +76,9 @@ function renderPreview() {
     const mode =
         deck.mode === "one-sided" ? "uit het hoofd" : deck.bidirectional ? "twee richtingen" : "voorkant → antwoord";
     document.getElementById("fc-preview-name").textContent = deck.name;
+    const checking = deck.practice?.strict ? " · streng nakijken" : "";
     document.getElementById("fc-preview-meta").textContent =
-        `${deck.cards.length} kaarten · ${mode}${images ? ` · ${images} met afbeelding` : ""}`;
+        `${deck.cards.length} kaarten · ${mode}${images ? ` · ${images} met afbeelding` : ""}${checking}`;
     document.getElementById("fc-preview-sample").textContent = `Bijvoorbeeld: ${deck.cards
         .slice(0, 3)
         .map((card) => card.front || card.wikimedia)

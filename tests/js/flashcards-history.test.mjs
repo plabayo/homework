@@ -87,3 +87,27 @@ test("combined generation reads legacy practice settings from injected storage",
         storage.removeItem(key);
     }
 });
+
+test("history shows near misses, custom practice labels and the exercise's detail per outcome", () => {
+    const question = buildDeckQuestions(words, {})[0];
+    const detail = (q) => (q.given ? `<p class="detail">typed ${q.given}</p>` : "");
+    const html = renderHistoryGroups(
+        [
+            {
+                name: "Frans",
+                questions: [
+                    outcome(question, { exact: false, given: "kad" }),
+                    outcome(question, { practiceAgain: true, practiceLabel: "hint <gebruikt>" }),
+                    outcome(question, { correct: false, given: "hond" }),
+                ],
+            },
+        ],
+        detail,
+    );
+    assert.ok(html.includes('<li class="item-near">'), "a near miss without retry gets its own style");
+    assert.ok(html.includes("bijna goed"));
+    assert.ok(html.includes("hint &lt;gebruikt&gt;"), "stored labels are escaped");
+    assert.ok(html.includes('<p class="detail">typed kad</p>'));
+    assert.ok(html.includes('<p class="detail">typed hond</p>'));
+    assert.equal(renderHistoryGroups([{ name: "Frans", questions: [outcome(question)] }]).includes('class="detail"'), false);
+});

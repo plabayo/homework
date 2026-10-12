@@ -1081,6 +1081,296 @@
     font-family: inherit;
 }
 
+/* ---- Checking options (Nakijken) ---- */
+
+.fc-checking {
+    margin-block-start: 1rem;
+}
+
+/* A switch is a native checkbox with role="switch": the input stays in the
+   accessibility tree and takes keyboard focus, the track beside it is drawn.
+   Styling `::before` on the input itself is not reliable across engines. */
+.fc-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    inline-size: fit-content;
+    min-block-size: 44px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.fc-switch-track {
+    position: relative;
+    flex: none;
+    inline-size: 3rem;
+    block-size: 1.75rem;
+    border: 2px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--fg) 14%, var(--bg));
+}
+
+.fc-switch-thumb {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 0.2rem;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    border-radius: 50%;
+    background: var(--fg);
+    translate: 0 -50%;
+}
+
+.fc-switch-input:checked + .fc-switch-track {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.fc-switch-input:checked + .fc-switch-track .fc-switch-thumb {
+    background: var(--accent-fg);
+    translate: 1.2rem -50%;
+}
+
+.fc-switch-input:focus-visible + .fc-switch-track {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+@media (forced-colors: active) {
+    .fc-switch-thumb {
+        background: CanvasText;
+    }
+    .fc-switch-input:checked + .fc-switch-track {
+        background: Highlight;
+    }
+    .fc-switch-input:checked + .fc-switch-track .fc-switch-thumb {
+        background: HighlightText;
+    }
+}
+
+.fc-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2rem;
+    font-size: 0.95rem;
+}
+
+.fc-check-note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 400;
+}
+
+/* ---- Answer comparison: what was typed ("jij") over what it should be ("juist") ----
+
+   Each character pair is a column, so an é sits right above the e it
+   replaced. Columns group into words that only wrap between words. Marks
+   never rely on colour alone: the typed row gets a wavy underline, the
+   expected row a solid one, and the text itself keeps the body colour. */
+
+.fc-diff {
+    inline-size: min(100%, 34rem);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    border: 2px solid var(--border-soft);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--bg) 94%, var(--fg) 6%);
+}
+
+/* A locked review dims the whole card; when it explains what was off, the
+   comparison is the point, so it stays crisp and the card around it dims. */
+#exercise-content.locked:has(> .fc-diff) {
+    opacity: 1;
+    filter: none;
+}
+#exercise-content.locked:has(> .fc-diff) > :not(.fc-diff) {
+    opacity: 0.5;
+    filter: saturate(0.6);
+}
+
+.fc-diff-rows {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    column-gap: 0.55em;
+    row-gap: 0.6rem;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    font-variant-ligatures: none;
+}
+
+.fc-diff-word {
+    display: inline-flex;
+}
+
+.fc-diff-col {
+    display: inline-flex;
+    flex-direction: column;
+    min-inline-size: 0.55em;
+}
+
+.fc-diff-g,
+.fc-diff-e {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    block-size: 1.5em;
+    padding-inline: 0.04em;
+    white-space: pre;
+}
+
+.fc-diff-e {
+    font-weight: 700;
+}
+
+.fc-diff-labels .fc-diff-col {
+    margin-inline-end: 0.15em;
+}
+
+.fc-diff-labels .fc-diff-g,
+.fc-diff-labels .fc-diff-e {
+    justify-content: flex-start;
+}
+
+.fc-diff-tag {
+    padding: 0.1em 0.45em;
+    border-radius: 999px;
+    font-size: 0.5em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.fc-diff-g .fc-diff-tag {
+    background: var(--bad-tint);
+}
+
+.fc-diff-e .fc-diff-tag {
+    background: var(--good-tint);
+}
+
+.fc-diff-col.is-changed .fc-diff-g,
+.fc-diff-col.is-extra .fc-diff-g {
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    text-decoration: underline wavy var(--bad) 0.08em;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.2em;
+}
+
+.fc-diff-col.is-extra .fc-diff-g {
+    text-decoration-line: line-through;
+}
+
+.fc-diff-col.is-changed .fc-diff-e,
+.fc-diff-col.is-missing .fc-diff-e {
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--good) 22%, transparent);
+    text-decoration: underline solid var(--good) 0.12em;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.2em;
+}
+
+/* Where a letter is missing from the typed answer: an empty slot, like a
+   blank to fill in. */
+.fc-diff-col.is-missing .fc-diff-g::before,
+.fc-attempt-gap::before {
+    content: "";
+    display: inline-block;
+    inline-size: 0.5em;
+    block-size: 0.9em;
+    border-block-end: 0.14em solid var(--bad);
+}
+
+.fc-diff-col.is-ignored {
+    color: var(--muted);
+}
+
+.fc-diff-whole .fc-diff-g,
+.fc-diff-whole .fc-diff-e {
+    justify-content: flex-start;
+    padding-inline: 0.25em;
+    white-space: normal;
+}
+
+.fc-diff-kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.fc-diff-kind {
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--warn-bg) 60%, transparent);
+    color: var(--warn-fg);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.fc-diff-compact {
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    border-width: 1px;
+}
+
+.fc-diff-compact .fc-diff-rows {
+    font-size: 1.05rem;
+    row-gap: 0.4rem;
+}
+
+.fc-diff-compact .fc-diff-kind {
+    font-size: 0.72rem;
+}
+
+/* The child's own attempt under a strict retry hint, the spots to look at
+   marked. It never shows the expected letters. */
+.fc-attempt {
+    display: block;
+    margin-block-start: 0.4rem;
+    color: var(--fg);
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    white-space: pre-wrap;
+}
+
+.fc-attempt-off {
+    padding-inline: 0.06em;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    text-decoration: underline wavy var(--bad) 0.08em;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.22em;
+}
+
+/* ---- Outcome detail in the result and history lists ---- */
+
+.fc-outcome-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.fc-outcome-notes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.fc-outcome-note s {
+    text-decoration-color: var(--bad);
+}
+
 /* ---- Multi-part card editor ---- */
 
 .card-field textarea.card-back {
@@ -1377,6 +1667,31 @@
     .fc-wave-card {
         opacity: 0;
         animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
+    }
+
+    /* Checking switch: the thumb slides with a slight overshoot. */
+    .fc-switch-thumb {
+        transition:
+            translate 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+            background-color 160ms ease;
+    }
+    .fc-switch-track {
+        transition:
+            background-color 160ms ease,
+            border-color 160ms ease;
+    }
+
+    /* The corrections in a review comparison light up just after the card
+       settles — a colour fade only, nothing moves. */
+    .fc-diff:not(.fc-diff-compact) .is-changed .fc-diff-e,
+    .fc-diff:not(.fc-diff-compact) .is-missing .fc-diff-e {
+        animation: fc-diff-mark 420ms ease-out 180ms both;
+    }
+    @keyframes fc-diff-mark {
+        from {
+            background-color: transparent;
+            text-decoration-color: transparent;
+        }
     }
 
     @keyframes fc-card-appear {

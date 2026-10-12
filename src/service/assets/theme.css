@@ -798,6 +798,11 @@
     .result-detail-list li.item-tricky {
         border-inline-start-color: var(--warn-fg);
     }
+    /* Accepted as "bijna goed" without counting as a mistake. */
+    .result-detail-list li.item-near {
+        border-inline-start-style: dashed;
+        border-inline-start-color: var(--warn-fg);
+    }
     .item-desc {
         font-weight: 600;
         line-height: 1.3;

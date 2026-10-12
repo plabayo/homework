@@ -214,11 +214,13 @@ fn documentation() -> impl IntoHtml {
             a!(href = "#eenvoudig", "Eenvoudig beginnen"),
             a!(href = "#meerdere-antwoorden", "Meerdere antwoorden"),
             a!(href = "#afbeeldingen-hints", "Afbeeldingen en hints"),
+            a!(href = "#nakijken", "Streng nakijken"),
             a!(href = "#instellingen", "Alle instellingen"),
         ),
         basic_examples(),
         multiple_answers(),
         extras(),
+        checking(),
         defaults(),
         export_help(),
     )
@@ -405,6 +407,93 @@ fn extras() -> impl IntoHtml {
     )
 }
 
+fn checking() -> impl IntoHtml {
+    section!(
+        id = "nakijken",
+        class = "fc-json-section",
+        h3!("5. Streng of soepel nakijken"),
+        p!(
+            "Standaard wordt er soepel nagekeken: hoofdletters, accenten en leestekens tellen niet mee, en een kleine typfout is ‘bijna goed’. Handig voor geschiedenis of wereldoriëntatie. Voor een taal zoals Frans wil je meestal streng nakijken, zoals op een toets."
+        ),
+        example(
+            "fc-example-strict",
+            "frans-streng.json",
+            r#"{
+  "name": "Frans: werkwoorden",
+  "cards": [
+    { "front": "luisteren", "back": "écouter" },
+    { "front": "Ik heet Marie.", "back": "Je m'appelle Marie." }
+  ],
+  "practice": {
+    "strict": true
+  }
+}"#
+        ),
+        ul!(
+            li!(
+                "Met ",
+                code!("strict: true"),
+                " is ",
+                code!("ecouter"),
+                " fout als er ",
+                code!("écouter"),
+                " op de kaart staat. Bij een zin, die eindigt op . ? of !, tellen ook de hoofdletters en het leesteken."
+            ),
+            li!(
+                "Is een antwoord bijna goed, dan krijgt de leerling een tip, zoals ‘kijk nog eens naar het accent’, en mag die het zelf verbeteren. De kaart komt daarna terug bij fouten oefenen."
+            ),
+            li!(
+                "Wat je niet kunt typen, telt nooit als fout: ’ en ', œ en oe, en de spatie die het Frans voor ? ! : ; zet."
+            ),
+        ),
+        p!(
+            class = "fc-json-tip",
+            "Maak je het bestand met een AI-assistent, bijvoorbeeld van een foto uit het werkboek? Vraag dan om ",
+            code!(r#""practice": { "strict": true }"#),
+            " voor woordjes uit een andere taal."
+        ),
+        details!(
+            summary!("Zelf kiezen wat streng is"),
+            p!(
+                "Met ",
+                code!("strictRules"),
+                " kies je welke regels gelden. Laat je strictRules weg, dan gelden ze allemaal. Dit voorbeeld let op accenten en spelling, maar niet op hoofdletters en leestekens. Een geopende hint telt hier ook als fout."
+            ),
+            example(
+                "fc-example-strict-rules",
+                "frans-accenten.json",
+                r#"{
+  "name": "Frans: kleuren",
+  "cards": [
+    { "front": "groen", "back": "vert", "hint": "Zoals vert in het Engels: green." },
+    { "front": "wit", "back": "blanc" }
+  ],
+  "practice": {
+    "strict": true,
+    "strictRules": ["accents", "spelling"],
+    "hintIsMistake": true
+  }
+}"#
+            ),
+            dl!(
+                default_row("accents", "é, è, ê en e zijn verschillende letters."),
+                default_row(
+                    "capitals",
+                    "Een zin moet dezelfde hoofdletters hebben als op de kaart. Bij losse woorden telt dit niet."
+                ),
+                default_row(
+                    "punctuation",
+                    "Een zin moet dezelfde leestekens hebben, zoals de punt of het vraagteken op het einde. Bij losse woorden telt dit niet."
+                ),
+                default_row(
+                    "spelling",
+                    "Geen typfouten: elke letter moet juist zijn. Zonder deze regel is een kleine typfout ‘bijna goed’ en telt ze als fout."
+                ),
+            ),
+        ),
+    )
+}
+
 fn default_row(name: &'static str, explanation: &'static str) -> impl IntoHtml {
     div!(dt!(code!(name)), dd!(explanation))
 }
@@ -413,7 +502,7 @@ fn defaults() -> impl IntoHtml {
     section!(
         id = "instellingen",
         class = "fc-json-section",
-        h3!("5. Laat standaardinstellingen gerust weg"),
+        h3!("6. Laat standaardinstellingen gerust weg"),
         p!(
             "Je hoeft geen false, lege hints of standaardwaarden op te schrijven. Een export laat die ook weg."
         ),
@@ -434,7 +523,7 @@ fn defaults() -> impl IntoHtml {
             default_row("hint / hintReverse", "Standaard geen hint."),
             default_row(
                 "practice",
-                "Standaard alles invullen, willekeurige volgorde en geen timer."
+                "Standaard alles invullen, willekeurige volgorde, soepel nakijken en geen timer."
             ),
         ),
         details!(
@@ -476,6 +565,22 @@ fn defaults() -> impl IntoHtml {
                 default_row(
                     "deadlineSeconds",
                     "Standaard 10 bij een ingeschakelde maximumtijd. Kies een geheel getal van 1 tot 600."
+                ),
+                default_row(
+                    "strict",
+                    "Standaard false: soepel nakijken. Met true wordt streng nagekeken en telt ‘bijna goed’ als fout."
+                ),
+                default_row(
+                    "strictRules",
+                    "Standaard alle regels: accents, capitals, punctuation en spelling. Alleen samen met strict."
+                ),
+                default_row(
+                    "nearMissIsMistake",
+                    "Standaard false. Met true komt een ‘bijna goed’ antwoord terug bij fouten oefenen. Alleen zonder strict: streng telt dat altijd als fout."
+                ),
+                default_row(
+                    "hintIsMistake",
+                    "Standaard false. Met true komt een kaart waarvan de hint geopend werd terug bij fouten oefenen."
                 ),
             ),
         ),

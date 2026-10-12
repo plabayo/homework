@@ -3,9 +3,10 @@
 // Source-available; non-commercial use only.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
-    DECKS_KEY, deckContentKey, findImportMatch, normalizePractice, parseDeckData,
+    DECKS_KEY, STRICT_RULES, answerChecking, deckContentKey, findImportMatch, normalizePractice, parseDeckData,
     parseDeckJson, portableDeck, practiceConfig, practiceFromConfig, readPractice,
     readStoredDecks, storeImportedDeck,
 } from "../../src/service/assets/flashcards-data.js";
@@ -133,6 +134,14 @@ const invalidDecks = [
     [{...pairs,practice:{mode:"partial"}},/practice.mode/],
     [{...pairs,practice:{orderImportant:true}},/practice.orderImportant/],
     [{...simple,practice:{unknown:true}},/practice.unknown/],
+    [{...pairs,practice:{strict:"true"}},/practice.strict/],
+    [{...pairs,practice:{strictRules:["accents"]}},/practice.strictRules.*strict/],
+    [{...pairs,practice:{strict:true,strictRules:"accents"}},/practice.strictRules/],
+    [{...pairs,practice:{strict:true,strictRules:["accent"]}},/practice.strictRules\[0\]/],
+    [{...pairs,practice:{strict:true,strictRules:["spelling","spelling"]}},/practice.strictRules\[1\]/],
+    [{...pairs,practice:{strict:true,nearMissIsMistake:true}},/practice.nearMissIsMistake/],
+    [{...pairs,practice:{nearMissIsMistake:"yes"}},/practice.nearMissIsMistake/],
+    [{...pairs,practice:{hintIsMistake:1}},/practice.hintIsMistake/],
     [{...simple,unknown:true},/deck.unknown/],
 ];
 for (const [deck,error] of invalidDecks) {
@@ -226,4 +235,74 @@ test("disabled GUI controls do not leak inactive settings into a file", () => {
     const deck=parseDeckData(pairs);
     assert.deepEqual(practiceFromConfig({fcMode:"partial",fcCount:999,fcOrderImportant:true,timeMode:false,deadlineOn:true,deadlineSeconds:999},deck),{});
     assert.throws(()=>normalizePractice({timeMode:true,deadlineOn:true,deadlineSeconds:600.5},deck),/geheel getal/);
+});
+
+test("lenient checking is the default and enforces no strict rule", () => {
+    assert.deepEqual(answerChecking(), {strict:false,accents:false,capitals:false,punctuation:false,spelling:false,nearMissIsMistake:false,hintIsMistake:false});
+    assert.deepEqual(answerChecking({nearMissIsMistake:true,hintIsMistake:true}), {strict:false,accents:false,capitals:false,punctuation:false,spelling:false,nearMissIsMistake:true,hintIsMistake:true});
+});
+
+test("strict checking enforces every rule unless a subset is chosen, and always counts near misses", () => {
+    assert.deepEqual(answerChecking({strict:true}), {strict:true,accents:true,capitals:true,punctuation:true,spelling:true,nearMissIsMistake:true,hintIsMistake:false});
+    assert.deepEqual(answerChecking({strict:true,strictRules:["spelling"]}), {strict:true,accents:false,capitals:false,punctuation:false,spelling:true,nearMissIsMistake:true,hintIsMistake:false});
+    assert.deepEqual(answerChecking({strict:true,strictRules:[]}).spelling, false);
+    assert.deepEqual(STRICT_RULES, ["accents","capitals","punctuation","spelling"]);
+});
+
+test("checking settings are canonical in a file: all rules are implied, a subset keeps rule order", () => {
+    const all=parseDeckData({...pairs,practice:{strict:true,strictRules:["spelling","punctuation","capitals","accents"]}});
+    assert.deepEqual(all.practice,{strict:true});
+    assert.deepEqual(portableDeck(all).practice,{strict:true});
+    const some=parseDeckData({...pairs,practice:{strict:true,strictRules:["spelling","accents"],hintIsMistake:true}});
+    assert.deepEqual(some.practice,{strict:true,strictRules:["accents","spelling"],hintIsMistake:true});
+    assert.deepEqual(parseDeckData(portableDeck(some)),some);
+    const none=parseDeckData({...pairs,practice:{strict:true,strictRules:[]}});
+    assert.deepEqual(none.practice,{strict:true,strictRules:[]});
+    const lenient=parseDeckData({...pairs,practice:{strict:false,nearMissIsMistake:true,hintIsMistake:false}});
+    assert.deepEqual(lenient.practice,{nearMissIsMistake:true});
+});
+
+test("checking settings round-trip through the setup form", () => {
+    for (const practice of [{},{strict:true},{strict:true,strictRules:["accents"]},{nearMissIsMistake:true},{hintIsMistake:true},{strict:true,hintIsMistake:true}]) {
+        const deck=parseDeckData({...pairs,practice});
+        assert.deepEqual(practiceFromConfig(practiceConfig(deck),deck),deck.practice,JSON.stringify(practice));
+    }
+    const config=practiceConfig(parseDeckData(pairs));
+    assert.equal(config.fcStrict,false);
+    assert.deepEqual(config.fcStrictRules,STRICT_RULES,"turning strict on starts with every rule");
+});
+
+test("the lenient-only option is dropped while strict is on, and returns with lenient", () => {
+    const deck=parseDeckData(pairs);
+    const config={...practiceConfig(deck),fcStrict:true,fcNearMissIsMistake:true};
+    assert.deepEqual(practiceFromConfig(config,deck),{strict:true});
+    assert.deepEqual(practiceFromConfig({...config,fcStrict:false},deck),{nearMissIsMistake:true});
+});
+
+test("a stricter deck is different content, so importing it does not count as a duplicate", () => {
+    const lenient=parseDeckData(pairs);
+    const strict=parseDeckData({...pairs,practice:{strict:true}});
+    assert.notEqual(deckContentKey(lenient),deckContentKey(strict));
+});
+
+// The import page documents the format with copyable examples; each one must
+// stay importable as the format evolves.
+const docs = readFileSync(new URL("../../src/service/pages/flashcards_import.rs", import.meta.url), "utf8");
+const docExamples = Object.fromEntries(
+    [...docs.matchAll(/example\(\s*"([^"]+)",\s*"([^"]+)",\s*r#"([\s\S]*?)"#/g)].map(([, id, file, json]) => [id, { file, json }]),
+);
+
+test("every JSON example in the import documentation imports cleanly", () => {
+    assert.equal(Object.keys(docExamples).length, docs.match(/r#"\{/g).length, "every example was found");
+    for (const [id, { file, json }] of Object.entries(docExamples)) {
+        assert.doesNotThrow(() => parseDeckJson(json), `${id} (${file})`);
+    }
+});
+
+test("the checking examples in the documentation carry the settings they describe", () => {
+    assert.deepEqual(parseDeckJson(docExamples["fc-example-strict"].json).practice, {strict:true});
+    assert.deepEqual(parseDeckJson(docExamples["fc-example-strict-rules"].json).practice, {strict:true,strictRules:["accents","spelling"],hintIsMistake:true});
+    for (const key of ["strict","strictRules","nearMissIsMistake","hintIsMistake"]) {
+        assert.match(docs, new RegExp(`default_row\\(\\s*"${key}"`), `${key} is documented with its default`);
+    }
 });

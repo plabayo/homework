@@ -2,6 +2,8 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
+use thirtyfour::error::WebDriverErrorInner;
+
 use super::{By, Duration, Instant, TestResult, WebDriver, WebElement};
 
 pub(crate) async fn inject_deck(
@@ -167,8 +169,20 @@ pub(crate) async fn wait_for_text(
         if matches.is_empty() {
             return Ok(false);
         }
-        let text = matches[0].text().await?;
-        Ok(text.contains(&expected))
+        match matches[0].text().await {
+            Ok(text) => Ok(text.contains(&expected)),
+            // Re-rendered between finding and reading it (e.g. a carousel
+            // swapping its card): not a failure, just look again.
+            Err(err)
+                if matches!(
+                    err.as_inner(),
+                    WebDriverErrorInner::StaleElementReference(_)
+                ) =>
+            {
+                Ok(false)
+            }
+            Err(err) => Err(err.into()),
+        }
     })
     .await
 }

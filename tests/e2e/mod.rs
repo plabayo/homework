@@ -20,6 +20,7 @@ mod clock_play;
 mod clock_seconds;
 mod decimals;
 mod exercise_flows;
+mod flashcards_checking;
 mod flashcards_decks;
 mod flashcards_json;
 mod flashcards_multiple;

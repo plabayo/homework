@@ -3,6 +3,7 @@
 // Source-available; non-commercial use only.
 
 import {
+    answerChecking,
     downloadDeck,
     findImportMatch,
     inferDeckMode,
@@ -169,35 +170,12 @@ function normalizeStoredDeck(deck) {
     return changed ? normalized : deck;
 }
 
-// Optimised O(n) space Levenshtein distance.
-function levenshtein(a, b) {
-    const m = a.length,
-        n = b.length;
-    if (m === 0) return n;
-    if (n === 0) return m;
-    const row = Array.from({ length: n + 1 }, (_, i) => i);
-    for (let i = 1; i <= m; i++) {
-        let prev = row[0];
-        row[0] = i;
-        for (let j = 1; j <= n; j++) {
-            const temp = row[j];
-            row[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, row[j], row[j - 1]);
-            prev = temp;
-        }
-    }
-    return row[n];
-}
-
 // Accept answers that are "close enough": 1 typo for short words, 2 for medium, 3 for long.
-// Very short words (≤2 chars) require exact match to avoid false positives.
+// Very short words (≤2 chars) require exact match to avoid false positives,
+// and a different digit is never close. See `analyzeAnswer`.
 function fuzzyEqual(given, expected) {
-    const a = normalize(given);
-    const b = normalize(expected);
-    if (a === b) return true;
-    const maxLen = Math.max(a.length, b.length);
-    if (maxLen <= 2) return false;
-    const tolerance = maxLen <= 5 ? 1 : maxLen <= 9 ? 2 : 3;
-    return levenshtein(a, b) <= tolerance;
+    const analysis = analyzeAnswer(given, expected);
+    return analysis.exact || analysis.near;
 }
 
 // ---------- Phrase fuzzy matching (multi-part answers) ----------
@@ -261,54 +239,465 @@ function phraseCoverageMatch(given, expected) {
     return matched / contentWords.length >= 0.6;
 }
 
-function classifyAnswerMatch(given, expected) {
-    if (normalize(given) === normalize(expected)) {
-        return { accepted: true, exact: true, practiceAgain: false };
+// ---------- Answer checking ----------
+//
+// Every comparison folds both texts into per-character comparison keys, so
+// only the differences a deck's checking settings care about survive.
+// Lenient ("soepel") checking folds case, accents and punctuation away and
+// accepts a small typo as "bijna goed". Strict ("streng") checking keeps what
+// its rules demand — accents, plus capitals and punctuation in sentences — and
+// rejects a near miss with a pointed hint, so the child fixes it themselves.
+
+const LENIENT = answerChecking();
+
+const EMOJI = /\p{Extended_Pictographic}|[\uFE00-\uFE0F\u20E3\u200D]|\p{Emoji_Modifier}/gu;
+const MARKS = /\p{Mn}/gu;
+
+// Typographic variants a child cannot (or need not) type. They compare equal
+// in every mode; œ and æ are letters NFKD leaves alone.
+const TYPOGRAPHIC = new Map([
+    ["’", "'"],
+    ["‘", "'"],
+    ["‚", "'"],
+    ["‛", "'"],
+    ["`", "'"],
+    ["´", "'"],
+    ["′", "'"],
+    ["«", '"'],
+    ["»", '"'],
+    ["“", '"'],
+    ["”", '"'],
+    ["„", '"'],
+    ["‟", '"'],
+    ["‹", '"'],
+    ["›", '"'],
+    ["…", "..."],
+    ["‐", "-"],
+    ["‑", "-"],
+    ["‒", "-"],
+    ["–", "-"],
+    ["—", "-"],
+    ["−", "-"],
+    ["œ", "oe"],
+    ["Œ", "OE"],
+    ["æ", "ae"],
+    ["Æ", "AE"],
+]);
+const TYPOGRAPHIC_CHARS = new RegExp(`[${[...TYPOGRAPHIC.keys()].join("")}]`, "gu");
+
+// Apostrophes and hyphens are part of a word's spelling, not punctuation.
+const PUNCTUATION = new Set([".", ",", ";", ":", "!", "?", "¿", "¡", '"']);
+
+// Above this many alignment cells an answer is only compared as a whole.
+const MAX_ALIGN_CELLS = 40000;
+
+const graphemes =
+    typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+
+// User-perceived characters, so an accented letter or an emoji with its
+// modifiers is one unit — the unit a child would point at.
+function answerUnits(text) {
+    const s = String(text ?? "")
+        .trim()
+        .normalize("NFC");
+    return graphemes ? Array.from(graphemes.segment(s), (part) => part.segment) : Array.from(s);
+}
+
+// Sentences end in . ! ? or …, optionally inside a closing quote or bracket
+// (with the French space before it).
+function isSentence(text) {
+    return /[.!?…][\s"'»”’)\]]*$/u.test(
+        String(text ?? "")
+            .replace(EMOJI, "")
+            .trim(),
+    );
+}
+
+function isPunctuationKey(key) {
+    return key !== "" && [...key].every((ch) => PUNCTUATION.has(ch));
+}
+
+function unitKey(unit, rules) {
+    let key = unit.replace(EMOJI, "");
+    if (!key) return "";
+    if (/^\s+$/u.test(key)) return " ";
+    key = key.replace(TYPOGRAPHIC_CHARS, (ch) => TYPOGRAPHIC.get(ch));
+    key = rules.accents ? key.normalize("NFKC") : key.normalize("NFKD").replace(MARKS, "");
+    return rules.capitals ? key : key.toLowerCase();
+}
+
+// Comparison keys, one per unit. An empty key means the unit does not count:
+// emoji, and spacing that carries no meaning — runs of spaces, the ends, and
+// any space next to punctuation (French puts one before ? ! : ;, children
+// put them anywhere). Punctuation the rules ignore separates words like a
+// space, so "oui,non" still reads as two words. `numeric` holds the units
+// of a decimal comma, thousands dot or clock colon: those belong to a number.
+function answerKeys(text, rules) {
+    const units = answerUnits(text);
+    const keys = units.map((unit) => unitKey(unit, rules));
+    const numeric = new Set();
+    const neighbour = (from, step) => {
+        for (let i = from; i >= 0 && i < keys.length; i += step) {
+            if (keys[i] && keys[i] !== " ") return keys[i];
+        }
+        return "";
+    };
+    for (let i = 0; i < keys.length; i++) {
+        if (!isPunctuationKey(keys[i])) continue;
+        if (/^[.,:]$/.test(keys[i]) && /\d$/.test(neighbour(i - 1, -1)) && /^\d/.test(neighbour(i + 1, 1))) {
+            numeric.add(i);
+        } else if (!rules.punctuation) {
+            keys[i] = " ";
+        }
     }
-    if (fuzzyEqual(given, expected)) {
-        return { accepted: true, exact: false, practiceAgain: false };
+    let previous = "";
+    for (let i = 0; i < keys.length; i++) {
+        if (keys[i] !== " ") {
+            if (keys[i]) previous = keys[i];
+            continue;
+        }
+        const next = neighbour(i + 1, 1);
+        const meaningless =
+            !previous || previous === " " || !next || isPunctuationKey(previous) || isPunctuationKey(next);
+        if (meaningless && !numeric.has(i)) keys[i] = "";
+        else previous = " ";
     }
-    if (phraseCoverageMatch(given, expected)) {
+    return { units, keys, numeric };
+}
+
+function keyChars(keys) {
+    const chars = [];
+    keys.forEach((key, unit) => {
+        for (const ch of key) chars.push({ ch, unit });
+    });
+    return chars;
+}
+
+function baseLetter(ch) {
+    return ch.normalize("NFKD").replace(MARKS, "").toLowerCase();
+}
+
+function substitutionCost(a, b) {
+    if (a === b) return 0;
+    return baseLetter(a) === baseLetter(b) ? 1 : 2;
+}
+
+// Weighted edit alignment. Changing only an accent or the case of a letter is
+// cheaper than a different letter, so é lines up with e instead of being read
+// as one letter dropped and another added.
+function alignChars(given, expected) {
+    const m = given.length;
+    const n = expected.length;
+    const w = n + 1;
+    const cost = new Uint32Array((m + 1) * w);
+    for (let i = 0; i <= m; i++) cost[i * w] = 2 * i;
+    for (let j = 0; j <= n; j++) cost[j] = 2 * j;
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            const sub = cost[(i - 1) * w + j - 1] + substitutionCost(given[i - 1].ch, expected[j - 1].ch);
+            cost[i * w + j] = Math.min(sub, cost[(i - 1) * w + j] + 2, cost[i * w + j - 1] + 2);
+        }
+    }
+    const ops = [];
+    let i = m;
+    let j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0) {
+            const sub = substitutionCost(given[i - 1].ch, expected[j - 1].ch);
+            if (cost[i * w + j] === cost[(i - 1) * w + j - 1] + sub) {
+                ops.push({ type: sub ? "sub" : "eq", g: i - 1, e: j - 1 });
+                i--;
+                j--;
+                continue;
+            }
+        }
+        if (i > 0 && cost[i * w + j] === cost[(i - 1) * w + j] + 2) {
+            ops.push({ type: "del", g: i - 1, e: -1 });
+            i--;
+        } else {
+            ops.push({ type: "ins", g: -1, e: j - 1 });
+            j--;
+        }
+    }
+    return ops.reverse();
+}
+
+// What kind of mistake one aligned difference is. A different digit is
+// never a typo: 1831 is simply not 1830.
+function differenceKinds(a, b, numeric) {
+    if (numeric || /\d/.test(a ?? "") || /\d/.test(b ?? "")) return ["number"];
+    if (a !== undefined && b !== undefined) {
+        if (baseLetter(a) === baseLetter(b)) {
+            if (a.toLowerCase() === b.toLowerCase()) return ["capital"];
+            const sameLetters = a.normalize("NFKD").replace(MARKS, "") === b.normalize("NFKD").replace(MARKS, "");
+            return sameLetters ? ["accent"] : ["accent", "capital"];
+        }
+        return PUNCTUATION.has(a) && PUNCTUATION.has(b) ? ["punctuation"] : ["spelling"];
+    }
+    return PUNCTUATION.has(a ?? b) ? ["punctuation"] : ["spelling"];
+}
+
+// Compare an answer with the expected text under a deck's checking settings.
+// `near` means only small differences remain: form differences the strict
+// rules care about, and at most a typo or two (1 for short words, up to 3 for
+// long ones; very short words must be spelled exactly).
+function analyzeAnswer(given, expected, checking = LENIENT) {
+    const sentence = isSentence(expected);
+    const rules = {
+        accents: checking.accents,
+        capitals: checking.capitals && sentence,
+        punctuation: checking.punctuation && sentence,
+    };
+    const g = answerKeys(given, rules);
+    const e = answerKeys(expected, rules);
+    const gChars = keyChars(g.keys);
+    const eChars = keyChars(e.keys);
+    const kinds = { accent: 0, capital: 0, punctuation: 0, spelling: 0, number: 0 };
+    const exact = g.keys.join("") === e.keys.join("");
+    const base = {
+        exact,
+        near: false,
+        kinds,
+        given: g,
+        expected: e,
+        gChars,
+        eChars,
+        ops: null,
+        edits: 0,
+        similarity: 0,
+    };
+    if (exact || gChars.length * eChars.length > MAX_ALIGN_CELLS) return base;
+
+    const ops = alignChars(gChars, eChars);
+    let same = 0;
+    for (const op of ops) {
+        if (op.type === "eq") {
+            same++;
+            continue;
+        }
+        const gc = gChars[op.g];
+        const ec = eChars[op.e];
+        const numeric = (gc && g.numeric.has(gc.unit)) || (ec && e.numeric.has(ec.unit));
+        for (const kind of differenceKinds(gc?.ch, ec?.ch, numeric)) kinds[kind]++;
+    }
+    const length = Math.max(gChars.length, eChars.length);
+    const tolerance = length <= 2 ? 0 : length <= 5 ? 1 : length <= 9 ? 2 : 3;
+    return {
+        ...base,
+        near: gChars.length > 0 && kinds.number === 0 && kinds.spelling <= tolerance,
+        ops,
+        edits: ops.length - same,
+        similarity: same / length,
+    };
+}
+
+function classifyAnswerMatch(given, expected, checking = LENIENT) {
+    const analysis = analyzeAnswer(given, expected, checking);
+    if (analysis.exact) return { accepted: true, exact: true, practiceAgain: false };
+    if (analysis.near) {
+        const { kinds } = analysis;
+        // Folding already removed every form difference no rule asks for.
+        if (kinds.accent + kinds.capital + kinds.punctuation > 0 || (checking.spelling && kinds.spelling > 0)) {
+            return { accepted: false, exact: false, practiceAgain: false, nudge: kinds };
+        }
+        return { accepted: true, exact: false, practiceAgain: checking.nearMissIsMistake };
+    }
+    if (!checking.strict && phraseCoverageMatch(given, expected)) {
         return { accepted: true, exact: false, practiceAgain: true };
     }
     return { accepted: false, exact: false, practiceAgain: false };
 }
 
-// ---------- Lenient-match tracking ----------
-
-const lenientMatches = [];
-
-function pushLenientMatch(given, expected, front) {
-    lenientMatches.push({ given, expected, front });
+// Best match of an answer among a card's accepted answers: an exact one wins
+// over a near miss, whatever the order. A strict near miss comes back as a
+// `nudge` naming the closest answer, so the hint can point at the mistake.
+function matchAnswer(given, candidates, checking = LENIENT) {
+    let accepted = null;
+    let nudge = null;
+    for (const expected of candidates) {
+        if (!expected) continue;
+        const match = classifyAnswerMatch(given, expected, checking);
+        if (match.exact) return { match, expected };
+        if (match.accepted && !accepted) accepted = { match, expected };
+        if (match.nudge && !nudge) nudge = { kinds: match.nudge, expected };
+    }
+    return accepted ?? { match: null, nudge };
 }
 
-// Match `given` against `expected` and, if accepted, auto-track as lenient when
-// only the phrase-coverage fallback was used.  Single source of truth so callers
-// can't forget the tracking step.
-function matchAndTrackLenient(given, expected, front) {
-    const match = classifyAnswerMatch(given, expected);
-    if (!match.accepted) return null;
-    if (match.practiceAgain) pushLenientMatch(given, expected, front);
-    return match;
+// The candidate an answer was most likely meant to be — the one it differs
+// from least — to explain what was off.
+function closestExpected(given, candidates, checking = LENIENT) {
+    let best = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const expected of candidates) {
+        if (!expected) continue;
+        const analysis = analyzeAnswer(given, expected, checking);
+        const score = analysis.exact ? -1 : analysis.ops ? analysis.edits : Number.POSITIVE_INFINITY;
+        if (score < bestScore) {
+            best = expected;
+            bestScore = score;
+        }
+    }
+    return best ?? candidates.find(Boolean) ?? null;
 }
 
-function appendLenientSection(matches) {
-    const resultEl = document.getElementById("result");
-    if (!resultEl || matches.length === 0) return;
-    const items = matches
-        .map(
-            (m) =>
-                `<li class="item-lenient">
-            <span class="item-desc">${escapeHtml(m.front)}</span>
-            <span class="item-meta">jij: <em>${escapeHtml(m.given)}</em> → juist: <strong>${escapeHtml(m.expected)}</strong></span>
-        </li>`,
-        )
+function joinDutch(items) {
+    return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} en ${items.at(-1)}`;
+}
+
+// The retry hint for a strict near miss: it names what to look at without
+// giving the answer away.
+function nudgeText(kinds) {
+    const items = [];
+    if (kinds.accent) items.push(kinds.accent === 1 ? "het accent" : "de accenten");
+    if (kinds.capital) items.push(kinds.capital === 1 ? "de hoofdletter" : "de hoofdletters");
+    if (kinds.punctuation) items.push(kinds.punctuation === 1 ? "het leesteken" : "de leestekens");
+    if (kinds.spelling) items.push("de spelling");
+    return `bijna! kijk nog eens naar ${joinDutch(items)}.`;
+}
+
+function kindLabels(kinds) {
+    const labels = [];
+    if (kinds.accent) labels.push(kinds.accent === 1 ? "accent" : `${kinds.accent} accenten`);
+    if (kinds.capital) labels.push(kinds.capital === 1 ? "hoofdletter" : `${kinds.capital} hoofdletters`);
+    if (kinds.punctuation) labels.push(kinds.punctuation === 1 ? "leesteken" : `${kinds.punctuation} leestekens`);
+    if (kinds.spelling) labels.push(kinds.spelling === 1 ? "1 spelfout" : `${kinds.spelling} spelfouten`);
+    if (kinds.number) labels.push(kinds.number === 1 ? "1 cijfer" : `${kinds.number} cijfers`);
+    return labels;
+}
+
+// ---------- Answer comparison display ----------
+
+// Pair the typed and the expected characters into display columns: same,
+// changed, extra (only typed), missing (only expected) or ignored (does not
+// count under the rules). A unit whose key spans several characters, like œ
+// for a typed "oe", shares one column with everything aligned to it.
+function diffColumns(analysis) {
+    const { given, expected, gChars, eChars, ops } = analysis;
+    if (!ops) return [];
+    const columns = [];
+    const next = { g: 0, e: 0 };
+    // Units that do not count have no alignment op; they keep their place.
+    const flushIgnored = (gUntil, eUntil) => {
+        while (next.g < gUntil || next.e < eUntil) {
+            const column = { type: "ignored", g: [], e: [] };
+            if (next.g < gUntil) column.g.push(next.g++);
+            if (next.e < eUntil) column.e.push(next.e++);
+            columns.push(column);
+        }
+    };
+    let last = null;
+    for (const op of ops) {
+        const gu = op.g >= 0 ? gChars[op.g].unit : -1;
+        const eu = op.e >= 0 ? eChars[op.e].unit : -1;
+        if (!sharesUnit(last, gu, eu)) {
+            flushIgnored(gu >= 0 ? gu : next.g, eu >= 0 ? eu : next.e);
+            last = { types: new Set(), g: [], e: [] };
+            columns.push(last);
+        }
+        last.types.add(op.type);
+        addUnit(last.g, gu);
+        addUnit(last.e, eu);
+        next.g = Math.max(next.g, gu + 1);
+        next.e = Math.max(next.e, eu + 1);
+    }
+    flushIgnored(given.units.length, expected.units.length);
+    return columns.map((column) =>
+        column.type ? column : { type: columnType(column.types), g: column.g, e: column.e },
+    );
+}
+
+function sharesUnit(column, gu, eu) {
+    return !!column && ((gu >= 0 && column.g.at(-1) === gu) || (eu >= 0 && column.e.at(-1) === eu));
+}
+
+function addUnit(units, unit) {
+    if (unit >= 0 && units.at(-1) !== unit) units.push(unit);
+}
+
+function columnType(types) {
+    if (types.size > 1) return "changed";
+    if (types.has("eq")) return "same";
+    if (types.has("del")) return "extra";
+    return types.has("ins") ? "missing" : "changed";
+}
+
+function unitsText(units, indices) {
+    return indices.map((i) => units[i]).join("");
+}
+
+function isSpaceColumn(column, analysis) {
+    const text = unitsText(analysis.given.units, column.g) + unitsText(analysis.expected.units, column.e);
+    return text !== "" && /^\s+$/u.test(text);
+}
+
+// A space that counts as a mistake is drawn so it can be marked.
+function cellText(text, marked) {
+    return marked && /^\s+$/u.test(text) ? "␣" : text;
+}
+
+function diffCellsHtml(analysis, column) {
+    const marked = column.type !== "same" && column.type !== "ignored";
+    const g = cellText(unitsText(analysis.given.units, column.g), marked);
+    const e = cellText(unitsText(analysis.expected.units, column.e), marked);
+    return `<span class="fc-diff-col is-${column.type}"><span class="fc-diff-g">${escapeHtml(g)}</span><span class="fc-diff-e">${escapeHtml(e)}</span></span>`;
+}
+
+// Words stay together as two-row blocks; lines only wrap between words.
+function diffWordsHtml(analysis) {
+    let html = "";
+    let word = "";
+    for (const column of diffColumns(analysis)) {
+        if ((column.type === "same" || column.type === "ignored") && isSpaceColumn(column, analysis)) {
+            if (word) html += `<span class="fc-diff-word">${word}</span>`;
+            word = "";
+            continue;
+        }
+        word += diffCellsHtml(analysis, column);
+    }
+    if (word) html += `<span class="fc-diff-word">${word}</span>`;
+    return html;
+}
+
+// A typed answer next to the expected one, with every difference that counts
+// marked in both rows. Returns "" when the answer was exactly right. Answers
+// too different for a letter-by-letter comparison show as two plain lines.
+function answerDiffHtml(given, expected, checking = LENIENT, { compact = false } = {}) {
+    if (typeof given !== "string" || !given.trim() || !expected) return "";
+    const analysis = analyzeAnswer(given, expected, checking);
+    if (analysis.exact) return "";
+    const aligned = analysis.ops && (analysis.near || analysis.similarity >= 0.5);
+    const labels = aligned ? kindLabels(analysis.kinds) : [];
+    const spoken = `Jij typte “${given.trim()}”, juist is “${String(expected).trim()}”${labels.length > 0 ? `: ${labels.join(", ")}` : ""}.`;
+    const rows = aligned
+        ? diffWordsHtml(analysis)
+        : `<span class="fc-diff-word fc-diff-whole"><span class="fc-diff-col is-changed"><span class="fc-diff-g">${escapeHtml(given.trim())}</span><span class="fc-diff-e">${escapeHtml(String(expected).trim())}</span></span></span>`;
+    const chips = labels.map((label) => `<span class="fc-diff-kind">${escapeHtml(label)}</span>`).join("");
+    return `<figure class="fc-diff${compact ? " fc-diff-compact" : ""}">
+        <figcaption class="visually-hidden">${escapeHtml(spoken)}</figcaption>
+        <div class="fc-diff-rows" aria-hidden="true">
+            <span class="fc-diff-word fc-diff-labels"><span class="fc-diff-col"><span class="fc-diff-g"><span class="fc-diff-tag">jij</span></span><span class="fc-diff-e"><span class="fc-diff-tag">juist</span></span></span></span>${rows}
+        </div>
+        ${chips ? `<p class="fc-diff-kinds" aria-hidden="true">${chips}</p>` : ""}
+    </figure>`;
+}
+
+// The child's own attempt with the spots to look at marked, for the retry
+// hint. It never shows the expected letters — only where they go.
+function attemptHtml(given, expected, checking = LENIENT) {
+    const analysis = analyzeAnswer(given, expected, checking);
+    if (analysis.exact || !analysis.ops) return "";
+    const cells = diffColumns(analysis)
+        .map((column) => {
+            const text = unitsText(analysis.given.units, column.g);
+            if (column.type === "missing") return `<span class="fc-attempt-gap"></span>`;
+            if (column.type === "changed" || column.type === "extra") {
+                return `<span class="fc-attempt-off">${escapeHtml(cellText(text, true))}</span>`;
+            }
+            return escapeHtml(text);
+        })
         .join("");
-    const section = document.createElement("section");
-    section.className = "result-detail";
-    section.innerHTML = `<h3 class="section-title">Bijna goed 〜</h3>
-        <ul class="result-detail-list">${items}</ul>`;
-    resultEl.appendChild(section);
+    return `<span class="fc-attempt" aria-hidden="true">${cells}</span>`;
 }
 
 // Split raw input into individual answer tokens on comma, semicolon, slash,
@@ -325,18 +714,19 @@ function splitAnswerTokens(raw) {
 // fuzzy-claim a part that is still missing — an earlier "lopen" grabbing
 // "gelopen" — which downgrades an otherwise perfect answer to "bijna goed" and
 // sends the card back to mistake practice.
-function dropRestatedParts(tokens, allParts, alreadyMatched) {
+function dropRestatedParts(tokens, allParts, alreadyMatched, checking) {
     return tokens.filter(
-        (token) => !allParts.some((part) => alreadyMatched.has(part) && classifyAnswerMatch(token, part).exact),
+        (token) =>
+            !allParts.some((part) => alreadyMatched.has(part) && classifyAnswerMatch(token, part, checking).exact),
     );
 }
 
 // First unclaimed part that `token` matches, or null. `exactOnly` restricts the
 // sweep to verbatim matches.
-function findPartForToken(token, remaining, newlyMatched, exactOnly) {
+function findPartForToken(token, remaining, newlyMatched, exactOnly, checking) {
     for (const part of remaining) {
         if (newlyMatched.some((m) => m.part === part)) continue;
-        const match = classifyAnswerMatch(token, part);
+        const match = classifyAnswerMatch(token, part, checking);
         if (!match.accepted || (exactOnly && !match.exact)) continue;
         return { part, match };
     }
@@ -347,14 +737,13 @@ function findPartForToken(token, remaining, newlyMatched, exactOnly) {
 // a fuzzy near-miss can never claim a part that another token in the same answer
 // names outright. Flags each consumed token in `tokenUsed` so pass 2 cannot
 // spend it a second time.
-function matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, front, trackLenient) {
+function matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, checking) {
     for (const exactOnly of [true, false]) {
         for (let i = 0; i < tokens.length; i++) {
             if (tokenUsed[i]) continue;
-            const hit = findPartForToken(tokens[i], remaining, newlyMatched, exactOnly);
+            const hit = findPartForToken(tokens[i], remaining, newlyMatched, exactOnly, checking);
             if (!hit) continue;
-            if (trackLenient && hit.match.practiceAgain) pushLenientMatch(tokens[i], hit.part, front);
-            newlyMatched.push({ part: hit.part, ...hit.match });
+            newlyMatched.push({ part: hit.part, given: tokens[i], ...hit.match });
             tokenUsed[i] = true;
         }
     }
@@ -364,7 +753,7 @@ function matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, front, t
 // words of a remaining part, count it as matched. Handles any separator the user
 // picks (space, "en", "+", etc.) without needing to enumerate them all. Only
 // reached for parts pass 1 left open, and always lenient by definition.
-function matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched, given, front, trackLenient) {
+function matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched) {
     for (const part of remaining) {
         if (newlyMatched.some((m) => m.part === part)) continue;
         const contentWords = normalize(part)
@@ -375,21 +764,27 @@ function matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched, give
         // Require ALL content words present AND at most one extra word per content word
         // (prevents single-word parts from matching long unrelated phrases).
         if (covered !== contentWords.length || leftoverWords.length > contentWords.length * 2 + 1) continue;
-        if (trackLenient) pushLenientMatch(given, part, front);
-        newlyMatched.push({ part, accepted: true, exact: false, practiceAgain: true });
+        newlyMatched.push({
+            part,
+            given: leftoverWords.join(" "),
+            accepted: true,
+            exact: false,
+            practiceAgain: true,
+        });
     }
 }
 
 // Try to match one or more tokens from `given` against unmatched parts.
-// `front` is the card's front text, used for lenient-match tracking.
-// Returns match objects for newly matched parts.
-function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = true) {
+// Returns match objects for newly matched parts, each with the token it took.
+function tryMatchParts(given, allParts, alreadyMatched, checking = LENIENT) {
     const newlyMatched = [];
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
-    const tokens = dropRestatedParts(splitAnswerTokens(given), allParts, alreadyMatched);
+    const tokens = dropRestatedParts(splitAnswerTokens(given), allParts, alreadyMatched, checking);
     const tokenUsed = new Array(tokens.length).fill(false);
 
-    matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, front, trackLenient);
+    matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, checking);
+    // Strict checking has no partial-phrase fallback: every part must be named.
+    if (checking.strict) return newlyMatched;
 
     // Pass 2 sees only the tokens pass 1 could not place, so one token can never
     // name two parts. Reading the whole input here let a single answer of
@@ -398,9 +793,20 @@ function tryMatchParts(given, allParts, alreadyMatched, front, trackLenient = tr
     const leftoverWords = normalize(tokens.filter((_, i) => !tokenUsed[i]).join(" "))
         .split(" ")
         .filter((w) => w.length > 0);
-    matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched, given, front, trackLenient);
+    matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched);
 
     return newlyMatched;
+}
+
+// The strict near miss among an answer's tokens, if any: which part it was
+// close to, and what was off.
+function partNudge(given, remaining, checking) {
+    if (!checking.strict) return null;
+    for (const token of splitAnswerTokens(given)) {
+        const { nudge } = matchAnswer(token, remaining, checking);
+        if (nudge) return { ...nudge, given: token };
+    }
+    return null;
 }
 
 function buildAcceptedFeedback(answerText, practiceAgain, plural = false) {
@@ -412,6 +818,99 @@ function buildAcceptedFeedback(answerText, practiceAgain, plural = false) {
 function buildRevealFeedback(answerText, plural = false) {
     const intro = plural ? "Op de kaart staan:" : "Op de kaart staat:";
     return `${intro} ${answerText}.`;
+}
+
+// ---------- Per-question answer state ----------
+//
+// Kept beside the question objects rather than on them: questions are stored
+// in the history and compared as JSON to find recent mistakes, so per-session
+// scratch data must not leak into them.
+
+// Checking settings of each question's own deck, resolved once per session.
+const questionChecking = new WeakMap();
+// Questions whose hint was opened while answering.
+const hintUsedQuestions = new WeakSet();
+// Multi-part near misses seen while answering: [{ given, expected }].
+const answerPairs = new WeakMap();
+
+function checkingFor(q) {
+    if (questionChecking.has(q)) return questionChecking.get(q);
+    const deck = getDeck(q.historySource?.id || q.deckId || selectedDeckId || "");
+    return deck ? answerChecking(readPractice(deck)) : LENIENT;
+}
+
+function noteHintUsed(q) {
+    hintUsedQuestions.add(q);
+}
+
+function noteAnswerPair(q, given, expected) {
+    const pairs = (answerPairs.get(q) || []).filter((pair) => pair.expected !== expected);
+    pairs.push({ given, expected });
+    answerPairs.set(q, pairs);
+}
+
+function expectedCandidates(q) {
+    switch (q.kind) {
+        case "two-sided":
+            return [q.back];
+        case "image":
+            return q.parts?.length > 1 ? q.parts : [q.back];
+        case "fill-in":
+            return (q.blankIndices || [q.index]).map((i) => q.allCards[i]);
+        default:
+            return [];
+    }
+}
+
+// Which typed answer and expected text an outcome should show compared: the
+// accepted answer when it was only nearly right, otherwise the last try that
+// missed. A child who corrected themselves still sees what the slip was.
+function outcomeAnswerPairs(q, outcome, checking) {
+    if (q.kind === "multi-part") return [...(answerPairs.get(q) || [])];
+    const givens = (outcome.givens || [outcome.given]).filter((g) => typeof g === "string" && g.trim());
+    const given = outcome.correct && outcome.exact !== false ? givens.at(-2) : givens.at(-1);
+    if (!given) return [];
+    const expected = closestExpected(given, expectedCandidates(q), checking);
+    if (!expected || analyzeAnswer(given, expected, checking).exact) return [];
+    return [{ given, expected }];
+}
+
+function outcomeDetailHtml(outcome) {
+    const q = outcome.question || {};
+    // Sessions saved before answers were compared were all checked leniently.
+    const check = outcome.check || { checking: LENIENT, pairs: outcomeAnswerPairs(q, outcome, LENIENT) };
+    const checking = { ...LENIENT, ...check.checking };
+    const diffs = (check.pairs || [])
+        .map(({ given, expected }) => answerDiffHtml(given, expected, checking, { compact: true }))
+        .join("");
+    const notes = [];
+    if (q.kind !== "multi-part" && outcome.givens) {
+        const shown = new Set((check.pairs || []).map((pair) => pair.given));
+        const final = outcome.correct ? outcome.givens.at(-1) : null;
+        const earlier = outcome.givens.filter((g) => typeof g === "string" && g !== final && !shown.has(g));
+        if (earlier.length > 0) {
+            notes.push(
+                `<span class="fc-outcome-note">eerder: ${earlier.map((g) => `<s>${escapeHtml(g)}</s>`).join(", ")}</span>`,
+            );
+        }
+    }
+    if (outcome.correct && outcome.exact !== false && outcome.attempts > 0) {
+        notes.push(`<span class="fc-outcome-note fc-outcome-fixed">daarna zelf verbeterd ✓</span>`);
+    }
+    if (check.hintUsed) notes.push(`<span class="fc-outcome-note">💡 hint gebruikt</span>`);
+    if (!diffs && notes.length === 0) return "";
+    return `<div class="fc-outcome-detail">${diffs}${notes.length > 0 ? `<p class="fc-outcome-notes">${notes.join("")}</p>` : ""}</div>`;
+}
+
+// The comparison under a review card: what was typed against the answer it
+// was closest to.
+function reviewDiffHtml(q, given) {
+    const checking = checkingFor(q);
+    if (q.kind === "multi-part") {
+        return (answerPairs.get(q) || []).map((pair) => answerDiffHtml(pair.given, pair.expected, checking)).join("");
+    }
+    if (typeof given !== "string" || !given.trim()) return "";
+    return answerDiffHtml(given, closestExpected(given, expectedCandidates(q), checking), checking);
 }
 
 // ---------- Storage ----------
@@ -476,6 +975,9 @@ function currentPractice(deck) {
             timeMode: form.querySelector("#time-mode")?.checked || false,
             deadlineOn: form.querySelector("#deadline-on")?.checked || false,
             deadlineSeconds: Number(form.querySelector("#deadline-seconds")?.value),
+            // Without the options on screen (a deck with no cards yet), keep
+            // the deck's own checking settings rather than resetting them.
+            ...(form.querySelector("#fc-strict") ? readCheckingConfig(form) : storedCheckingConfig(deck)),
         },
         deck,
     );
@@ -502,6 +1004,7 @@ function restoreDeckPractice() {
         const field = document.getElementById(id);
         if (field) field.checked = checked;
     }
+    restoreCheckingOptions(config);
     const seconds = document.getElementById("deadline-seconds");
     if (seconds) seconds.value = String(config.deadlineSeconds);
     const section = document.getElementById("deadline-section");
@@ -994,12 +1497,14 @@ function renderList() {
         html += `<p class="fc-selection-count" role="status">${count} deck${count === 1 ? "" : "s"} geselecteerd</p>`;
     }
 
-    // For a selected one-sided deck, show fill-in mode options.
+    // For a selected one-sided deck, show fill-in mode options; every
+    // selected deck shows how its answers are checked.
     if (!multiDeckMode && selectedDeckId) {
         const sel = getDeck(selectedDeckId);
         if (sel && sel.cards.length > 0 && deckMode(sel) === "one-sided") {
             html += renderModeOptionsHtml(sel);
         }
+        if (sel && sel.cards.length > 0) html += renderCheckingOptionsHtml(sel);
     }
 
     // Sync history section so it shows the selected deck's sessions.
@@ -1036,6 +1541,7 @@ function renderList() {
 
     // Wire up the count input enable/disable based on which radio is selected.
     wireModeOptions();
+    managerRoot.querySelector("#fc-strict")?.addEventListener("change", syncCheckingOptions);
     restoreDeckPractice();
 
     // Tell homework.js to refresh the history panel for the newly-selected deck.
@@ -1412,6 +1918,94 @@ function renderModeOptionsHtml(deck) {
         </div>`;
 }
 
+const STRICT_RULE_LABELS = [
+    ["accents", "accenten", "é is niet hetzelfde als e"],
+    ["capitals", "hoofdletters", "in zinnen"],
+    ["punctuation", "leestekens", "in zinnen, zoals . ? !"],
+    ["spelling", "spelling", "geen typfouten"],
+];
+
+const CHECKING_HELP = {
+    lenient: "Soepel: hoofdletters, accenten en leestekens tellen niet mee. Een kleine typfout is ‘bijna goed’.",
+    strict: "Streng, zoals op een toets: ‘bijna goed’ telt als fout. Kies wat juist moet zijn.",
+};
+
+// How answers are checked. Strict checking is a switch with the rules it
+// enforces nested under it; the lenient-only and hint options sit beside it.
+// Everything that counts as a mistake comes back in "oefen fouten opnieuw".
+function renderCheckingOptionsHtml(deck) {
+    const hasHints = deck.cards.some((card) => card.hint || card.hintReverse);
+    const rules = STRICT_RULE_LABELS.map(
+        ([rule, label, note]) => `
+            <label class="fc-check-row">
+                <input type="checkbox" name="fc-strict-rule" value="${rule}" checked>
+                <span>${label} <span class="fc-check-note">(${note})</span></span>
+            </label>`,
+    ).join("");
+    return `
+        <fieldset class="fc-checking" id="fc-checking">
+            <legend>Nakijken</legend>
+            <label class="fc-switch">
+                <input type="checkbox" role="switch" id="fc-strict" class="fc-switch-input visually-hidden"
+                    aria-describedby="fc-checking-help">
+                <span class="fc-switch-track" aria-hidden="true"><span class="fc-switch-thumb"></span></span>
+                <span class="fc-switch-label">Streng nakijken</span>
+            </label>
+            <p class="field-hint" id="fc-checking-help">${CHECKING_HELP.lenient}</p>
+            <div class="nested-options" id="fc-strict-rules" hidden>
+                ${rules}
+                <p class="field-hint">Een zin eindigt op . ? of !. Bij losse woorden tellen hoofdletters en leestekens niet mee.</p>
+            </div>
+            <div class="nested-options" id="fc-lenient-options">
+                <label class="fc-check-row">
+                    <input type="checkbox" id="fc-near-miss-mistake">
+                    <span>‘bijna goed’ telt als fout</span>
+                </label>
+            </div>
+            <label class="fc-check-row" id="fc-hint-mistake-row"${hasHints ? "" : " hidden"}>
+                <input type="checkbox" id="fc-hint-mistake">
+                <span>hint gebruikt telt als fout</span>
+            </label>
+            <p class="field-hint">Wat als fout telt, komt terug bij ‘oefen fouten opnieuw’.</p>
+        </fieldset>`;
+}
+
+function syncCheckingOptions() {
+    const strict = !!managerRoot?.querySelector("#fc-strict")?.checked;
+    const rules = managerRoot?.querySelector("#fc-strict-rules");
+    const lenient = managerRoot?.querySelector("#fc-lenient-options");
+    const help = managerRoot?.querySelector("#fc-checking-help");
+    if (rules) rules.hidden = !strict;
+    if (lenient) lenient.hidden = strict;
+    if (help) help.textContent = strict ? CHECKING_HELP.strict : CHECKING_HELP.lenient;
+}
+
+function readCheckingConfig(form) {
+    return {
+        fcStrict: !!form.querySelector("#fc-strict")?.checked,
+        fcStrictRules: [...form.querySelectorAll("input[name='fc-strict-rule']:checked")].map((input) => input.value),
+        fcNearMissIsMistake: !!form.querySelector("#fc-near-miss-mistake")?.checked,
+        fcHintIsMistake: !!form.querySelector("#fc-hint-mistake")?.checked,
+    };
+}
+
+function storedCheckingConfig(deck) {
+    const { fcStrict, fcStrictRules, fcNearMissIsMistake, fcHintIsMistake } = practiceConfig(deck, readPractice(deck));
+    return { fcStrict, fcStrictRules, fcNearMissIsMistake, fcHintIsMistake };
+}
+
+function restoreCheckingOptions(config) {
+    const strict = managerRoot.querySelector("#fc-strict");
+    if (!strict) return;
+    strict.checked = config.fcStrict;
+    for (const input of managerRoot.querySelectorAll("input[name='fc-strict-rule']")) {
+        input.checked = config.fcStrictRules.includes(input.value);
+    }
+    managerRoot.querySelector("#fc-near-miss-mistake").checked = config.fcNearMissIsMistake;
+    managerRoot.querySelector("#fc-hint-mistake").checked = config.fcHintIsMistake;
+    syncCheckingOptions();
+}
+
 function wireModeOptions() {
     const allRadio = managerRoot.querySelector("input[name='fc-mode'][value='all']");
     const partialRadio = managerRoot.querySelector("input[name='fc-mode'][value='partial']");
@@ -1659,9 +2253,11 @@ function hintToggleHtml(hint) {
     return `<button type="button" class="fc-hint-chip"><span class="fc-hint-q">?</span><span class="fc-hint-body"><span class="fc-hint-text">${escapeHtml(hint)}</span></span></button>`;
 }
 
-function wireHintToggle(root) {
+// Opening the hint is remembered per question: a deck can count it as a
+// mistake, and the result shows it either way.
+function wireHintToggle(root, q) {
     root.querySelector(".fc-hint-chip")?.addEventListener("click", (e) => {
-        e.currentTarget.classList.toggle("open");
+        if (e.currentTarget.classList.toggle("open")) noteHintUsed(q);
     });
 }
 
@@ -2384,7 +2980,8 @@ function renderMultiPartQuestion(q, root, mode) {
                     <div class="mp-parts-list">${partsHtml}</div>
                     <p class="mp-required-label">${matched.size}/${partsRequired} gevonden</p>
                 </div>
-            </div>`;
+            </div>
+            ${reviewDiffHtml(q)}`;
         return;
     }
 
@@ -2426,7 +3023,7 @@ function renderMultiPartQuestion(q, root, mode) {
             </details>
         </div>`;
 
-    wireHintToggle(root);
+    wireHintToggle(root, q);
 
     const input = root.querySelector("#answer");
     input?.focus();
@@ -2567,6 +3164,7 @@ function renderFlashQuestion(q, root, mode) {
         case "fill-in":
             if (mode.kind === "review") {
                 renderFillInReview(q, root);
+                root.insertAdjacentHTML("beforeend", reviewDiffHtml(q, mode.given));
                 return;
             }
             return renderFillInQuestion(q, root);
@@ -2592,7 +3190,8 @@ function renderFlashQuestion(q, root, mode) {
                             <span class="flash-side-label">antwoord</span>
                             ${backBodyHtml}
                         </div>
-                    </div>`;
+                    </div>
+                    ${reviewDiffHtml(q, mode.given)}`;
                 return;
             }
             root.innerHTML = `
@@ -2612,7 +3211,7 @@ function renderFlashQuestion(q, root, mode) {
                 checkBtn.hidden = false;
                 checkBtn.textContent = "👉 antwoord";
             }
-            wireHintToggle(root);
+            wireHintToggle(root, q);
             // If not cached yet, retry once the load completes in the background.
             if (!imgSrc) {
                 wmLoad(q.wikimedia)
@@ -2640,7 +3239,8 @@ function renderFlashQuestion(q, root, mode) {
                             <span class="flash-side-label">${answerLabel}</span>
                             <p class="flash-text">${escapeHtml(q.back)}</p>
                         </div>
-                    </div>`;
+                    </div>
+                    ${reviewDiffHtml(q, mode.given)}`;
                 return;
             }
             root.innerHTML = `
@@ -2651,7 +3251,7 @@ function renderFlashQuestion(q, root, mode) {
                         placeholder="jouw antwoord…" aria-label="jouw antwoord">
                 </div>`;
             if (checkBtn) checkBtn.textContent = "👉 antwoord";
-            wireHintToggle(root);
+            wireHintToggle(root, q);
             const input = root.querySelector("#answer");
             return () => input.value;
         }
@@ -2694,6 +3294,13 @@ function buildCombinedQuestions(decks) {
 // The framework shuffles retries, including ones restored from history. Regroup
 // grids and reveal the blanks that weren't selected for this retry.
 function preparePracticeDeck(questions, mode) {
+    // Every question is checked by its own deck's current settings — also a
+    // retry restored from history, or a card in a mix of decks.
+    const decks = new Map(loadDecks().map((deck) => [deck.id, deck]));
+    for (const q of questions) {
+        const deck = decks.get(q.historySource?.id || q.deckId || selectedDeckId);
+        questionChecking.set(q, deck ? answerChecking(readPractice(deck)) : LENIENT);
+    }
     const groups = groupQuestions(questions);
     for (const group of groups) {
         const q = group[0];
@@ -2741,6 +3348,95 @@ function validateDeckConfig(deck, cfg) {
         }
     }
     return null;
+}
+
+// ---------- Answer evaluation ----------
+
+function nudgeResult(given, nudge, checking) {
+    return {
+        correct: false,
+        feedback: nudgeText(nudge.kinds),
+        feedbackHtml: attemptHtml(given, nudge.expected, checking),
+    };
+}
+
+// An answer checked against every accepted answer of a card. `answerText` is
+// what the card shows as its answer.
+function singleAnswerResult(given, candidates, checking, answerText) {
+    const { match, nudge } = matchAnswer(given, candidates, checking);
+    if (!match) return nudge ? nudgeResult(given, nudge, checking) : { correct: false };
+    return {
+        correct: true,
+        exact: match.exact,
+        showReview: !match.exact,
+        practiceAgain: match.practiceAgain,
+        feedback: match.exact ? undefined : buildAcceptedFeedback(answerText, match.practiceAgain),
+    };
+}
+
+function evaluateFillIn(q, given, checking) {
+    const state = fillInState(q);
+    // Order-independent: the answer may fill any blank that is still open.
+    const open = state.blankIndices.filter((idx) => !(idx in state.results));
+    const { match, expected, nudge } = matchAnswer(
+        given,
+        open.map((idx) => q.allCards[idx]),
+        checking,
+    );
+    // Keep the same blank open while the framework allows another attempt;
+    // the review renderer marks it wrong only when done.
+    if (!match) return nudge ? nudgeResult(given, nudge, checking) : { correct: false };
+    const idx = open.find((i) => q.allCards[i] === expected);
+    q.index = idx;
+    q.front = expected;
+    state.results[idx] = true;
+    state.lastResolved = idx;
+    return {
+        correct: true,
+        exact: match.exact,
+        showReview: !match.exact,
+        practiceAgain: match.practiceAgain,
+        feedback: match.exact ? undefined : buildAcceptedFeedback(expected, match.practiceAgain),
+    };
+}
+
+function evaluateMultiPart(q, given, checking) {
+    const { allParts, partialMode } = q;
+    const newlyMatched = tryMatchParts(given, allParts, q.matched, checking);
+    if (newlyMatched.length === 0) {
+        const nudge = partNudge(
+            given,
+            allParts.filter((part) => !q.matched.has(part)),
+            checking,
+        );
+        if (!nudge) return { correct: false };
+        noteAnswerPair(q, nudge.given, nudge.expected);
+        return nudgeResult(nudge.given, nudge, checking);
+    }
+
+    for (const match of newlyMatched) {
+        q.matched.add(match.part);
+        if (!match.exact && !partialMode) noteAnswerPair(q, match.given, match.part);
+    }
+    const exactThisStep = partialMode || newlyMatched.every((match) => match.exact);
+    if (!partialMode && !exactThisStep) q.revealAtEnd = true;
+    if (!partialMode && newlyMatched.some((match) => match.practiceAgain)) q.revealPracticeAgain = true;
+
+    if (q.matched.size < q.partsRequired) return { partialCorrect: true };
+
+    const showReview = !partialMode && q.revealAtEnd && !q.revealShown;
+    if (showReview) q.revealShown = true;
+    return {
+        correct: true,
+        exact: partialMode || !q.revealAtEnd,
+        showReview,
+        // Any step that was only nearly right sends the whole card back, not
+        // just the step that completed it.
+        practiceAgain: q.revealPracticeAgain,
+        feedback: showReview
+            ? buildAcceptedFeedback(allParts.join(" / "), q.revealPracticeAgain, allParts.length > 1)
+            : undefined,
+    };
 }
 
 // ---------- Exercise spec ----------
@@ -2823,6 +3519,8 @@ runExercise({
             q.revealShown = false;
             q._lastSeenMatchedSize = 0;
         }
+        hintUsedQuestions.delete(q);
+        answerPairs.delete(q);
     },
 
     renderQuestion(q, root, mode) {
@@ -2836,106 +3534,39 @@ runExercise({
         return answer;
     },
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: answer-evaluation fan-out with per-kind match logic
     evaluateAnswer(q, given) {
+        const checking = checkingFor(q);
         switch (q.kind) {
-            case "multi-part": {
-                const { allParts, partialMode } = q;
-                const newlyMatched = tryMatchParts(given, allParts, q.matched, q.front, !partialMode);
-                if (newlyMatched.length === 0) return { correct: false };
-
-                for (const match of newlyMatched) q.matched.add(match.part);
-                const exactThisStep = partialMode || newlyMatched.every((match) => match.exact);
-                const practiceAgainThisStep = !partialMode && newlyMatched.some((match) => match.practiceAgain);
-                if (!partialMode && !exactThisStep) q.revealAtEnd = true;
-                if (practiceAgainThisStep) q.revealPracticeAgain = true;
-
-                if (q.matched.size < q.partsRequired) return { partialCorrect: true };
-
-                const showReview = !partialMode && q.revealAtEnd && !q.revealShown;
-                if (showReview) q.revealShown = true;
-                return {
-                    correct: true,
-                    exact: partialMode || !q.revealAtEnd,
-                    showReview,
-                    practiceAgain: practiceAgainThisStep,
-                    feedback: showReview
-                        ? buildAcceptedFeedback(allParts.join(" / "), q.revealPracticeAgain, allParts.length > 1)
-                        : undefined,
-                };
-            }
-            case "fill-in": {
-                const state = fillInState(q);
-                const fillInResults = state.results;
-                // Order-independent: accept if the answer matches any remaining unmatched blank.
-                for (const idx of state.blankIndices) {
-                    if (idx in fillInResults) continue;
-                    const match = matchAndTrackLenient(given, q.allCards[idx], q.allCards.join(" … "));
-                    if (match) {
-                        q.index = idx;
-                        q.front = q.allCards[idx];
-                        fillInResults[idx] = true;
-                        state.lastResolved = idx;
-                        return {
-                            correct: true,
-                            exact: match.exact,
-                            showReview: !match.exact,
-                            practiceAgain: match.practiceAgain,
-                            feedback: match.exact
-                                ? undefined
-                                : buildAcceptedFeedback(q.allCards[idx], match.practiceAgain),
-                        };
-                    }
-                }
-                // Keep the same blank open while the framework allows another
-                // attempt; the review renderer marks it wrong only when done.
-                return { correct: false };
-            }
-            case "image": {
-                if (q.parts && q.parts.length > 1) {
-                    for (const part of q.parts) {
-                        const match = matchAndTrackLenient(given, part, q.wikimedia);
-                        if (match) {
-                            return {
-                                correct: true,
-                                exact: match.exact,
-                                showReview: !match.exact,
-                                practiceAgain: match.practiceAgain,
-                                feedback: match.exact
-                                    ? undefined
-                                    : buildAcceptedFeedback(q.parts.join(" / "), match.practiceAgain),
-                            };
-                        }
-                    }
-                    return { correct: false };
-                }
-                const match = matchAndTrackLenient(given, q.back, q.wikimedia);
-                return match
-                    ? {
-                          correct: true,
-                          exact: match.exact,
-                          showReview: !match.exact,
-                          practiceAgain: match.practiceAgain,
-                          feedback: match.exact ? undefined : buildAcceptedFeedback(q.back, match.practiceAgain),
-                      }
-                    : { correct: false };
-            }
-            case "two-sided": {
-                const match = matchAndTrackLenient(given, q.back, q.front);
-                return match
-                    ? {
-                          correct: true,
-                          exact: match.exact,
-                          showReview: !match.exact,
-                          practiceAgain: match.practiceAgain,
-                          feedback: match.exact ? undefined : buildAcceptedFeedback(q.back, match.practiceAgain),
-                      }
-                    : { correct: false };
-            }
+            case "multi-part":
+                return evaluateMultiPart(q, given, checking);
+            case "fill-in":
+                return evaluateFillIn(q, given, checking);
+            case "image":
+                return q.parts && q.parts.length > 1
+                    ? singleAnswerResult(given, q.parts, checking, q.parts.join(" / "))
+                    : singleAnswerResult(given, [q.back], checking, q.back);
+            case "two-sided":
+                return singleAnswerResult(given, [q.back], checking, q.back);
             default:
                 throw new Error(`Unknown card kind: ${q.kind}`);
         }
     },
+
+    // Snapshot how the answer was checked, so the result and the history can
+    // show — also much later — what was typed against what was expected.
+    annotateOutcome(outcome) {
+        const q = outcome.question;
+        const checking = checkingFor(q);
+        outcome.check = { checking, pairs: outcomeAnswerPairs(q, outcome, checking) };
+        if (!hintUsedQuestions.has(q)) return;
+        outcome.check.hintUsed = true;
+        if (checking.hintIsMistake && outcome.correct && !outcome.practiceAgain) {
+            outcome.practiceAgain = true;
+            outcome.practiceLabel = "hint gebruikt · opnieuw oefenen";
+        }
+    },
+
+    renderOutcomeDetail: outcomeDetailHtml,
 
     evaluateSkip(q) {
         if (q.kind === "two-sided" || q.kind === "image") {
@@ -3027,7 +3658,7 @@ function showCardWave(cards) {
     setTimeout(dismiss, totalMs);
 }
 
-// ---------- Lenient-match / perfect-score hooks ----------
+// ---------- Perfect-score hook ----------
 //
 // Listen for the framework's structured session-finished event instead of
 // observing page-result attributes — the previous MutationObserver had to
@@ -3040,7 +3671,6 @@ document.addEventListener("homework:session-finished", (e) => {
     // The flashcards spec namespaces its id per deck (`flashcards-<deckId>`),
     // so check the prefix rather than an exact match.
     if (!exerciseId?.startsWith("flashcards")) return;
-    if (lenientMatches.length > 0) appendLenientSection(lenientMatches.splice(0));
     const deck = selectedDeckId ? getDeck(selectedDeckId) : null;
     if (!multiDeckMode && deck && deckMode(deck) === "one-sided" && correct > 0 && correct === total) {
         // Defer briefly so the result page is fully rendered before the
@@ -3051,17 +3681,6 @@ document.addEventListener("homework:session-finished", (e) => {
         }, 0);
     }
 });
-
-// Clear any pending lenient-match buffer when a new play session starts;
-// detect via the framework's show() transitions by observing page-exercises
-// hidden flipping false. This stays a MutationObserver because no event
-// is emitted for "play started" yet.
-const pageExercisesEl = document.getElementById("page-exercises");
-if (pageExercisesEl) {
-    new MutationObserver(() => {
-        if (!pageExercisesEl.hidden) lenientMatches.length = 0;
-    }).observe(pageExercisesEl, { attributes: true, attributeFilter: ["hidden"] });
-}
 
 // Save changed setup preferences with the deck so export includes choices made
 // before starting a session, and an imported deck can restore them atomically.
