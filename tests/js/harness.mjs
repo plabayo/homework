@@ -101,6 +101,9 @@ const ctx = createContext({
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#39;"),
     refreshLeaveGuards: () => {},
+    pushPageView: () => {},
+    leavePageView: () => {},
+    isOwnHistoryStep: () => false,
     runExercise: (spec) => {
         exerciseSpec = spec;
     },
@@ -126,7 +129,6 @@ export const {
     fuzzyEqual,
     phraseCoverageMatch,
     analyzeAnswer,
-    isSentence,
     classifyAnswerMatch,
     matchAnswer,
     closestExpected,

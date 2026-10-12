@@ -437,7 +437,7 @@ fn checking() -> impl IntoHtml {
                 code!("ecouter"),
                 " fout als er ",
                 code!("écouter"),
-                " op de kaart staat. Bij een zin, die eindigt op . ? of !, tellen ook de hoofdletters en het leesteken."
+                " op de kaart staat. Ook hoofdletters en leestekens moeten zijn zoals op de kaart: staat er een punt, dan typt de leerling die ook."
             ),
             li!(
                 "Is een antwoord bijna goed, dan krijgt de leerling een tip, zoals ‘kijk nog eens naar het accent’, en mag die het zelf verbeteren. De kaart komt daarna terug bij fouten oefenen."
@@ -477,13 +477,10 @@ fn checking() -> impl IntoHtml {
             ),
             dl!(
                 default_row("accents", "é, è, ê en e zijn verschillende letters."),
-                default_row(
-                    "capitals",
-                    "Een zin moet dezelfde hoofdletters hebben als op de kaart. Bij losse woorden telt dit niet."
-                ),
+                default_row("capitals", "Hoofdletters zoals op de kaart."),
                 default_row(
                     "punctuation",
-                    "Een zin moet dezelfde leestekens hebben, zoals de punt of het vraagteken op het einde. Bij losse woorden telt dit niet."
+                    "Leestekens zoals op de kaart, zoals een punt of vraagteken op het einde."
                 ),
                 default_row(
                     "spelling",

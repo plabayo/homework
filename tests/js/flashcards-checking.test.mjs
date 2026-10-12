@@ -17,7 +17,6 @@ import {
     closestExpected,
     diffColumns,
     exerciseSpec,
-    isSentence,
     matchAnswer,
     noteHintUsed,
     nudgeText,
@@ -127,20 +126,20 @@ test("strict: a missing accent is a near miss with a pointed hint", () => {
     assert.equal(exact("écouter", "écouter", STRICT), true);
 });
 
-test("strict: capitals and punctuation count in sentences only", () => {
-    assert.equal(isSentence("Je m'appelle Marie."), true);
-    assert.equal(isSentence("Comment ça va ?"), true);
-    assert.equal(isSentence("« Oui ! »"), true);
-    assert.equal(isSentence("écouter"), false);
+test("strict: capitals and punctuation count exactly as the card writes them", () => {
     assert.equal(
         nudge("je m'appelle Marie", "Je m'appelle Marie."),
         "bijna! kijk nog eens naar de hoofdletter en het leesteken.",
     );
     assert.equal(nudge("Je m'appelle Marie", "Je m'appelle Marie."), "bijna! kijk nog eens naar het leesteken.");
     assert.equal(nudge("Je m'appelle marie.", "Je m'appelle Marie."), "bijna! kijk nog eens naar de hoofdletter.");
-    // A single word keeps ignoring case and punctuation.
-    assert.equal(exact("Écouter", "écouter", STRICT), true);
-    assert.equal(exact("chien", "Chien", STRICT), true);
+    // Single words too: a capital on the card is asked for, none means none.
+    assert.equal(nudge("chien", "Chien"), "bijna! kijk nog eens naar de hoofdletter.");
+    assert.equal(nudge("Écouter", "écouter"), "bijna! kijk nog eens naar de hoofdletter.");
+    assert.equal(nudge("oui non", "oui, non"), "bijna! kijk nog eens naar het leesteken.");
+    // Nothing on the card to type, nothing to type: an extra mark is off too.
+    assert.equal(nudge("écouter.", "écouter"), "bijna! kijk nog eens naar het leesteken.");
+    assert.equal(exact("écouter", "écouter", STRICT), true);
 });
 
 test("strict: everything at once is named in one hint", () => {
@@ -290,8 +289,13 @@ test("a nearly right word marks only what is off, consecutive letters as one str
 });
 
 test("a word that is mostly wrong is marked whole, not letter by letter", () => {
-    same(wordRows(answerDiffHtml("Elles aller", "elles vont", STRICT)), [
+    same(wordRows(answerDiffHtml("Elles aller", "elles vont", LENIENT)), [
         { kind: "same", g: "Elles", e: "elles" },
+        { kind: "replaced", g: mark("aller"), e: mark("vont") },
+    ]);
+    // Strict asks for the card's case: the capital is marked, the line still pairs up.
+    same(wordRows(answerDiffHtml("Elles aller", "elles vont", STRICT)), [
+        { kind: "near", g: `${mark("E")}lles`, e: `${mark("e")}lles` },
         { kind: "replaced", g: mark("aller"), e: mark("vont") },
     ]);
 });

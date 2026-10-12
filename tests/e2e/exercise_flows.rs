@@ -408,12 +408,26 @@ async fn exercise_browser_back_stop_saves_partial_session() -> TestResult<()> {
     .await?;
     click(driver, "#leave-leave").await?;
 
-    // Regression: choosing "Stop oefening" via browser-back must persist the
-    // partial session, not silently discard it.
-    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
-    click(driver, "a[data-exercise-id='multiplications']").await?;
-    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    // Back out of a session returns to the exercise's own setup screen, and
+    // choosing "Stop oefening" there must persist the partial session, not
+    // silently discard it.
+    wait_for_css(driver, "#page-setup:not([hidden])", Duration::from_secs(10)).await?;
     wait_for_css(driver, ".history-session", Duration::from_secs(10)).await?;
+    // The guard is free again for the next session.
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#answer", "999").await?;
+    click(driver, "#button-check").await?;
+    wait_for_css(driver, "#button-skip", Duration::from_secs(5)).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", Duration::from_secs(5)).await?;
+    driver.back().await?;
+    wait_for_css(
+        driver,
+        "dialog.leave-guard-dialog[open]",
+        Duration::from_secs(5),
+    )
+    .await?;
 
     driver.clone().quit().await?;
     Ok(())
@@ -469,7 +483,10 @@ async fn no_leave_guard_before_any_answer_back_button() -> TestResult<()> {
     wait_for_css(driver, "#exercise-content #answer", Duration::from_secs(10)).await?;
 
     // Navigate back without answering anything — no sentinel was pushed, so
-    // the browser back button should work without any dialog.
+    // Back returns to the setup screen without any dialog, and the next Back
+    // leaves the exercise.
+    driver.back().await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", Duration::from_secs(10)).await?;
     driver.back().await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 

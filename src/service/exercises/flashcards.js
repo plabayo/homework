@@ -15,7 +15,17 @@ import {
     storeImportedDeck,
 } from "@flashcards-data";
 
-import { clearLeaveGuard, escapeHtml, refreshLeaveGuards, runExercise, setLeaveGuard, shuffle } from "@homework";
+import {
+    clearLeaveGuard,
+    escapeHtml,
+    isOwnHistoryStep,
+    leavePageView,
+    pushPageView,
+    refreshLeaveGuards,
+    runExercise,
+    setLeaveGuard,
+    shuffle,
+} from "@homework";
 
 // ---------- Fuzzy matching ----------
 
@@ -245,7 +255,7 @@ function phraseCoverageMatch(given, expected) {
 // only the differences a deck's checking settings care about survive.
 // Lenient ("soepel") checking folds case, accents and punctuation away and
 // accepts a small typo as "bijna goed". Strict ("streng") checking keeps what
-// its rules demand — accents, plus capitals and punctuation in sentences — and
+// its rules demand — accents, and capitals and punctuation as on the card — and
 // rejects a near miss with a pointed hint, so the child fixes it themselves.
 
 const LENIENT = answerChecking();
@@ -301,16 +311,6 @@ function answerUnits(text) {
         .trim()
         .normalize("NFC");
     return graphemes ? Array.from(graphemes.segment(s), (part) => part.segment) : Array.from(s);
-}
-
-// Sentences end in . ! ? or …, optionally inside a closing quote or bracket
-// (with the French space before it).
-function isSentence(text) {
-    return /[.!?…][\s"'»”’)\]]*$/u.test(
-        String(text ?? "")
-            .replace(EMOJI, "")
-            .trim(),
-    );
 }
 
 function isPunctuationKey(key) {
@@ -432,7 +432,9 @@ function differenceKinds(a, b, numeric) {
             const sameLetters = a.normalize("NFKD").replace(MARKS, "") === b.normalize("NFKD").replace(MARKS, "");
             return sameLetters ? ["accent"] : ["accent", "capital"];
         }
-        return PUNCTUATION.has(a) && PUNCTUATION.has(b) ? ["punctuation"] : ["spelling"];
+        // A space where the card has a comma is a punctuation mark left out.
+        const marks = [a, b].filter((ch) => PUNCTUATION.has(ch)).length;
+        return marks === 2 || (marks === 1 && (a === " " || b === " ")) ? ["punctuation"] : ["spelling"];
     }
     return PUNCTUATION.has(a ?? b) ? ["punctuation"] : ["spelling"];
 }
@@ -442,14 +444,8 @@ function differenceKinds(a, b, numeric) {
 // rules care about, and at most a typo or two (1 for short words, up to 3 for
 // long ones; very short words must be spelled exactly).
 function analyzeAnswer(given, expected, checking = LENIENT) {
-    const sentence = isSentence(expected);
-    const rules = {
-        accents: checking.accents,
-        capitals: checking.capitals && sentence,
-        punctuation: checking.punctuation && sentence,
-    };
-    const g = answerKeys(given, rules);
-    const e = answerKeys(expected, rules);
+    const g = answerKeys(given, checking);
+    const e = answerKeys(expected, checking);
     const gChars = keyChars(g.keys);
     const eChars = keyChars(e.keys);
     const kinds = { accent: 0, capital: 0, punctuation: 0, spelling: 0, number: 0 };
@@ -470,6 +466,9 @@ function analyzeAnswer(given, expected, checking = LENIENT) {
 
     const ops = alignChars(gChars, eChars);
     let same = 0;
+    // The same letter with another accent or case still lines up the answer:
+    // it counts towards `similarity`, which only decides how a diff is drawn.
+    let alike = 0;
     for (const op of ops) {
         if (op.type === "eq") {
             same++;
@@ -477,6 +476,7 @@ function analyzeAnswer(given, expected, checking = LENIENT) {
         }
         const gc = gChars[op.g];
         const ec = eChars[op.e];
+        if (gc && ec && baseLetter(gc.ch) === baseLetter(ec.ch)) alike++;
         const numeric = (gc && g.numeric.has(gc.unit)) || (ec && e.numeric.has(ec.unit));
         for (const kind of differenceKinds(gc?.ch, ec?.ch, numeric)) kinds[kind]++;
     }
@@ -487,7 +487,7 @@ function analyzeAnswer(given, expected, checking = LENIENT) {
         near: gChars.length > 0 && kinds.number === 0 && kinds.spelling <= tolerance,
         ops,
         edits: ops.length - same,
-        similarity: same / length,
+        similarity: (same + alike) / length,
     };
 }
 
@@ -1143,7 +1143,8 @@ function currentPractice(deck) {
             deadlineSeconds: Number(form.querySelector("#deadline-seconds")?.value),
             // Without the options on screen (a deck with no cards yet), keep
             // the deck's own checking settings rather than resetting them.
-            ...(form.querySelector("#fc-strict") ? readCheckingConfig(form) : storedCheckingConfig(deck)),
+            // How answers are checked is part of the deck, set in its editor.
+            ...storedCheckingConfig(deck),
         },
         deck,
     );
@@ -1170,7 +1171,6 @@ function restoreDeckPractice() {
         const field = document.getElementById(id);
         if (field) field.checked = checked;
     }
-    restoreCheckingOptions(config);
     const seconds = document.getElementById("deadline-seconds");
     if (seconds) seconds.value = String(config.deadlineSeconds);
     const section = document.getElementById("deadline-section");
@@ -1551,8 +1551,11 @@ function updateEditorLeaveGuard() {
         onChoice(choice) {
             if (choice === "discard") return true;
             if (choice !== "save") return false;
-            saveDeckFromEditor(editorState?.mode === "edit" ? editorState.id : null);
-            return !managerRoot?.querySelector(".deck-editor");
+            if (!saveDeckFromEditor(editorState?.mode === "edit" ? editorState.id : null)) return false;
+            // The guard itself goes on to where the user was heading.
+            editorState = null;
+            renderManager();
+            return true;
         },
     });
     refreshLeaveGuards();
@@ -1606,6 +1609,66 @@ function toggleMultiDeckMode() {
     document.getElementById("fc-toggle-multiple")?.focus();
     preloadSelection();
 }
+
+// ---------- Editor and card viewer in history ----------
+//
+// The deck editor (#edit-<deck id>, #new) and the card viewer (#kaarten) are
+// views of their own: opening one adds a history entry, so the browser's Back
+// returns to the deck list instead of leaving flashcards — after asking first
+// when the editor has unsaved changes (the leave guard).
+
+const CARD_VIEWER_HASH = "#kaarten";
+
+function editorHash(state) {
+    return state.mode === "edit" ? `#edit-${encodeURIComponent(state.id)}` : "#new";
+}
+
+// The editor an address asks for, if that deck exists.
+function editorRouteFromHash(hash = location.hash) {
+    if (hash === "#new") return { mode: "new" };
+    if (!hash.startsWith("#edit-")) return null;
+    const id = decodeURIComponent(hash.slice("#edit-".length));
+    return getDeck(id) ? { mode: "edit", id } : null;
+}
+
+function openEditor(next) {
+    const hash = editorHash(next);
+    if (location.hash !== hash) pushPageView(hash);
+    editorState = next;
+    renderManager();
+}
+
+// Save or Cancel: back to the deck list, over the editor's history entry.
+function closeEditor() {
+    leavePageView();
+    editorState = null;
+    renderManager();
+}
+
+// Back and Forward into and out of the editor and the card viewer.
+function followEditorHistory() {
+    if (isOwnHistoryStep()) return;
+    const route = editorRouteFromHash();
+    if (route) {
+        if (editorState?.mode !== route.mode || editorState?.id !== route.id) {
+            stopReviewSession();
+            editorState = route;
+            renderManager();
+        }
+        return;
+    }
+    if (location.hash === CARD_VIEWER_HASH) {
+        if (!reviewState.active) void startReviewSession({ fromHistory: true });
+        return;
+    }
+    if (editorState) {
+        editorState = null;
+        renderManager();
+    }
+    stopReviewSession();
+}
+
+window.addEventListener("popstate", followEditorHistory);
 
 // ---------- Deck list view ----------
 
@@ -1671,7 +1734,6 @@ function renderList() {
         if (sel && sel.cards.length > 0 && deckMode(sel) === "one-sided") {
             html += renderModeOptionsHtml(sel);
         }
-        if (sel && sel.cards.length > 0) html += renderCheckingOptionsHtml(sel);
     }
 
     // Sync history section so it shows the selected deck's sessions.
@@ -1699,16 +1761,12 @@ function renderList() {
     managerRoot.querySelectorAll("[data-action]").forEach((el) => {
         el.addEventListener("click", handleDeckAction);
     });
-    managerRoot.querySelector("#fc-new-deck")?.addEventListener("click", () => {
-        editorState = { mode: "new" };
-        renderManager();
-    });
+    managerRoot.querySelector("#fc-new-deck")?.addEventListener("click", () => openEditor({ mode: "new" }));
 
     managerRoot.querySelector("#fc-toggle-multiple")?.addEventListener("click", toggleMultiDeckMode);
 
     // Wire up the count input enable/disable based on which radio is selected.
     wireModeOptions();
-    managerRoot.querySelector("#fc-strict")?.addEventListener("change", syncCheckingOptions);
     restoreDeckPractice();
 
     // Tell homework.js to refresh the history panel for the newly-selected deck.
@@ -1996,9 +2054,10 @@ function stopReviewSession({ keepPage = false } = {}) {
     syncReviewLaunchButton();
 }
 
-async function startReviewSession() {
+async function startReviewSession({ fromHistory = false } = {}) {
     const decks = selectedDecks();
     if (!decks.some((deck) => deck.cards.length > 0)) return;
+    if (!fromHistory && location.hash !== CARD_VIEWER_HASH) pushPageView(CARD_VIEWER_HASH);
     stopReviewSession({ keepPage: true });
     reviewState.active = true;
     reviewState.deckId = decks[0].id;
@@ -2087,8 +2146,8 @@ function renderModeOptionsHtml(deck) {
 
 const STRICT_RULE_LABELS = [
     ["accents", "accenten", "é is niet hetzelfde als e"],
-    ["capitals", "hoofdletters", "in zinnen"],
-    ["punctuation", "leestekens", "in zinnen, zoals . ? !"],
+    ["capitals", "hoofdletters", "zoals op de kaart"],
+    ["punctuation", "leestekens", "zoals . ? ! op de kaart"],
     ["spelling", "spelling", "geen typfouten"],
 ];
 
@@ -2097,20 +2156,22 @@ const CHECKING_HELP = {
     strict: "Streng, zoals op een toets: ‘bijna goed’ telt als fout. Kies wat juist moet zijn.",
 };
 
-// How answers are checked. Strict checking is a switch with the rules it
-// enforces nested under it; the lenient-only and hint options sit beside it.
-// Everything that counts as a mistake comes back in "oefen fouten opnieuw".
-// The setup screen and the deck editor show the same controls: only one of
-// them is ever on screen, so they share their ids.
-function checkingControlsHtml(hasHints) {
+// How answers are checked is a setting of the deck, so it lives in the deck
+// editor. Strict checking is a switch with the rules it enforces nested under
+// it; the lenient-only and hint options sit beside it. Everything that counts
+// as a mistake comes back in "oefen fouten opnieuw".
+function editorCheckingHtml(deck) {
+    const hasHints = deck.cards.some((card) => card.hint || card.hintReverse);
     const rules = STRICT_RULE_LABELS.map(
         ([rule, label, note]) => `
-            <label class="fc-check-row">
-                <input type="checkbox" name="fc-strict-rule" value="${rule}" checked>
-                <span>${label} <span class="fc-check-note">(${note})</span></span>
-            </label>`,
+                <label class="fc-check-row">
+                    <input type="checkbox" name="fc-strict-rule" value="${rule}" checked>
+                    <span>${label} <span class="fc-check-note">(${note})</span></span>
+                </label>`,
     ).join("");
     return `
+        <fieldset class="fc-editor-fieldset fc-checking" id="fc-checking">
+            <legend>Nakijken</legend>
             <label class="fc-switch">
                 <input type="checkbox" role="switch" id="fc-strict" class="fc-switch-input visually-hidden"
                     aria-describedby="fc-checking-help">
@@ -2120,7 +2181,6 @@ function checkingControlsHtml(hasHints) {
             <p class="field-hint" id="fc-checking-help">${CHECKING_HELP.lenient}</p>
             <div class="nested-options" id="fc-strict-rules" hidden>
                 ${rules}
-                <p class="field-hint">Een zin eindigt op . ? of !. Bij losse woorden tellen hoofdletters en leestekens niet mee.</p>
             </div>
             <div class="nested-options" id="fc-lenient-options">
                 <label class="fc-check-row">
@@ -2132,47 +2192,8 @@ function checkingControlsHtml(hasHints) {
                 <input type="checkbox" id="fc-hint-mistake">
                 <span>hint gebruikt telt als fout</span>
             </label>
-            <p class="field-hint">Wat als fout telt, komt terug bij ‘oefen fouten opnieuw’.</p>`;
-}
-
-function deckHasHints(deck) {
-    return deck.cards.some((card) => card.hint || card.hintReverse);
-}
-
-function renderCheckingOptionsHtml(deck) {
-    return `
-        <fieldset class="fc-checking" id="fc-checking">
-            <legend>Nakijken</legend>
-            ${checkingControlsHtml(deckHasHints(deck))}
+            <p class="field-hint">Wat als fout telt, komt terug bij ‘oefen fouten opnieuw’.</p>
         </fieldset>`;
-}
-
-// In the editor the options fold away behind one line that still says how the
-// deck is checked, so the cards stay the focus.
-function editorCheckingHtml(deck) {
-    return `
-        <details class="fc-editor-checking" id="fc-editor-checking">
-            <summary>
-                <span class="fc-editor-checking-title">Nakijken</span>
-                <span class="fc-checking-badge" id="fc-checking-badge"></span>
-                <span class="fc-checking-summary" id="fc-checking-summary"></span>
-            </summary>
-            <fieldset class="fc-checking-fields">
-                <legend class="visually-hidden">Nakijken</legend>
-                ${checkingControlsHtml(deckHasHints(deck))}
-            </fieldset>
-        </details>`;
-}
-
-// One line describing the checking settings, for the folded editor row.
-function checkingSummary(config) {
-    const hint = config.fcHintIsMistake ? " · hint telt als fout" : "";
-    if (!config.fcStrict) {
-        const nearMiss = config.fcNearMissIsMistake ? "bijna goed telt als fout" : "kleine typfouten zijn bijna goed";
-        return { mode: "lenient", badge: "soepel", detail: nearMiss + hint };
-    }
-    const rules = STRICT_RULE_LABELS.filter(([rule]) => config.fcStrictRules.includes(rule)).map(([, label]) => label);
-    return { mode: "strict", badge: "streng", detail: (rules.join(" · ") || "geen regels gekozen") + hint };
 }
 
 function syncCheckingOptions() {
@@ -2184,10 +2205,6 @@ function syncCheckingOptions() {
     if (rules) rules.hidden = !strict;
     if (lenient) lenient.hidden = strict;
     if (help) help.textContent = strict ? CHECKING_HELP.strict : CHECKING_HELP.lenient;
-
-    const badge = managerRoot.querySelector("#fc-checking-badge");
-    const detail = managerRoot.querySelector("#fc-checking-summary");
-    if (!badge || !detail) return;
     // The hint option only applies while some card has a hint.
     const hintRow = managerRoot.querySelector("#fc-hint-mistake-row");
     if (hintRow) {
@@ -2195,11 +2212,6 @@ function syncCheckingOptions() {
             ".card-hints:not([hidden]) .card-hint-row:not([hidden]) .card-hint-check:checked",
         );
     }
-    const config = readCheckingConfig(managerRoot);
-    const summary = checkingSummary({ ...config, fcHintIsMistake: config.fcHintIsMistake && !hintRow?.hidden });
-    badge.textContent = summary.badge;
-    badge.dataset.mode = summary.mode;
-    detail.textContent = summary.detail;
 }
 
 function readCheckingConfig(form) {
@@ -2276,8 +2288,7 @@ function handleDeckAction(e) {
             }
             break;
         case "edit":
-            editorState = { mode: "edit", id: deckId };
-            renderManager();
+            openEditor({ mode: "edit", id: deckId });
             break;
         case "share":
             persistDeckPractice();
@@ -2514,7 +2525,7 @@ function renderEditor() {
                 <input type="text" id="deck-name-input"
                     value="${escapeHtml(deck.name)}" placeholder="bijv. Hoofdsteden van Europa" autocomplete="off">
             </div>
-            <fieldset class="fc-deck-type-fieldset">
+            <fieldset class="fc-editor-fieldset">
                 <legend>Type kaarten</legend>
                 <label class="fc-mode-radio">
                     <input type="radio" name="deck-type" value="one-sided"${isTwoSided ? "" : " checked"}>
@@ -2561,13 +2572,10 @@ function renderEditor() {
     managerRoot.querySelector("#deck-bidirectional")?.addEventListener("change", syncCardHints);
 
     managerRoot.querySelector("#fc-add-card").addEventListener("click", addCardRow);
-    managerRoot
-        .querySelector("#fc-save-deck")
-        .addEventListener("click", () => saveDeckFromEditor(editorState.mode === "edit" ? editorState.id : null));
-    managerRoot.querySelector("#fc-cancel-edit").addEventListener("click", () => {
-        editorState = null;
-        renderManager();
+    managerRoot.querySelector("#fc-save-deck").addEventListener("click", () => {
+        if (saveDeckFromEditor(editorState.mode === "edit" ? editorState.id : null)) closeEditor();
     });
+    managerRoot.querySelector("#fc-cancel-edit").addEventListener("click", closeEditor);
     bindRemoveButtons();
     bindHintCheckboxes();
     managerRoot.querySelectorAll(".card-row").forEach((row) => {
@@ -2578,8 +2586,8 @@ function renderEditor() {
 
     // A new deck starts lenient; an edited one shows how it is checked now.
     restoreCheckingOptions(storedCheckingConfig(editorState.mode === "edit" ? deck : { ...deck, practice: {} }));
-    // Card edits decide whether the hint option applies, so the folded summary
-    // follows every change in the editor — including a removed card (a click).
+    // Card edits decide whether the hint option applies, so the options follow
+    // every change in the editor — including a removed card (a click).
     const editor = managerRoot.querySelector(".deck-editor");
     editor.addEventListener("change", syncCheckingOptions);
     editor.addEventListener("click", syncCheckingOptions);
@@ -2862,9 +2870,8 @@ function saveDeckFromEditor(existingId) {
     selectedDeckId = savedId;
     if (multiDeckMode) combinedDeckIds.add(savedId);
     if (hiddenDeckInput) hiddenDeckInput.value = savedId;
-    editorState = null;
     _highlightNewDeck = true;
-    renderManager();
+    return true;
 }
 
 function deleteDeck(id) {
@@ -3057,6 +3064,12 @@ async function initManager() {
         }
     }
 
+    // An address straight to an editor opens it. One that leads nowhere — a
+    // deleted deck, or the card viewer after a reload — is dropped.
+    if (!importPending) editorState = editorRouteFromHash();
+    if (!editorState && (location.hash.startsWith("#edit-") || location.hash === CARD_VIEWER_HASH)) {
+        history.replaceState(null, "", location.pathname + location.search);
+    }
     renderManager();
     ensureReviewLaunchButton();
     syncReviewLaunchButton();

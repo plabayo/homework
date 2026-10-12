@@ -89,6 +89,17 @@ The HTML, head, and document basics every page must include.
   `showModal()`) over hand-rolled JS modals. They handle focus trap,
   inert background, and Escape-to-close for free. See also "Native
   interactive elements" under Accessibility.
+- **Client-side screens get history entries** `[Required]` — every screen
+  that JS swaps in without a page load (an exercise session `#oefenen`,
+  its result `#resultaat`, the deck editor `#edit-<id>` / `#new`, the
+  card viewer `#kaarten`) has its own address and history entry, so the
+  browser's Back and Forward move between screens like pages instead of
+  leaving the exercise. Use `pushPageView` / `replacePageView` /
+  `leavePageView` from `homework.js`: they step over the leave-guard
+  sentinel in one traversal and queue a new view behind a step that is
+  still on its way. Routers ignore their own steps (`isOwnHistoryStep`),
+  and an address that can no longer be shown (a finished session, a
+  deleted deck) falls back to the screen before it.
 - **Feed discovery (`rel="alternate"` RSS/Atom/JSON Feed)** `[Skipped —
   no feed-style content]`. We have no blog, changelog, or update stream.
 

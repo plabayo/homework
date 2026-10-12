@@ -305,94 +305,6 @@ async fn flashcards_opened_hint_counts_as_a_mistake_only_when_chosen() -> TestRe
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
-async fn flashcards_checking_options_are_saved_with_the_deck_and_apply() -> TestResult<()> {
-    let app = TestApp::spawn()?;
-    let browser = BrowserHarness::spawn().await?;
-    let driver = &browser.driver;
-    driver.goto(app.url("/extra/flashcards")).await?;
-    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
-    inject_deck_json(
-        driver,
-        r#"{"id":"fr-opties","name":"Frans","mode":"two-sided",
-            "cards":[{"front":"luisteren","back":"écouter","hint":"Begint met é."}],"createdAt":1}"#,
-    )
-    .await?;
-    driver.refresh().await?;
-    click(
-        driver,
-        ".deck-item[data-deck-id='fr-opties'] .deck-select-btn",
-    )
-    .await?;
-    wait_for_css(driver, "#fc-checking", TIMEOUT).await?;
-
-    // Lenient by default: the lenient option shows, the strict rules do not.
-    assert_eq!(count(driver, "#fc-strict:checked").await?, 0);
-    assert_eq!(count(driver, "#fc-strict-rules[hidden]").await?, 1);
-    assert_eq!(count(driver, "#fc-lenient-options:not([hidden])").await?, 1);
-    assert_eq!(
-        count(driver, "#fc-hint-mistake-row:not([hidden])").await?,
-        1
-    );
-    check_a11y(driver).await?;
-
-    click(driver, "label.fc-switch").await?;
-    wait_for_css(driver, "#fc-strict-rules:not([hidden])", TIMEOUT).await?;
-    assert_eq!(count(driver, "#fc-lenient-options[hidden]").await?, 1);
-    assert_eq!(
-        count(driver, "input[name='fc-strict-rule']:checked").await?,
-        4
-    );
-    wait_for_text(driver, "#fc-checking-help", "zoals op een toets", TIMEOUT).await?;
-    // Switching on exercises the checked theme too.
-    check_a11y(driver).await?;
-    click(driver, "#theme-toggle").await?;
-    check_a11y(driver).await?;
-    click(driver, "#theme-toggle").await?;
-
-    click(driver, "input[name='fc-strict-rule'][value='accents']").await?;
-    click(driver, "#fc-hint-mistake").await?;
-    poll_until("strict settings saved with the deck", TIMEOUT, || async {
-        Ok(stored_practice(driver, "fr-opties").await?
-            == serde_json::json!({"strict":true,"strictRules":["capitals","punctuation","spelling"],"hintIsMistake":true}))
-    })
-    .await?;
-
-    // The choice survives a reload…
-    driver.refresh().await?;
-    wait_for_css(driver, "#fc-strict:checked", TIMEOUT).await?;
-    assert_eq!(
-        count(
-            driver,
-            "input[name='fc-strict-rule'][value='accents']:checked"
-        )
-        .await?,
-        0
-    );
-    assert_eq!(count(driver, "#fc-hint-mistake:checked").await?, 1);
-
-    // …and applies: without the accent rule, a missing accent is fine.
-    click(driver, "#form-setup button[type='submit']").await?;
-    answer(driver, "ecouter").await?;
-    wait_for_text(driver, "#result h3", "1 / 1", TIMEOUT).await?;
-    assert_eq!(count(driver, "#review-button-repeat").await?, 0);
-
-    // Back to lenient: the lenient-only option is offered and saved again.
-    click(driver, "#result .button-reset").await?;
-    wait_for_css(driver, "#fc-strict:checked", TIMEOUT).await?;
-    click(driver, "label.fc-switch").await?;
-    click(driver, "#fc-near-miss-mistake").await?;
-    poll_until("lenient settings saved with the deck", TIMEOUT, || async {
-        Ok(stored_practice(driver, "fr-opties").await?
-            == serde_json::json!({"nearMissIsMistake":true,"hintIsMistake":true}))
-    })
-    .await?;
-
-    driver.clone().quit().await?;
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn flashcards_history_shows_what_was_typed_after_a_reload() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
@@ -436,26 +348,134 @@ async fn flashcards_history_shows_what_was_typed_after_a_reload() -> TestResult<
     Ok(())
 }
 
+/// Open the editor of a listed deck.
+async fn edit_deck(driver: &WebDriver, id: &str) -> TestResult<()> {
+    click(
+        driver,
+        &format!(".deck-item[data-deck-id='{id}'] [data-action='edit']"),
+    )
+    .await?;
+    wait_for_css(driver, ".deck-editor #fc-checking", TIMEOUT).await
+}
+
+async fn current_hash(driver: &WebDriver) -> TestResult<String> {
+    Ok(driver
+        .execute("return location.hash;", vec![])
+        .await?
+        .json()
+        .as_str()
+        .unwrap_or_default()
+        .to_owned())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
-async fn flashcards_editor_sets_checking_for_new_and_edited_decks() -> TestResult<()> {
+async fn flashcards_checking_is_set_in_the_deck_editor_and_applies() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+    inject_deck_json(
+        driver,
+        r#"{"id":"fr-opties","name":"Frans","mode":"two-sided",
+            "cards":[{"front":"luisteren","back":"écouter","hint":"Begint met é."}],"createdAt":1}"#,
+    )
+    .await?;
+    driver.refresh().await?;
+    click(
+        driver,
+        ".deck-item[data-deck-id='fr-opties'] .deck-select-btn",
+    )
+    .await?;
+    // How a deck is checked belongs to the deck: not a quick setting on the
+    // practice screen.
+    assert_eq!(count(driver, "#fc-checking").await?, 0);
+
+    edit_deck(driver, "fr-opties").await?;
+    // Lenient by default: the lenient option shows, the strict rules do not.
+    assert_eq!(count(driver, "#fc-strict:checked").await?, 0);
+    assert_eq!(count(driver, "#fc-strict-rules[hidden]").await?, 1);
+    assert_eq!(count(driver, "#fc-lenient-options:not([hidden])").await?, 1);
+    assert_eq!(
+        count(driver, "#fc-hint-mistake-row:not([hidden])").await?,
+        1
+    );
+    check_a11y(driver).await?;
+
+    click(driver, "#fc-checking label.fc-switch").await?;
+    wait_for_css(driver, "#fc-strict-rules:not([hidden])", TIMEOUT).await?;
+    assert_eq!(count(driver, "#fc-lenient-options[hidden]").await?, 1);
+    assert_eq!(
+        count(driver, "input[name='fc-strict-rule']:checked").await?,
+        4
+    );
+    wait_for_text(driver, "#fc-checking-help", "zoals op een toets", TIMEOUT).await?;
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+
+    click(driver, "input[name='fc-strict-rule'][value='accents']").await?;
+    click(driver, "#fc-hint-mistake").await?;
+    click(driver, "#fc-save-deck").await?;
+    poll_until("strict settings saved with the deck", TIMEOUT, || async {
+        Ok(stored_practice(driver, "fr-opties").await?
+            == serde_json::json!({"strict":true,"strictRules":["capitals","punctuation","spelling"],"hintIsMistake":true}))
+    })
+    .await?;
+
+    // The editor shows the saved choice again…
+    edit_deck(driver, "fr-opties").await?;
+    wait_for_css(driver, "#fc-strict:checked", TIMEOUT).await?;
+    assert_eq!(
+        count(
+            driver,
+            "input[name='fc-strict-rule'][value='accents']:checked"
+        )
+        .await?,
+        0
+    );
+    assert_eq!(count(driver, "#fc-hint-mistake:checked").await?, 1);
+    click(driver, "#fc-cancel-edit").await?;
+
+    // …and it applies: without the accent rule, a missing accent is fine.
+    wait_for_css(driver, ".deck-item.selected", TIMEOUT).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    answer(driver, "ecouter").await?;
+    wait_for_text(driver, "#result h3", "1 / 1", TIMEOUT).await?;
+    assert_eq!(count(driver, "#review-button-repeat").await?, 0);
+
+    // Back to lenient: the lenient-only option is offered and saved again.
+    click(driver, "#result .button-reset").await?;
+    edit_deck(driver, "fr-opties").await?;
+    click(driver, "#fc-checking label.fc-switch").await?;
+    click(driver, "#fc-near-miss-mistake").await?;
+    click(driver, "#fc-save-deck").await?;
+    poll_until("lenient settings saved with the deck", TIMEOUT, || async {
+        Ok(stored_practice(driver, "fr-opties").await?
+            == serde_json::json!({"nearMissIsMistake":true,"hintIsMistake":true}))
+    })
+    .await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_new_deck_sets_checking_and_offers_the_hint_option_with_hints() -> TestResult<()>
+{
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
     driver.goto(app.url("/extra/flashcards")).await?;
     wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
 
-    // A new deck starts lenient, folded into one row that says so.
+    // A new deck starts lenient, with the options in view.
     click(driver, "#fc-new-deck").await?;
-    wait_for_css(driver, "#fc-editor-checking:not([open])", TIMEOUT).await?;
-    wait_for_text(driver, "#fc-checking-badge", "soepel", TIMEOUT).await?;
-    wait_for_text(
-        driver,
-        "#fc-checking-summary",
-        "kleine typfouten zijn bijna goed",
-        TIMEOUT,
-    )
-    .await?;
+    wait_for_css(driver, ".deck-editor #fc-checking", TIMEOUT).await?;
+    assert_eq!(count(driver, "#fc-strict:checked").await?, 0);
     check_a11y(driver).await?;
 
     set_input_value(driver, "#deck-name-input", "Frans editor").await?;
@@ -463,8 +483,6 @@ async fn flashcards_editor_sets_checking_for_new_and_edited_decks() -> TestResul
     set_input_value(driver, "#card-front-0", "luisteren").await?;
     set_input_value(driver, "#card-back-0", "écouter").await?;
 
-    click(driver, "#fc-editor-checking > summary").await?;
-    wait_for_css(driver, "#fc-editor-checking[open]", TIMEOUT).await?;
     // The hint option only appears once a card has a hint.
     assert_eq!(count(driver, "#fc-hint-mistake-row[hidden]").await?, 1);
     click(driver, ".card-row .card-hint-check[data-dir='fwd']").await?;
@@ -476,21 +494,18 @@ async fn flashcards_editor_sets_checking_for_new_and_edited_decks() -> TestResul
     .await?;
     wait_for_css(driver, "#fc-hint-mistake-row:not([hidden])", TIMEOUT).await?;
 
-    click(driver, "#fc-editor-checking label.fc-switch").await?;
-    wait_for_text(driver, "#fc-checking-badge", "streng", TIMEOUT).await?;
+    click(driver, "#fc-checking label.fc-switch").await?;
     click(driver, "input[name='fc-strict-rule'][value='capitals']").await?;
     click(driver, "#fc-hint-mistake").await?;
-    wait_for_text(
-        driver,
-        "#fc-checking-summary",
-        "accenten · leestekens · spelling · hint telt als fout",
-        TIMEOUT,
-    )
-    .await?;
     check_a11y(driver).await?;
     click(driver, "#theme-toggle").await?;
     check_a11y(driver).await?;
     click(driver, "#theme-toggle").await?;
+
+    // An unsaved checking change is an unsaved change.
+    click(driver, ".home-link").await?;
+    wait_for_css(driver, "dialog.leave-guard-dialog[open]", TIMEOUT).await?;
+    click(driver, "#leave-stay").await?;
 
     click(driver, "#fc-save-deck").await?;
     wait_for_css(driver, ".deck-item.selected", TIMEOUT).await?;
@@ -508,32 +523,87 @@ async fn flashcards_editor_sets_checking_for_new_and_edited_decks() -> TestResul
         stored_practice(driver, &id).await?,
         serde_json::json!({"strict":true,"strictRules":["accents","punctuation","spelling"],"hintIsMistake":true})
     );
-    // The setup screen shows the same settings straight away.
-    wait_for_css(driver, "#fc-checking #fc-strict:checked", TIMEOUT).await?;
 
-    // Editing shows how the deck is checked now, and saves a change.
-    click(
-        driver,
-        &format!(".deck-item[data-deck-id='{id}'] [data-action='edit']"),
-    )
-    .await?;
-    wait_for_text(driver, "#fc-checking-badge", "streng", TIMEOUT).await?;
-    click(driver, "#fc-editor-checking > summary").await?;
-    click(driver, "#fc-editor-checking label.fc-switch").await?;
-    wait_for_text(driver, "#fc-checking-badge", "soepel", TIMEOUT).await?;
+    driver.clone().quit().await?;
+    Ok(())
+}
 
-    // An unsaved checking change is an unsaved change.
-    click(driver, ".home-link").await?;
-    wait_for_css(driver, "dialog.leave-guard-dialog[open]", TIMEOUT).await?;
-    click(driver, "#leave-stay").await?;
+/// Every client-side screen has its own address and history entry, so the
+/// browser's Back and Forward move between them instead of leaving the page.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_screens_follow_browser_back_and_forward() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/")).await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+    click(driver, "a[data-exercise-id='flashcards']").await?;
+    wait_for_css(driver, "#deck-manager .deck-item", Duration::from_secs(10)).await?;
 
-    click(driver, "#fc-near-miss-mistake").await?;
-    click(driver, "#fc-save-deck").await?;
-    poll_until("the edited settings to be saved", TIMEOUT, || async {
-        Ok(stored_practice(driver, &id).await?
-            == serde_json::json!({"nearMissIsMistake":true,"hintIsMistake":true}))
+    // The deck editor: Back returns to the deck list, Forward reopens it.
+    edit_deck(driver, "__example_french__").await?;
+    assert_eq!(current_hash(driver).await?, "#edit-__example_french__");
+    driver.back().await?;
+    wait_for_css(driver, "#deck-manager .deck-list", TIMEOUT).await?;
+    assert_eq!(count(driver, ".deck-editor").await?, 0);
+    assert_eq!(current_hash(driver).await?, "");
+    driver.forward().await?;
+    wait_for_css(driver, ".deck-editor", TIMEOUT).await?;
+    // Cancel leaves the editor's entry behind: one more Back leaves flashcards.
+    click(driver, "#fc-cancel-edit").await?;
+    wait_for_css(driver, "#deck-manager .deck-list", TIMEOUT).await?;
+    poll_until("the editor address to be gone", TIMEOUT, || async {
+        Ok(current_hash(driver).await?.is_empty())
     })
     .await?;
+
+    // A new deck with unsaved changes asks first, then returns to the list.
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#deck-name-input", TIMEOUT).await?;
+    assert_eq!(current_hash(driver).await?, "#new");
+    set_input_value(driver, "#deck-name-input", "Niet bewaren").await?;
+    driver.back().await?;
+    wait_for_css(driver, "dialog.leave-guard-dialog[open]", TIMEOUT).await?;
+    click(driver, "#leave-discard").await?;
+    wait_for_css(driver, "#deck-manager .deck-list", TIMEOUT).await?;
+    assert_eq!(count(driver, ".deck-editor").await?, 0);
+
+    // The card viewer.
+    click(
+        driver,
+        ".deck-item[data-deck-id='__example_french__'] .deck-select-btn",
+    )
+    .await?;
+    click(driver, "#fc-start-review").await?;
+    wait_for_css(driver, ".fc-review-viewer", TIMEOUT).await?;
+    assert_eq!(current_hash(driver).await?, "#kaarten");
+    driver.back().await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", TIMEOUT).await?;
+    assert_eq!(current_hash(driver).await?, "");
+
+    // A session and its result: Back from either returns to the deck list.
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_css(driver, "#exercise-content #answer", TIMEOUT).await?;
+    assert_eq!(current_hash(driver).await?, "#oefenen");
+    driver.back().await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", TIMEOUT).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    for _ in 0..8 {
+        wait_for_css(driver, "#exercise-content #answer", TIMEOUT).await?;
+        click(driver, "#button-skip").await?;
+        click(driver, "#button-skip").await?;
+        wait_for_css(driver, "#button-next", TIMEOUT).await?;
+        click(driver, "#button-next").await?;
+    }
+    wait_for_text(driver, "#result h3", "0 / 8", TIMEOUT).await?;
+    assert_eq!(current_hash(driver).await?, "#resultaat");
+    driver.back().await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", TIMEOUT).await?;
+
+    // From the deck list, Back leaves flashcards for where we came from.
+    driver.back().await?;
+    wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

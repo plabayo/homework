@@ -986,7 +986,10 @@ function pushLeaveGuardSentinel() {
 }
 
 function syncLeaveGuardSentinel() {
-    if (leaveGuardNavigationInProgress) return;
+    // Not while the guard is asking: opening its dialog moves focus, and a
+    // `change` that sync caused then would push a second sentinel — which a
+    // "leave" would step back onto instead of leaving. "Stay" re-arms itself.
+    if (leaveGuardNavigationInProgress || leaveGuardDialogOpen) return;
     const active = activeLeaveGuardEntry();
     if (active && !leaveGuardSentinelArmed) {
         pushLeaveGuardSentinel();
@@ -1015,6 +1018,71 @@ export function clearLeaveGuard(id) {
 
 export function refreshLeaveGuards() {
     syncLeaveGuardSentinel();
+}
+
+// ---------- in-page views and history ----------
+//
+// Client-side screens — an exercise session, its result, a deck editor — each
+// get their own history entry with an address (`#oefenen`, `#edit-…`), so the
+// browser's Back and Forward move between them like pages instead of leaving
+// the exercise. Entries carry a `homeworkView` marker, so leaving a view knows
+// whether there is an entry of ours to step back over.
+
+// Stepping back is asynchronous. While our own step is on its way, a new view
+// waits for it to land — pushed earlier, it would be the entry stepped off —
+// and the popstate it causes is ours: the screen already changed.
+let leavingView = false;
+let queuedView = null;
+let ownHistoryStep = false;
+
+function applyView(push, hash) {
+    if (leavingView) {
+        queuedView = { push, hash };
+        return;
+    }
+    if (push) history.pushState({ homeworkView: hash }, "", hash);
+    else history.replaceState({ homeworkView: hash }, "", hash);
+}
+
+export function pushPageView(hash) {
+    applyView(true, hash);
+}
+
+export function replacePageView(hash) {
+    applyView(false, hash);
+}
+
+// True while handling a popstate that our own `leavePageView` caused: view
+// routers ignore it, the screen it leads to is already showing.
+export function isOwnHistoryStep() {
+    return ownHistoryStep;
+}
+
+function settleOwnHistoryStep() {
+    ownHistoryStep = leavingView;
+    if (!leavingView) return;
+    leavingView = false;
+    const queued = queuedView;
+    queuedView = null;
+    if (queued) applyView(queued.push, queued.hash);
+}
+
+// Leave the current view for the screen before it. Steps back over the view's
+// entry — and over the leave guard's sentinel on top of it, in one traversal,
+// since two back steps in a row are not reliable — or, for a view opened
+// straight from a link, just drops its address.
+export function leavePageView() {
+    if (!history.state?.homeworkView) {
+        if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+        return;
+    }
+    const steps = leaveGuardSentinelArmed ? 2 : 1;
+    if (leaveGuardSentinelArmed) {
+        leaveGuardSentinelArmed = false;
+        suppressLeaveGuardPop = true;
+    }
+    leavingView = true;
+    history.go(-steps);
 }
 
 function getLeaveGuardDialogSpec(guard, reason) {
@@ -1152,6 +1220,8 @@ async function resolveLeaveGuard(reason) {
 }
 
 function setupLeaveGuardNavigation() {
+    // First of all popstate listeners: mark our own steps before any router.
+    window.addEventListener("popstate", settleOwnHistoryStep);
     window.addEventListener("beforeunload", (e) => {
         if (leaveGuardNavigationInProgress) return;
         const active = activeLeaveGuardEntry();
@@ -1181,7 +1251,13 @@ function setupLeaveGuardNavigation() {
             suppressLeaveGuardPop = false;
             return;
         }
-        if (!leaveGuardSentinelArmed || leaveGuardNavigationInProgress) return;
+        // An allowed Back that stayed on this page — back to an earlier view —
+        // is done: the guards may arm again for whatever comes next.
+        if (leaveGuardNavigationInProgress) {
+            leaveGuardNavigationInProgress = false;
+            return;
+        }
+        if (!leaveGuardSentinelArmed) return;
         if (!activeLeaveGuardEntry()) {
             leaveGuardSentinelArmed = false;
             return;
@@ -2054,7 +2130,11 @@ export function runExercise(spec) {
     }
 
     let _hasShownOnce = false;
+    // The screen on show, and the address of each one in history.
+    let currentView = "setup";
+    const VIEW_HASHES = { play: "#oefenen", result: "#resultaat" };
     function show(which) {
+        currentView = which;
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
         result.hidden = which !== "result";
@@ -2111,6 +2191,38 @@ export function runExercise(spec) {
         } else {
             clearLeaveGuard(leaveGuardId);
         }
+    }
+
+    // Back to the setup screen from a session, its result or an exercise's
+    // own view, stepping back over their history entry.
+    function goToSetup() {
+        leavePageView();
+        show("setup");
+    }
+
+    // The framework's screens by address. Other addresses (`#edit-…`) belong
+    // to the exercise, on the setup screen.
+    function viewForHash(hash) {
+        return Object.keys(VIEW_HASHES).find((view) => VIEW_HASHES[view] === hash) ?? null;
+    }
+
+    // Back and Forward between screens. The leave guard has already asked
+    // about unsaved progress before a Back out of a session gets here.
+    function followHistory() {
+        if (isOwnHistoryStep()) return;
+        const view = viewForHash(location.hash) ?? (location.hash ? null : "setup");
+        if (!view || view === currentView) return;
+        if (view === "setup") {
+            if (currentView === "play") spec.onBeforeReset?.();
+            show("setup");
+            return;
+        }
+        if (view === "result" && state.cycles.length > 0) {
+            show("result");
+            return;
+        }
+        // A session that ended cannot be resumed by going Forward to it.
+        history.back();
     }
 
     // --- setup ---
@@ -2201,6 +2313,10 @@ export function runExercise(spec) {
         // A "normal" session starts a fresh run; a "mistakes" session is a
         // continuation of the current run, so cycles accumulate.
         if (state.mode !== "mistakes") state.cycles = [];
+        // From setup a session is a new screen; a retry from the result takes
+        // the result's place, so one run is one step back.
+        if (currentView === "setup") pushPageView(VIEW_HASHES.play);
+        else replacePageView(VIEW_HASHES.play);
         show("play");
         startSessionTimer();
         nextQuestion();
@@ -2548,7 +2664,7 @@ export function runExercise(spec) {
         stopSessionTimer();
         const session = buildCurrentSession();
         if (!session) {
-            show("setup");
+            goToSetup();
             return;
         }
         state.cycles.push(session);
@@ -2558,6 +2674,9 @@ export function runExercise(spec) {
             setupHistoryView(spec);
         });
         renderResult(session);
+        // The result replaces the finished session in history: Back from it
+        // returns to setup, not into a session that is over.
+        replacePageView(VIEW_HASHES.result);
         show("result");
         // Broadcast the structured session so exercises can react (e.g.
         // flashcards' perfect-score wave) without scraping the result DOM
@@ -2624,7 +2743,7 @@ export function runExercise(spec) {
         resultEl.querySelectorAll(".button-reset").forEach((btn) => {
             btn.addEventListener("click", (e) => {
                 e.preventDefault();
-                show("setup");
+                goToSetup();
             });
         });
 
@@ -2729,7 +2848,10 @@ export function runExercise(spec) {
     document.querySelectorAll(".button-reset").forEach((btn) => {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
-            if (!play.hidden && state.questions.length > 0) {
+            // Only a running session asks first: the play section can also
+            // host an exercise's own view (flashcards' card viewer), which
+            // has nothing to lose.
+            if (currentView === "play" && state.questions.length > 0) {
                 void showLeaveGuardDialog({
                     title: "Oefening stoppen?",
                     message: "De voltooide oefeningen worden opgeslagen, de rest wordt weggelaten.",
@@ -2748,7 +2870,7 @@ export function runExercise(spec) {
                 });
             } else {
                 spec.onBeforeReset?.();
-                show("setup");
+                goToSetup();
             }
         });
     });
@@ -2776,7 +2898,10 @@ export function runExercise(spec) {
     loadSavedConfig();
     enableTouchSubmit(formSetup);
     enableTouchSubmit(formExercise);
+    // A reload cannot bring a session back: drop its address and start at setup.
+    if (viewForHash(location.hash)) history.replaceState(null, "", location.pathname + location.search);
     show("setup");
+    window.addEventListener("popstate", followHistory);
     setupHistoryView(spec);
     // Allow exercise scripts to trigger a history refresh when the deck/variant changes.
     document.addEventListener("homework:refresh-history", () => setupHistoryView(spec));

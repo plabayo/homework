@@ -386,14 +386,14 @@
     grid-template-columns: 1fr;
 }
 
-.fc-deck-type-fieldset {
+.fc-editor-fieldset {
     border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
     border-radius: 8px;
     padding: 0.6rem 0.9rem;
     margin-block-end: 0.25rem;
 }
 
-.fc-deck-type-fieldset legend {
+.fc-editor-fieldset legend {
     font-size: 0.85rem;
     font-weight: 700;
     padding: 0 0.25rem;
@@ -1086,10 +1086,6 @@
 
 /* ---- Checking options (Nakijken) ---- */
 
-.fc-checking {
-    margin-block-start: 1rem;
-}
-
 /* A switch is a native checkbox with role="switch": the input stays in the
    accessibility tree and takes keyboard focus, the track beside it is drawn.
    Styling `::before` on the input itself is not reliable across engines. */
@@ -1150,76 +1146,6 @@
     .fc-switch-input:checked + .fc-switch-track .fc-switch-thumb {
         background: HighlightText;
     }
-}
-
-/* In the deck editor the options fold into one row beside "Type kaarten":
-   same frame, same legend weight. The summary keeps the current mode in view
-   while folded; the chevron is the disclosure cue. */
-.fc-editor-checking {
-    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-    border-radius: 8px;
-    margin-block-end: 0.25rem;
-}
-
-.fc-editor-checking > summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem 0.5rem;
-    min-block-size: 44px;
-    padding: 0.4rem 0.9rem;
-    border-radius: 8px;
-    cursor: pointer;
-    list-style: none;
-}
-
-.fc-editor-checking > summary::-webkit-details-marker {
-    display: none;
-}
-
-.fc-editor-checking > summary::before {
-    content: "▸";
-    display: inline-block;
-    color: var(--muted);
-}
-
-.fc-editor-checking[open] > summary::before {
-    rotate: 90deg;
-}
-
-.fc-editor-checking > summary:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 2px;
-}
-
-.fc-editor-checking-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.fc-checking-badge {
-    padding: 0.05rem 0.55rem;
-    border: 1px solid var(--border-soft);
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 700;
-}
-
-.fc-checking-badge[data-mode="strict"] {
-    border-color: var(--accent);
-    background: var(--accent-tint);
-    color: var(--accent);
-}
-
-.fc-checking-summary {
-    color: var(--muted);
-    font-size: 0.85rem;
-}
-
-/* The controls keep their grouping for assistive tech, without a second frame. */
-.fc-checking-fields {
-    border: 0;
-    padding: 0.15rem 0.9rem 0.8rem;
 }
 
 .fc-check-row {
@@ -1687,10 +1613,6 @@
     .fc-wave-card {
         opacity: 0;
         animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
-    }
-
-    .fc-editor-checking > summary::before {
-        transition: rotate 160ms ease-out;
     }
 
     /* Checking switch: the thumb slides with a slight overshoot. */

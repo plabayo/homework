@@ -93,7 +93,7 @@ function parseCard(raw, index) {
 }
 
 // What "strict" checking can demand, in display and canonical file order.
-// Capitals and punctuation only ever apply to answers that are sentences.
+// Each rule asks for the answer exactly as the card writes it.
 export const STRICT_RULES = ["accents", "capitals", "punctuation", "spelling"];
 
 function strictRulesField(value, path) {
