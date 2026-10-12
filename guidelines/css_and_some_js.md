@@ -3987,6 +3987,8 @@ Aim for AA as a *minimum*. For text on busy backgrounds (e.g. photos), aim highe
 
 The WCAG formula is good but not perfect — it doesn't model human nonlinear perception (we read bright-on-bright better than dark-on-dark even at the same ratio). The replacement standard, **APCA**, addresses this and is being prepared for WCAG 3.
 
+**Mute text with a colour token, not `opacity`.** `opacity: 0.6` on small text looks fine on the page background but quietly fails AA on a tinted card, and opacities multiply: a 0.6 note inside a 0.7 label is 0.42. Use `color: var(--muted)` (AA by design in both themes) and set emphasis back with `var(--fg)` or font weight. The flashcard editor had three such cases that only surfaced once an axe audit covered it.
+
 #### Color blindness
 
 ~5–10% of people have some form. Most common: red/green confusion. Never use color **alone** to convey meaning — pair it with text, icons, position, or shape. ("Red items have errors" fails for protanopes; "items with a ⚠ icon have errors, and are also red" works.)

@@ -12,20 +12,22 @@
     padding-inline-start: 0.1rem;
 }
 
+/* The unchosen type is muted with the theme's AA-safe colour, not opacity:
+   a translucent label on the card's tinted background drops below AA. */
 .fc-type-label {
     display: flex;
     align-items: center;
     gap: 0.3rem;
     cursor: pointer;
-    opacity: 0.6;
+    color: var(--muted);
     user-select: none;
 }
 .fc-type-label:has(input:checked) {
-    opacity: 1;
+    color: var(--fg);
     font-weight: 600;
 }
 .fc-type-label:hover {
-    opacity: 0.9;
+    color: var(--fg);
 }
 
 /* ---------- Image card editor ---------- */
@@ -409,9 +411,10 @@
     opacity: 0.7;
 }
 
+/* Set apart by weight only: the label is already translucent, and a second
+   opacity on top of it drops the note below AA contrast. */
 .card-field .optional {
     font-weight: 400;
-    opacity: 0.6;
 }
 
 .card-field input {
@@ -502,7 +505,7 @@
     gap: 0.75rem;
 }
 
-.fc-import-box h3 {
+.fc-import-box h2 {
     margin: 0;
     font-size: 1rem;
 }
@@ -1149,6 +1152,76 @@
     }
 }
 
+/* In the deck editor the options fold into one row beside "Type kaarten":
+   same frame, same legend weight. The summary keeps the current mode in view
+   while folded; the chevron is the disclosure cue. */
+.fc-editor-checking {
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    border-radius: 8px;
+    margin-block-end: 0.25rem;
+}
+
+.fc-editor-checking > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    min-block-size: 44px;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.fc-editor-checking > summary::-webkit-details-marker {
+    display: none;
+}
+
+.fc-editor-checking > summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+}
+
+.fc-editor-checking[open] > summary::before {
+    rotate: 90deg;
+}
+
+.fc-editor-checking > summary:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.fc-editor-checking-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.fc-checking-badge {
+    padding: 0.05rem 0.55rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.fc-checking-badge[data-mode="strict"] {
+    border-color: var(--accent);
+    background: var(--accent-tint);
+    color: var(--accent);
+}
+
+.fc-checking-summary {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+/* The controls keep their grouping for assistive tech, without a second frame. */
+.fc-checking-fields {
+    border: 0;
+    padding: 0.15rem 0.9rem 0.8rem;
+}
+
 .fc-check-row {
     display: flex;
     align-items: center;
@@ -1559,7 +1632,7 @@
 @media (prefers-reduced-motion: no-preference) {
     /* Editor / setup chrome */
     .fc-type-label {
-        transition: opacity 0.12s;
+        transition: color 0.12s;
     }
     .wm-result-btn {
         transition:
@@ -1667,6 +1740,10 @@
     .fc-wave-card {
         opacity: 0;
         animation: fc-card-wave 0.65s ease-in-out calc(var(--i) * 80ms) forwards;
+    }
+
+    .fc-editor-checking > summary::before {
+        transition: rotate 160ms ease-out;
     }
 
     /* Checking switch: the thumb slides with a slight overshoot. */

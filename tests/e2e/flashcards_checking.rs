@@ -430,3 +430,106 @@ async fn flashcards_history_shows_what_was_typed_after_a_reload() -> TestResult<
     driver.clone().quit().await?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_editor_sets_checking_for_new_and_edited_decks() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    driver.goto(app.url("/extra/flashcards")).await?;
+    wait_for_css(driver, "#deck-manager", Duration::from_secs(10)).await?;
+
+    // A new deck starts lenient, folded into one row that says so.
+    click(driver, "#fc-new-deck").await?;
+    wait_for_css(driver, "#fc-editor-checking:not([open])", TIMEOUT).await?;
+    wait_for_text(driver, "#fc-checking-badge", "soepel", TIMEOUT).await?;
+    wait_for_text(
+        driver,
+        "#fc-checking-summary",
+        "kleine typfouten zijn bijna goed",
+        TIMEOUT,
+    )
+    .await?;
+    check_a11y(driver).await?;
+
+    set_input_value(driver, "#deck-name-input", "Frans editor").await?;
+    click(driver, "input[name='deck-type'][value='two-sided']").await?;
+    set_input_value(driver, "#card-front-0", "luisteren").await?;
+    set_input_value(driver, "#card-back-0", "écouter").await?;
+
+    click(driver, "#fc-editor-checking > summary").await?;
+    wait_for_css(driver, "#fc-editor-checking[open]", TIMEOUT).await?;
+    // The hint option only appears once a card has a hint.
+    assert_eq!(count(driver, "#fc-hint-mistake-row[hidden]").await?, 1);
+    click(driver, ".card-row .card-hint-check[data-dir='fwd']").await?;
+    set_input_value(
+        driver,
+        ".card-row .card-hint-input[data-dir='fwd']",
+        "Begint met é.",
+    )
+    .await?;
+    wait_for_css(driver, "#fc-hint-mistake-row:not([hidden])", TIMEOUT).await?;
+
+    click(driver, "#fc-editor-checking label.fc-switch").await?;
+    wait_for_text(driver, "#fc-checking-badge", "streng", TIMEOUT).await?;
+    click(driver, "input[name='fc-strict-rule'][value='capitals']").await?;
+    click(driver, "#fc-hint-mistake").await?;
+    wait_for_text(
+        driver,
+        "#fc-checking-summary",
+        "accenten · leestekens · spelling · hint telt als fout",
+        TIMEOUT,
+    )
+    .await?;
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+    check_a11y(driver).await?;
+    click(driver, "#theme-toggle").await?;
+
+    click(driver, "#fc-save-deck").await?;
+    wait_for_css(driver, ".deck-item.selected", TIMEOUT).await?;
+    let id = driver
+        .execute(
+            "return JSON.parse(localStorage.getItem('homework_flashcard_decks')).find((d) => d.name === 'Frans editor').id;",
+            vec![],
+        )
+        .await?
+        .json()
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        stored_practice(driver, &id).await?,
+        serde_json::json!({"strict":true,"strictRules":["accents","punctuation","spelling"],"hintIsMistake":true})
+    );
+    // The setup screen shows the same settings straight away.
+    wait_for_css(driver, "#fc-checking #fc-strict:checked", TIMEOUT).await?;
+
+    // Editing shows how the deck is checked now, and saves a change.
+    click(
+        driver,
+        &format!(".deck-item[data-deck-id='{id}'] [data-action='edit']"),
+    )
+    .await?;
+    wait_for_text(driver, "#fc-checking-badge", "streng", TIMEOUT).await?;
+    click(driver, "#fc-editor-checking > summary").await?;
+    click(driver, "#fc-editor-checking label.fc-switch").await?;
+    wait_for_text(driver, "#fc-checking-badge", "soepel", TIMEOUT).await?;
+
+    // An unsaved checking change is an unsaved change.
+    click(driver, ".home-link").await?;
+    wait_for_css(driver, "dialog.leave-guard-dialog[open]", TIMEOUT).await?;
+    click(driver, "#leave-stay").await?;
+
+    click(driver, "#fc-near-miss-mistake").await?;
+    click(driver, "#fc-save-deck").await?;
+    poll_until("the edited settings to be saved", TIMEOUT, || async {
+        Ok(stored_practice(driver, &id).await?
+            == serde_json::json!({"nearMissIsMistake":true,"hintIsMistake":true}))
+    })
+    .await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}

@@ -1349,6 +1349,7 @@ function captureEditorDraft() {
             hintReverseChecked: !!row.querySelector(".card-hint-check[data-dir='bwd']")?.checked,
             hintReverse: row.querySelector(".card-hint-input[data-dir='bwd']")?.value || "",
         })),
+        checking: readCheckingConfig(managerRoot),
     };
 }
 
@@ -1933,8 +1934,9 @@ const CHECKING_HELP = {
 // How answers are checked. Strict checking is a switch with the rules it
 // enforces nested under it; the lenient-only and hint options sit beside it.
 // Everything that counts as a mistake comes back in "oefen fouten opnieuw".
-function renderCheckingOptionsHtml(deck) {
-    const hasHints = deck.cards.some((card) => card.hint || card.hintReverse);
+// The setup screen and the deck editor show the same controls: only one of
+// them is ever on screen, so they share their ids.
+function checkingControlsHtml(hasHints) {
     const rules = STRICT_RULE_LABELS.map(
         ([rule, label, note]) => `
             <label class="fc-check-row">
@@ -1943,8 +1945,6 @@ function renderCheckingOptionsHtml(deck) {
             </label>`,
     ).join("");
     return `
-        <fieldset class="fc-checking" id="fc-checking">
-            <legend>Nakijken</legend>
             <label class="fc-switch">
                 <input type="checkbox" role="switch" id="fc-strict" class="fc-switch-input visually-hidden"
                     aria-describedby="fc-checking-help">
@@ -1966,18 +1966,74 @@ function renderCheckingOptionsHtml(deck) {
                 <input type="checkbox" id="fc-hint-mistake">
                 <span>hint gebruikt telt als fout</span>
             </label>
-            <p class="field-hint">Wat als fout telt, komt terug bij ‘oefen fouten opnieuw’.</p>
+            <p class="field-hint">Wat als fout telt, komt terug bij ‘oefen fouten opnieuw’.</p>`;
+}
+
+function deckHasHints(deck) {
+    return deck.cards.some((card) => card.hint || card.hintReverse);
+}
+
+function renderCheckingOptionsHtml(deck) {
+    return `
+        <fieldset class="fc-checking" id="fc-checking">
+            <legend>Nakijken</legend>
+            ${checkingControlsHtml(deckHasHints(deck))}
         </fieldset>`;
 }
 
+// In the editor the options fold away behind one line that still says how the
+// deck is checked, so the cards stay the focus.
+function editorCheckingHtml(deck) {
+    return `
+        <details class="fc-editor-checking" id="fc-editor-checking">
+            <summary>
+                <span class="fc-editor-checking-title">Nakijken</span>
+                <span class="fc-checking-badge" id="fc-checking-badge"></span>
+                <span class="fc-checking-summary" id="fc-checking-summary"></span>
+            </summary>
+            <fieldset class="fc-checking-fields">
+                <legend class="visually-hidden">Nakijken</legend>
+                ${checkingControlsHtml(deckHasHints(deck))}
+            </fieldset>
+        </details>`;
+}
+
+// One line describing the checking settings, for the folded editor row.
+function checkingSummary(config) {
+    const hint = config.fcHintIsMistake ? " · hint telt als fout" : "";
+    if (!config.fcStrict) {
+        const nearMiss = config.fcNearMissIsMistake ? "bijna goed telt als fout" : "kleine typfouten zijn bijna goed";
+        return { mode: "lenient", badge: "soepel", detail: nearMiss + hint };
+    }
+    const rules = STRICT_RULE_LABELS.filter(([rule]) => config.fcStrictRules.includes(rule)).map(([, label]) => label);
+    return { mode: "strict", badge: "streng", detail: (rules.join(" · ") || "geen regels gekozen") + hint };
+}
+
 function syncCheckingOptions() {
-    const strict = !!managerRoot?.querySelector("#fc-strict")?.checked;
-    const rules = managerRoot?.querySelector("#fc-strict-rules");
-    const lenient = managerRoot?.querySelector("#fc-lenient-options");
-    const help = managerRoot?.querySelector("#fc-checking-help");
+    if (!managerRoot) return;
+    const strict = !!managerRoot.querySelector("#fc-strict")?.checked;
+    const rules = managerRoot.querySelector("#fc-strict-rules");
+    const lenient = managerRoot.querySelector("#fc-lenient-options");
+    const help = managerRoot.querySelector("#fc-checking-help");
     if (rules) rules.hidden = !strict;
     if (lenient) lenient.hidden = strict;
     if (help) help.textContent = strict ? CHECKING_HELP.strict : CHECKING_HELP.lenient;
+
+    const badge = managerRoot.querySelector("#fc-checking-badge");
+    const detail = managerRoot.querySelector("#fc-checking-summary");
+    if (!badge || !detail) return;
+    // The hint option only applies while some card has a hint.
+    const hintRow = managerRoot.querySelector("#fc-hint-mistake-row");
+    if (hintRow) {
+        hintRow.hidden = !managerRoot.querySelector(
+            ".card-hints:not([hidden]) .card-hint-row:not([hidden]) .card-hint-check:checked",
+        );
+    }
+    const config = readCheckingConfig(managerRoot);
+    const summary = checkingSummary({ ...config, fcHintIsMistake: config.fcHintIsMistake && !hintRow?.hidden });
+    badge.textContent = summary.badge;
+    badge.dataset.mode = summary.mode;
+    detail.textContent = summary.detail;
 }
 
 function readCheckingConfig(form) {
@@ -2286,7 +2342,7 @@ function renderEditor() {
 
     managerRoot.innerHTML = `
         <div class="deck-editor">
-            <h3 class="editor-title">${escapeHtml(title)}</h3>
+            <h2 class="editor-title">${escapeHtml(title)}</h2>
             <div class="field">
                 <label for="deck-name-input">Naam van het deck</label>
                 <input type="text" id="deck-name-input"
@@ -2309,6 +2365,7 @@ function renderEditor() {
                     </label>
                 </div>
             </fieldset>
+            ${editorCheckingHtml(deck)}
             <div id="card-list">${cardsHtml}</div>
             <div class="button-row">
                 <button type="button" id="fc-add-card" class="fc-btn-add btn-lift">＋ Kaart toevoegen</button>
@@ -2352,6 +2409,14 @@ function renderEditor() {
         bindCardTypeToggle(row);
         bindImageSearch(row);
     });
+
+    // A new deck starts lenient; an edited one shows how it is checked now.
+    restoreCheckingOptions(storedCheckingConfig(editorState.mode === "edit" ? deck : { ...deck, practice: {} }));
+    // Card edits decide whether the hint option applies, so the folded summary
+    // follows every change in the editor — including a removed card (a click).
+    const editor = managerRoot.querySelector(".deck-editor");
+    editor.addEventListener("change", syncCheckingOptions);
+    editor.addEventListener("click", syncCheckingOptions);
 
     const nameInput = managerRoot.querySelector("#deck-name-input");
     if (!nameInput.value) {
@@ -2607,7 +2672,10 @@ function saveDeckFromEditor(existingId) {
     if (existingId) {
         const idx = decks.findIndex((d) => d.id === existingId);
         if (idx >= 0) {
-            const config = practiceConfig(decks[idx], readPractice(decks[idx]));
+            const config = {
+                ...practiceConfig(decks[idx], readPractice(decks[idx])),
+                ...readCheckingConfig(managerRoot),
+            };
             decks[idx] = { ...decks[idx], name, mode, bidirectional: isBidirectional, cards };
             const textCount = cards.filter((card) => !card.wikimedia).length;
             if (mode !== "one-sided" || textCount < 2) config.fcMode = "all";
@@ -2618,7 +2686,10 @@ function saveDeckFromEditor(existingId) {
     }
     if (!savedId) {
         savedId = generateId();
-        decks.push({ id: savedId, name, mode, bidirectional: isBidirectional, cards, createdAt: Date.now() });
+        const deck = { id: savedId, name, mode, bidirectional: isBidirectional, cards, createdAt: Date.now() };
+        const practice = practiceFromConfig(readCheckingConfig(managerRoot), deck);
+        if (Object.keys(practice).length > 0) deck.practice = practice;
+        decks.push(deck);
     }
     if (!saveDecks(decks)) return;
 
@@ -2725,7 +2796,7 @@ function renderImport() {
     if (hasConflict) {
         managerRoot.innerHTML = `
             <div class="fc-import-box">
-                <h3>Deck al aanwezig</h3>
+                <h2>Deck al aanwezig</h2>
                 <p>Je hebt al een deck genaamd <strong>${escapeHtml(deck.name)}</strong>, maar de inhoud verschilt. Kies wat je wil doen:</p>
                 ${deckPreview}
                 ${imageNoteParagraph}
@@ -2750,7 +2821,7 @@ function renderImport() {
     } else {
         managerRoot.innerHTML = `
             <div class="fc-import-box">
-                <h3>Deck importeren?</h3>
+                <h2>Deck importeren?</h2>
                 <p>Je hebt een gedeeld deck ontvangen:</p>
                 ${deckPreview}
                 ${imageNoteParagraph}
