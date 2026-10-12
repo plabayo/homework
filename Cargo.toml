@@ -37,7 +37,7 @@ vergen-gitcl = { version = "10", features = ["build", "cargo"] }
 
 [dev-dependencies]
 serde_json = "1"
-thirtyfour = "0.37.5"
+thirtyfour = "0.37.7"
 
 [lints.rust]
 unused_imports = "warn"

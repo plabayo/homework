@@ -131,10 +131,16 @@ async fn spawn_service_https(
         .into_layer(self::service::load_https_app_service().await?);
 
     let http_server = HttpServer::auto(executor.clone()).service(svc);
+    // Session resumption lets a returning device (often on a flaky mobile
+    // connection) skip the full handshake. Tickets are stateless: the
+    // server stores nothing, and their keys live only in this process, so
+    // a restart or another Fly machine just falls back to a full handshake.
+    // Certificates are still resolved per connection by the issuer, so
+    // ACME renewals keep working with the shared TLS context this enables.
     let tcp_server = (
         BodyLimitLayer::request_only(REQUEST_BODY_LIMIT),
         HaProxyLayer::new().with_peek(true),
-        TlsAcceptorLayer::new(tls_server_config),
+        TlsAcceptorLayer::new(tls_server_config).with_session_resumption(true),
     )
         .into_layer(http_server);
 
