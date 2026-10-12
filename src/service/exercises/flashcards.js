@@ -556,25 +556,125 @@ function nudgeText(kinds) {
     return `bijna! kijk nog eens naar ${joinDutch(items)}.`;
 }
 
-function kindLabels(kinds) {
-    const labels = [];
-    if (kinds.accent) labels.push(kinds.accent === 1 ? "accent" : `${kinds.accent} accenten`);
-    if (kinds.capital) labels.push(kinds.capital === 1 ? "hoofdletter" : `${kinds.capital} hoofdletters`);
-    if (kinds.punctuation) labels.push(kinds.punctuation === 1 ? "leesteken" : `${kinds.punctuation} leestekens`);
-    if (kinds.spelling) labels.push(kinds.spelling === 1 ? "1 spelfout" : `${kinds.spelling} spelfouten`);
-    if (kinds.number) labels.push(kinds.number === 1 ? "1 cijfer" : `${kinds.number} cijfers`);
-    return labels;
+// ---------- Answer comparison display ----------
+
+// Weighted edit cost between two key-char sequences (see `alignChars`).
+function charCost(given, expected) {
+    let row = Array.from({ length: expected.length + 1 }, (_, j) => 2 * j);
+    for (let i = 1; i <= given.length; i++) {
+        const next = [2 * i];
+        for (let j = 1; j <= expected.length; j++) {
+            const sub = row[j - 1] + substitutionCost(given[i - 1].ch, expected[j - 1].ch);
+            next.push(Math.min(sub, row[j] + 2, next[j - 1] + 2));
+        }
+        row = next;
+    }
+    return row[expected.length];
 }
 
-// ---------- Answer comparison display ----------
+// The words of a key-char sequence: their character indices, and the index
+// of the space before them (-1 for the first).
+function keyWords(chars) {
+    const words = [];
+    let word = { space: -1, chars: [] };
+    chars.forEach((c, i) => {
+        if (c.ch !== " ") {
+            word.chars.push(i);
+            return;
+        }
+        if (word.chars.length > 0) words.push(word);
+        word = { space: i, chars: [] };
+    });
+    if (word.chars.length > 0) words.push(word);
+    return words;
+}
+
+// Pair the words of both answers: a pair costs its letter edits, a word left
+// out or typed extra costs all of its letters. Returns steps in order, each
+// { g, e } with -1 for a word that only one side has.
+function alignWords(gWords, eWords, gChars, eChars) {
+    const m = gWords.length;
+    const n = eWords.length;
+    const solo = (word) => 2 * word.chars.length;
+    const pair = (i, j) =>
+        charCost(
+            gWords[i].chars.map((k) => gChars[k]),
+            eWords[j].chars.map((k) => eChars[k]),
+        );
+    const cost = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) cost[i][0] = cost[i - 1][0] + solo(gWords[i - 1]);
+    for (let j = 1; j <= n; j++) cost[0][j] = cost[0][j - 1] + solo(eWords[j - 1]);
+    const pairs = Array.from({ length: m }, (_, i) => Array.from({ length: n }, (_, j) => pair(i, j)));
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            cost[i][j] = Math.min(
+                cost[i - 1][j - 1] + pairs[i - 1][j - 1],
+                cost[i - 1][j] + solo(gWords[i - 1]),
+                cost[i][j - 1] + solo(eWords[j - 1]),
+            );
+        }
+    }
+    const steps = [];
+    let i = m;
+    let j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && cost[i][j] === cost[i - 1][j - 1] + pairs[i - 1][j - 1]) {
+            steps.push({ g: --i, e: --j });
+        } else if (i > 0 && cost[i][j] === cost[i - 1][j] + solo(gWords[i - 1])) {
+            steps.push({ g: --i, e: -1 });
+        } else {
+            steps.push({ g: -1, e: --j });
+        }
+    }
+    return steps.reverse();
+}
+
+// The alignment shown to the child: words pair up first, then letters line
+// up only within a pair. A plain letter alignment may slide letters across
+// word boundaries when several are equally cheap ("je viens" against "je ne
+// viens pas" could match the e of "je" into "ne"). Grading keeps using the
+// plain alignment; this one only decides the picture.
+function displayOps(analysis) {
+    if (analysis.displayOps) return analysis.displayOps;
+    const { gChars, eChars } = analysis;
+    const gWords = keyWords(gChars);
+    const eWords = keyWords(eChars);
+    const ops = [];
+    for (const step of alignWords(gWords, eWords, gChars, eChars)) {
+        pushWordOps(ops, step.g >= 0 ? gWords[step.g] : null, step.e >= 0 ? eWords[step.e] : null, analysis);
+    }
+    analysis.displayOps = ops;
+    return ops;
+}
+
+// The ops for one word step: the space before the word(s), then their letters.
+function pushWordOps(ops, g, e, { gChars, eChars }) {
+    const gSpace = g ? g.space : -1;
+    const eSpace = e ? e.space : -1;
+    if (gSpace >= 0 && eSpace >= 0) ops.push({ type: "eq", g: gSpace, e: eSpace });
+    else if (gSpace >= 0) ops.push({ type: "del", g: gSpace, e: -1 });
+    else if (eSpace >= 0) ops.push({ type: "ins", g: -1, e: eSpace });
+    if (!g || !e) {
+        for (const k of (g ?? e).chars) ops.push(g ? { type: "del", g: k, e: -1 } : { type: "ins", g: -1, e: k });
+        return;
+    }
+    const local = alignChars(
+        g.chars.map((k) => gChars[k]),
+        e.chars.map((k) => eChars[k]),
+    );
+    for (const op of local) {
+        ops.push({ type: op.type, g: op.g >= 0 ? g.chars[op.g] : -1, e: op.e >= 0 ? e.chars[op.e] : -1 });
+    }
+}
 
 // Pair the typed and the expected characters into display columns: same,
 // changed, extra (only typed), missing (only expected) or ignored (does not
 // count under the rules). A unit whose key spans several characters, like œ
 // for a typed "oe", shares one column with everything aligned to it.
 function diffColumns(analysis) {
-    const { given, expected, gChars, eChars, ops } = analysis;
-    if (!ops) return [];
+    const { given, expected, gChars, eChars } = analysis;
+    if (!analysis.ops) return [];
+    const ops = displayOps(analysis);
     const columns = [];
     const next = { g: 0, e: 0 };
     // Units that do not count have no alignment op; they keep their place.
@@ -636,68 +736,134 @@ function cellText(text, marked) {
     return marked && /^\s+$/u.test(text) ? "␣" : text;
 }
 
-function diffCellsHtml(analysis, column) {
-    const marked = column.type !== "same" && column.type !== "ignored";
-    const g = cellText(unitsText(analysis.given.units, column.g), marked);
-    const e = cellText(unitsText(analysis.expected.units, column.e), marked);
-    return `<span class="fc-diff-col is-${column.type}"><span class="fc-diff-g">${escapeHtml(g)}</span><span class="fc-diff-e">${escapeHtml(e)}</span></span>`;
-}
-
-// Words stay together as two-row blocks; lines only wrap between words.
-function diffWordsHtml(analysis) {
+// Text with consecutive marked pieces joined into one mark, so a slip reads
+// as one stretch under one underline. A marked stretch without text of its
+// own (letters left out) shows as an empty slot where they belong.
+function markedRunsHtml(pieces) {
     let html = "";
-    let word = "";
-    for (const column of diffColumns(analysis)) {
-        if ((column.type === "same" || column.type === "ignored") && isSpaceColumn(column, analysis)) {
-            if (word) html += `<span class="fc-diff-word">${word}</span>`;
-            word = "";
+    let run = null;
+    const flush = () => {
+        if (run === null) return;
+        html += run
+            ? `<span class="fc-diff-mark">${escapeHtml(run)}</span>`
+            : `<span class="fc-diff-mark fc-diff-slot"></span>`;
+        run = null;
+    };
+    for (const { text, marked } of pieces) {
+        if (!marked) {
+            flush();
+            html += escapeHtml(text);
             continue;
         }
-        word += diffCellsHtml(analysis, column);
+        run = (run ?? "") + cellText(text, true);
     }
-    if (word) html += `<span class="fc-diff-word">${word}</span>`;
+    flush();
     return html;
 }
 
-// A typed answer next to the expected one, with every difference that counts
-// marked in both rows. Returns "" when the answer was exactly right. Answers
-// too different for a letter-by-letter comparison show as two plain lines.
+// How a word compares as a whole. Mostly wrong is one replaced word — not a
+// scatter of letters that happen to line up.
+function wordKind(columns) {
+    let typed = 0;
+    let expected = 0;
+    let same = 0;
+    let marked = 0;
+    for (const column of columns) {
+        typed += column.g.length;
+        expected += column.e.length;
+        if (column.type === "same") same += Math.max(column.g.length, column.e.length);
+        else if (column.type !== "ignored") marked++;
+    }
+    if (marked === 0) return "same";
+    if (typed === 0) return "missing";
+    if (expected === 0) return "extra";
+    return same / Math.max(typed, expected) < 0.5 ? "replaced" : "near";
+}
+
+// The comparison as words, split wherever a space separates them. A space
+// that was left out or typed too much is kept as a gap, unless a word next to
+// it is missing or extra as a whole: that word's own mark already says it.
+function diffWords(analysis) {
+    const items = [];
+    let columns = [];
+    const pushWord = () => {
+        if (columns.length > 0) items.push({ columns, kind: wordKind(columns) });
+        columns = [];
+    };
+    for (const column of diffColumns(analysis)) {
+        if (!isSpaceColumn(column, analysis)) {
+            columns.push(column);
+            continue;
+        }
+        pushWord();
+        if (column.type === "missing" || column.type === "extra") items.push({ gap: column.type });
+    }
+    pushWord();
+    const whole = (item) => item?.kind === "missing" || item?.kind === "extra";
+    return items.filter((item, i) => !item.gap || !(whole(items[i - 1]) || whole(items[i + 1])));
+}
+
+// One row of a word: "g" is what was typed, "e" what is expected.
+function wordRowHtml(analysis, word, side) {
+    const units = side === "g" ? analysis.given.units : analysis.expected.units;
+    const text = (column) => unitsText(units, column[side]);
+    if (word.gap) {
+        if (side === "e") return "";
+        return word.gap === "missing"
+            ? `<span class="fc-diff-mark fc-diff-slot"></span>`
+            : `<span class="fc-diff-mark">␣</span>`;
+    }
+    const absent = side === "g" ? "missing" : "extra";
+    if (word.kind === absent) return side === "g" ? `<span class="fc-diff-mark fc-diff-slot"></span>` : "";
+    if (word.kind !== "same" && word.kind !== "near") {
+        return `<span class="fc-diff-mark">${escapeHtml(word.columns.map(text).join(""))}</span>`;
+    }
+    return markedRunsHtml(
+        word.columns.map((column) => ({
+            text: text(column),
+            marked: column.type === "changed" || column.type === "missing" || (side === "g" && column.type === "extra"),
+        })),
+    );
+}
+
+function diffWordHtml(analysis, word) {
+    const kind = word.gap ? "gap" : word.kind;
+    return `<span class="fc-diff-word is-${kind}"><span class="fc-diff-g">${wordRowHtml(analysis, word, "g")}</span><span class="fc-diff-e">${wordRowHtml(analysis, word, "e")}</span></span>`;
+}
+
+// A typed answer above the expected one, every difference that counts marked
+// in both rows. Returns "" when the answer was exactly right. An answer too
+// different to compare word by word shows as one replaced line.
 function answerDiffHtml(given, expected, checking = LENIENT, { compact = false } = {}) {
     if (typeof given !== "string" || !given.trim() || !expected) return "";
     const analysis = analyzeAnswer(given, expected, checking);
     if (analysis.exact) return "";
+    const typed = given.trim();
+    const answer = String(expected).trim();
     const aligned = analysis.ops && (analysis.near || analysis.similarity >= 0.5);
-    const labels = aligned ? kindLabels(analysis.kinds) : [];
-    const spoken = `Jij typte “${given.trim()}”, juist is “${String(expected).trim()}”${labels.length > 0 ? `: ${labels.join(", ")}` : ""}.`;
     const rows = aligned
-        ? diffWordsHtml(analysis)
-        : `<span class="fc-diff-word fc-diff-whole"><span class="fc-diff-col is-changed"><span class="fc-diff-g">${escapeHtml(given.trim())}</span><span class="fc-diff-e">${escapeHtml(String(expected).trim())}</span></span></span>`;
-    const chips = labels.map((label) => `<span class="fc-diff-kind">${escapeHtml(label)}</span>`).join("");
+        ? diffWords(analysis)
+              .map((word) => diffWordHtml(analysis, word))
+              .join("")
+        : `<span class="fc-diff-word is-replaced fc-diff-whole"><span class="fc-diff-g"><span class="fc-diff-mark">${escapeHtml(typed)}</span></span><span class="fc-diff-e"><span class="fc-diff-mark">${escapeHtml(answer)}</span></span></span>`;
     return `<figure class="fc-diff${compact ? " fc-diff-compact" : ""}">
-        <figcaption class="visually-hidden">${escapeHtml(spoken)}</figcaption>
+        <figcaption class="visually-hidden">${escapeHtml(`Jij typte “${typed}”, juist is “${answer}”.`)}</figcaption>
         <div class="fc-diff-rows" aria-hidden="true">
-            <span class="fc-diff-word fc-diff-labels"><span class="fc-diff-col"><span class="fc-diff-g"><span class="fc-diff-tag">jij</span></span><span class="fc-diff-e"><span class="fc-diff-tag">juist</span></span></span></span>${rows}
+            <span class="fc-diff-word fc-diff-labels"><span class="fc-diff-g"><span class="fc-diff-tag">jij</span></span><span class="fc-diff-e"><span class="fc-diff-tag">juist</span></span></span>${rows}
         </div>
-        ${chips ? `<p class="fc-diff-kinds" aria-hidden="true">${chips}</p>` : ""}
     </figure>`;
 }
 
-// The child's own attempt with the spots to look at marked, for the retry
+// The child's own attempt with the stretches to look at marked, for the retry
 // hint. It never shows the expected letters — only where they go.
 function attemptHtml(given, expected, checking = LENIENT) {
     const analysis = analyzeAnswer(given, expected, checking);
     if (analysis.exact || !analysis.ops) return "";
-    const cells = diffColumns(analysis)
-        .map((column) => {
-            const text = unitsText(analysis.given.units, column.g);
-            if (column.type === "missing") return `<span class="fc-attempt-gap"></span>`;
-            if (column.type === "changed" || column.type === "extra") {
-                return `<span class="fc-attempt-off">${escapeHtml(cellText(text, true))}</span>`;
-            }
-            return escapeHtml(text);
-        })
-        .join("");
-    return `<span class="fc-attempt" aria-hidden="true">${cells}</span>`;
+    const pieces = diffColumns(analysis).map((column) => ({
+        text: unitsText(analysis.given.units, column.g),
+        marked: column.type !== "same" && column.type !== "ignored",
+    }));
+    return `<span class="fc-attempt" aria-hidden="true">${markedRunsHtml(pieces)}</span>`;
 }
 
 // Split raw input into individual answer tokens on comma, semicolon, slash,

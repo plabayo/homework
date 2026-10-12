@@ -105,7 +105,7 @@ async fn flashcards_strict_missing_accent_gets_a_hint_and_the_fix_is_practised_a
     .await?;
     wait_for_css(
         driver,
-        "#exercise-feedback .fc-attempt .fc-attempt-off",
+        "#exercise-feedback .fc-attempt .fc-diff-mark",
         TIMEOUT,
     )
     .await?;
@@ -128,7 +128,7 @@ async fn flashcards_strict_missing_accent_gets_a_hint_and_the_fix_is_practised_a
     wait_for_text_content(
         driver,
         ".result-detail .fc-diff figcaption",
-        "Jij typte “ecouter”, juist is “écouter”: accent.",
+        "Jij typte “ecouter”, juist is “écouter”.",
     )
     .await?;
     wait_for_text_content(driver, ".result-detail", "daarna zelf verbeterd").await?;
@@ -200,11 +200,16 @@ async fn flashcards_lenient_near_miss_shows_what_was_typed_without_coming_back()
         )
         .await?;
         // The review compares the typed answer with the card, letter by letter.
-        wait_for_css(driver, "#exercise-content > .fc-diff .is-changed", TIMEOUT).await?;
+        wait_for_css(
+            driver,
+            "#exercise-content > .fc-diff .fc-diff-e .fc-diff-mark",
+            TIMEOUT,
+        )
+        .await?;
         wait_for_text_content(
             driver,
             "#exercise-content .fc-diff figcaption",
-            "Jij typte “écoutez”, juist is “écouter”: 1 spelfout.",
+            "Jij typte “écoutez”, juist is “écouter”.",
         )
         .await?;
         click(driver, "#button-next").await?;
@@ -420,7 +425,7 @@ async fn flashcards_history_shows_what_was_typed_after_a_reload() -> TestResult<
     wait_for_text_content(
         driver,
         ".history-deck .fc-diff figcaption",
-        "Jij typte “ecoute”, juist is “écouter”: accent, 1 spelfout.",
+        "Jij typte “ecoute”, juist is “écouter”.",
     )
     .await?;
     check_a11y(driver).await?;

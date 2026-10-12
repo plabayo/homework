@@ -257,27 +257,71 @@ test("comparison columns line each typed character up with the expected one", ()
     same(types("lent", "lente 🌸", LENIENT), ["same", "same", "same", "same", "missing", "ignored", "ignored"]);
 });
 
-test("the comparison shows both rows, names the mistakes, and escapes typed text", () => {
+// The two rows of each word block, as [typed, expected] HTML.
+const wordRows = (html) =>
+    [...html.matchAll(/<span class="fc-diff-word is-(\w+)"><span class="fc-diff-g">(.*?)<\/span><span class="fc-diff-e">(.*?)<\/span><\/span>(?=<span class="fc-diff-word|\s*<\/div>)/g)].map(
+        ([, kind, g, e]) => ({ kind, g, e }),
+    );
+const mark = (text) => `<span class="fc-diff-mark">${text}</span>`;
+const SLOT = '<span class="fc-diff-mark fc-diff-slot"></span>';
+
+test("the comparison shows both rows without labelling mistakes, and escapes typed text", () => {
     const html = answerDiffHtml("ecoutez", "écouter", STRICT);
     assert.match(html, /class="fc-diff"/);
     assert.match(html, /jij/);
     assert.match(html, /juist/);
-    assert.match(html, /<span class="fc-diff-kind">accent<\/span><span class="fc-diff-kind">1 spelfout<\/span>/);
-    assert.match(html, /Jij typte “ecoutez”, juist is “écouter”: accent, 1 spelfout\./);
+    assert.ok(!html.includes("spelfout") && !html.includes("accent"), "the marks speak for themselves");
+    assert.match(html, /Jij typte “ecoutez”, juist is “écouter”\./);
     assert.equal(answerDiffHtml("écouter", "écouter", STRICT), "", "nothing to show for an exact answer");
     const hostile = answerDiffHtml('<img src=x onerror="alert(1)">', "écouter", STRICT);
     assert.ok(!hostile.includes("<img"));
     assert.ok(hostile.includes("&lt;img"));
-    // Too far off for a letter-by-letter view: two plain lines.
+    // Too far off to compare word by word: one replaced line.
     assert.match(answerDiffHtml("hond", "écouter", STRICT), /fc-diff-whole/);
+});
+
+test("a nearly right word marks only what is off, consecutive letters as one stretch", () => {
+    same(wordRows(answerDiffHtml("ecoute", "écouter", STRICT)), [
+        { kind: "near", g: `${mark("e")}coute${SLOT}`, e: `${mark("é")}coute${mark("r")}` },
+    ]);
+    same(wordRows(answerDiffHtml("ecoutzz", "ecouter", LENIENT)), [
+        { kind: "near", g: `ecout${mark("zz")}`, e: `ecout${mark("er")}` },
+    ]);
+});
+
+test("a word that is mostly wrong is marked whole, not letter by letter", () => {
+    same(wordRows(answerDiffHtml("Elles aller", "elles vont", STRICT)), [
+        { kind: "same", g: "Elles", e: "elles" },
+        { kind: "replaced", g: mark("aller"), e: mark("vont") },
+    ]);
+});
+
+test("a word or space left out shows as a slot, an extra word stands out alone", () => {
+    same(wordRows(answerDiffHtml("je viens", "je ne viens pas", LENIENT)), [
+        { kind: "same", g: "je", e: "je" },
+        { kind: "missing", g: SLOT, e: mark("ne") },
+        { kind: "same", g: "viens", e: "viens" },
+        { kind: "missing", g: SLOT, e: mark("pas") },
+    ]);
+    // Words glued together: the first shows as left out, its letters as extra.
+    same(wordRows(answerDiffHtml("jeviens bien", "je viens bien", LENIENT)), [
+        { kind: "missing", g: SLOT, e: mark("je") },
+        { kind: "near", g: `${mark("je")}viens`, e: "viens" },
+        { kind: "same", g: "bien", e: "bien" },
+    ]);
+    same(wordRows(answerDiffHtml("je viens vite bien", "je viens bien", LENIENT)).map((word) => word.kind), [
+        "same",
+        "same",
+        "extra",
+        "same",
+    ]);
 });
 
 test("the retry hint marks the child's own attempt without revealing the answer", () => {
     const html = attemptHtml("ecoutr", "écouter", STRICT);
-    assert.match(html, /<span class="fc-attempt-off">e<\/span>/);
-    assert.match(html, /fc-attempt-gap/);
+    assert.equal(html, `<span class="fc-attempt" aria-hidden="true">${mark("e")}cout${SLOT}r</span>`);
     assert.ok(!html.includes("é"), "the expected letters stay hidden");
-    assert.match(html, /aria-hidden="true"/);
+    assert.match(attemptHtml("je m'apelle marie", "Je m'appelle Marie.", STRICT), /\$|fc-diff-mark">j</);
 });
 
 // ---------------------------------------------------------------------------
@@ -291,7 +335,7 @@ test("a strict deck rejects a near miss with the hint and accepts the fix", () =
         const miss = exerciseSpec.evaluateAnswer(q, "ecouter");
         assert.equal(miss.correct, false);
         assert.equal(miss.feedback, "bijna! kijk nog eens naar het accent.");
-        assert.match(miss.feedbackHtml, /fc-attempt-off/);
+        assert.match(miss.feedbackHtml, /class="fc-attempt"[^>]*><span class="fc-diff-mark">e<\/span>/);
         const fixed = exerciseSpec.evaluateAnswer(q, "écouter");
         assert.equal(fixed.correct, true);
         assert.equal(fixed.exact, true);

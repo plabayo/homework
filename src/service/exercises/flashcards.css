@@ -1238,17 +1238,15 @@
 
 /* ---- Answer comparison: what was typed ("jij") over what it should be ("juist") ----
 
-   Each character pair is a column, so an é sits right above the e it
-   replaced. Columns group into words that only wrap between words. Marks
-   never rely on colour alone: the typed row gets a wavy underline, the
-   expected row a solid one, and the text itself keeps the body colour. */
+   Words pair up as two-row blocks that only wrap between words. Inside a
+   word the text flows as typed; each stretch that is off gets one mark with
+   one continuous underline, and a word that is mostly wrong is marked whole.
+   Marks never rely on colour alone: the typed row is underlined wavy, the
+   expected row solid, and the text itself keeps the body colour. */
 
 .fc-diff {
     inline-size: min(100%, 34rem);
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     padding: 0.75rem 0.9rem;
     border: 2px solid var(--border-soft);
     border-radius: var(--radius);
@@ -1270,30 +1268,21 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
-    column-gap: 0.55em;
-    row-gap: 0.6rem;
+    gap: 0.6rem 0.45em;
     font-size: 1.35rem;
-    line-height: 1.2;
     font-variant-ligatures: none;
 }
 
 .fc-diff-word {
     display: inline-flex;
-}
-
-.fc-diff-col {
-    display: inline-flex;
     flex-direction: column;
-    min-inline-size: 0.55em;
+    align-items: flex-start;
 }
 
 .fc-diff-g,
 .fc-diff-e {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    block-size: 1.5em;
-    padding-inline: 0.04em;
+    min-block-size: 1.6em;
+    line-height: 1.6;
     white-space: pre;
 }
 
@@ -1301,13 +1290,13 @@
     font-weight: 700;
 }
 
-.fc-diff-labels .fc-diff-col {
-    margin-inline-end: 0.15em;
+.fc-diff-whole .fc-diff-g,
+.fc-diff-whole .fc-diff-e {
+    white-space: normal;
 }
 
-.fc-diff-labels .fc-diff-g,
-.fc-diff-labels .fc-diff-e {
-    justify-content: flex-start;
+.fc-diff-labels {
+    margin-inline-end: 0.15em;
 }
 
 .fc-diff-tag {
@@ -1317,6 +1306,7 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    vertical-align: 0.2em;
 }
 
 .fc-diff-g .fc-diff-tag {
@@ -1327,68 +1317,39 @@
     background: var(--good-tint);
 }
 
-.fc-diff-col.is-changed .fc-diff-g,
-.fc-diff-col.is-extra .fc-diff-g {
+/* One mark per stretch: the background and the underline run unbroken over
+   every letter in it, also across a line break. */
+.fc-diff-mark {
+    padding: 0.04em 0.08em;
     border-radius: 4px;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.22em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.fc-diff-g .fc-diff-mark,
+.fc-attempt .fc-diff-mark {
     background: color-mix(in srgb, var(--bad) 22%, transparent);
     text-decoration: underline wavy var(--bad) 0.08em;
-    text-decoration-skip-ink: none;
-    text-underline-offset: 0.2em;
 }
 
-.fc-diff-col.is-extra .fc-diff-g {
-    text-decoration-line: line-through;
-}
-
-.fc-diff-col.is-changed .fc-diff-e,
-.fc-diff-col.is-missing .fc-diff-e {
-    border-radius: 4px;
+.fc-diff-e .fc-diff-mark {
     background: color-mix(in srgb, var(--good) 22%, transparent);
     text-decoration: underline solid var(--good) 0.12em;
-    text-decoration-skip-ink: none;
-    text-underline-offset: 0.2em;
 }
 
-/* Where a letter is missing from the typed answer: an empty slot, like a
-   blank to fill in. */
-.fc-diff-col.is-missing .fc-diff-g::before,
-.fc-attempt-gap::before {
+/* Letters or a word left out: an empty slot where they belong, like a blank
+   to fill in. */
+.fc-diff-slot::before {
     content: "";
     display: inline-block;
-    inline-size: 0.5em;
-    block-size: 0.9em;
+    inline-size: 0.6em;
+    block-size: 0.85em;
     border-block-end: 0.14em solid var(--bad);
 }
 
-.fc-diff-col.is-ignored {
-    color: var(--muted);
-}
-
-.fc-diff-whole .fc-diff-g,
-.fc-diff-whole .fc-diff-e {
-    justify-content: flex-start;
-    padding-inline: 0.25em;
-    white-space: normal;
-}
-
-.fc-diff-kinds {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-}
-
-.fc-diff-kind {
-    padding: 0.1rem 0.55rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--warn-bg) 60%, transparent);
-    color: var(--warn-fg);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
 .fc-diff-compact {
-    gap: 0.35rem;
     padding: 0.5rem 0.6rem;
     border-width: 1px;
 }
@@ -1398,29 +1359,15 @@
     row-gap: 0.4rem;
 }
 
-.fc-diff-compact .fc-diff-kind {
-    font-size: 0.72rem;
-}
-
-/* The child's own attempt under a strict retry hint, the spots to look at
-   marked. It never shows the expected letters. */
+/* The child's own attempt under a strict retry hint, the stretches to look
+   at marked. It never shows the expected letters. */
 .fc-attempt {
     display: block;
     margin-block-start: 0.4rem;
     color: var(--fg);
     font-size: 1.3rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
     white-space: pre-wrap;
-}
-
-.fc-attempt-off {
-    padding-inline: 0.06em;
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--bad) 22%, transparent);
-    text-decoration: underline wavy var(--bad) 0.08em;
-    text-decoration-skip-ink: none;
-    text-underline-offset: 0.22em;
 }
 
 /* ---- Outcome detail in the result and history lists ---- */
@@ -1760,8 +1707,7 @@
 
     /* The corrections in a review comparison light up just after the card
        settles — a colour fade only, nothing moves. */
-    .fc-diff:not(.fc-diff-compact) .is-changed .fc-diff-e,
-    .fc-diff:not(.fc-diff-compact) .is-missing .fc-diff-e {
+    .fc-diff:not(.fc-diff-compact) .fc-diff-e .fc-diff-mark {
         animation: fc-diff-mark 420ms ease-out 180ms both;
     }
     @keyframes fc-diff-mark {
