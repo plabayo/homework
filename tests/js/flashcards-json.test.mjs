@@ -269,13 +269,14 @@ test("checking settings round-trip through the setup form", () => {
     }
     const config=practiceConfig(parseDeckData(pairs));
     assert.equal(config.fcStrict,false);
-    assert.deepEqual(config.fcStrictRules,STRICT_RULES,"turning strict on starts with every rule");
+    assert.deepEqual(config.fcStrictRules,["accents","punctuation","spelling"],"turning strict on leaves capitals unchecked");
+    assert.deepEqual(practiceConfig(parseDeckData({...pairs,practice:{strict:true}})).fcStrictRules,STRICT_RULES,"existing strict decks keep every rule");
 });
 
 test("the lenient-only option is dropped while strict is on, and returns with lenient", () => {
     const deck=parseDeckData(pairs);
     const config={...practiceConfig(deck),fcStrict:true,fcNearMissIsMistake:true};
-    assert.deepEqual(practiceFromConfig(config,deck),{strict:true});
+    assert.deepEqual(practiceFromConfig(config,deck),{strict:true,strictRules:["accents","punctuation","spelling"]});
     assert.deepEqual(practiceFromConfig({...config,fcStrict:false},deck),{nearMissIsMistake:true});
 });
 

@@ -875,6 +875,60 @@ function splitAnswerTokens(raw) {
         .filter((t) => t.length > 0);
 }
 
+// Recognise complete answers before interpreting separators. This also keeps
+// commas, conjunctions and decimal marks that belong inside an answer intact.
+// Longer answers claim their text first; a stretch cannot name two parts.
+function splitKnownParts(raw, allParts, checking) {
+    const { units, keys } = answerKeys(raw, checking);
+    const chars = keys.flatMap((key, unit) => key.split("").map((ch) => ({ ch, unit })));
+    const text = chars.map(({ ch }) => ch).join("");
+    const candidates = [];
+    for (const part of allParts) {
+        const key = answerKeys(part, checking).keys.join("");
+        if (!key) continue;
+        for (let start = text.indexOf(key); start !== -1; start = text.indexOf(key, start + 1)) {
+            candidates.push({ start, end: start + key.length });
+        }
+    }
+    candidates.sort((a, b) => b.end - b.start - (a.end - a.start) || a.start - b.start);
+    const used = new Array(text.length).fill(false);
+    let spans = [];
+    for (const span of candidates) {
+        if (used.slice(span.start, span.end).some(Boolean)) continue;
+        used.fill(true, span.start, span.end);
+        spans.push(span);
+    }
+    // Adjacent answers ("ab") are fine, but a piece of an unrelated word is
+    // not an answer. Remove such matches until their neighbours are stable.
+    const wordChar = (i) => /[\p{L}\p{N}\p{M}]/u.test(text[i] || "");
+    let changed = true;
+    while (changed) {
+        changed = false;
+        spans = spans.filter(({ start, end }) => {
+            if (
+                (wordChar(start) && wordChar(start - 1) && !used[start - 1]) ||
+                (wordChar(end - 1) && wordChar(end) && !used[end])
+            ) {
+                used.fill(false, start, end);
+                changed = true;
+                return false;
+            }
+            return true;
+        });
+    }
+    const tokens = [];
+    let cursor = 0;
+    for (const { start, end } of spans.sort((a, b) => a.start - b.start)) {
+        const first = chars[start].unit;
+        const last = chars[end - 1].unit + 1;
+        tokens.push(...splitAnswerTokens(units.slice(cursor, first).join("")));
+        tokens.push(units.slice(first, last).join(""));
+        cursor = last;
+    }
+    tokens.push(...splitAnswerTokens(units.slice(cursor).join("")));
+    return tokens;
+}
+
 // Drop tokens that merely restate a part the learner already gave. Listing what
 // you have so far is not a mistake, and a repeated token left in play is free to
 // fuzzy-claim a part that is still missing — an earlier "lopen" grabbing
@@ -907,6 +961,10 @@ function matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, checking
     for (const exactOnly of [true, false]) {
         for (let i = 0; i < tokens.length; i++) {
             if (tokenUsed[i]) continue;
+            if (newlyMatched.some((m) => classifyAnswerMatch(tokens[i], m.part, checking).exact)) {
+                tokenUsed[i] = true;
+                continue;
+            }
             const hit = findPartForToken(tokens[i], remaining, newlyMatched, exactOnly, checking);
             if (!hit) continue;
             newlyMatched.push({ part: hit.part, given: tokens[i], ...hit.match });
@@ -945,7 +1003,7 @@ function matchPartsByPhraseCoverage(leftoverWords, remaining, newlyMatched) {
 function tryMatchParts(given, allParts, alreadyMatched, checking = LENIENT) {
     const newlyMatched = [];
     const remaining = allParts.filter((p) => !alreadyMatched.has(p));
-    const tokens = dropRestatedParts(splitAnswerTokens(given), allParts, alreadyMatched, checking);
+    const tokens = dropRestatedParts(splitKnownParts(given, allParts, checking), allParts, alreadyMatched, checking);
     const tokenUsed = new Array(tokens.length).fill(false);
 
     matchTokensToParts(tokens, remaining, tokenUsed, newlyMatched, checking);
@@ -2165,7 +2223,7 @@ function editorCheckingHtml(deck) {
     const rules = STRICT_RULE_LABELS.map(
         ([rule, label, note]) => `
                 <label class="fc-check-row">
-                    <input type="checkbox" name="fc-strict-rule" value="${rule}" checked>
+                    <input type="checkbox" name="fc-strict-rule" value="${rule}">
                     <span>${label} <span class="fc-check-note">(${note})</span></span>
                 </label>`,
     ).join("");

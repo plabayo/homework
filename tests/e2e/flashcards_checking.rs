@@ -408,7 +408,7 @@ async fn flashcards_checking_is_set_in_the_deck_editor_and_applies() -> TestResu
     assert_eq!(count(driver, "#fc-lenient-options[hidden]").await?, 1);
     assert_eq!(
         count(driver, "input[name='fc-strict-rule']:checked").await?,
-        4
+        3
     );
     wait_for_text(driver, "#fc-checking-help", "zoals op een toets", TIMEOUT).await?;
     check_a11y(driver).await?;
@@ -416,6 +416,15 @@ async fn flashcards_checking_is_set_in_the_deck_editor_and_applies() -> TestResu
     check_a11y(driver).await?;
     click(driver, "#theme-toggle").await?;
 
+    assert_eq!(
+        count(
+            driver,
+            "input[name='fc-strict-rule'][value='capitals']:checked"
+        )
+        .await?,
+        0
+    );
+    click(driver, "input[name='fc-strict-rule'][value='capitals']").await?;
     click(driver, "input[name='fc-strict-rule'][value='accents']").await?;
     click(driver, "#fc-hint-mistake").await?;
     click(driver, "#fc-save-deck").await?;
@@ -495,7 +504,14 @@ async fn flashcards_new_deck_sets_checking_and_offers_the_hint_option_with_hints
     wait_for_css(driver, "#fc-hint-mistake-row:not([hidden])", TIMEOUT).await?;
 
     click(driver, "#fc-checking label.fc-switch").await?;
-    click(driver, "input[name='fc-strict-rule'][value='capitals']").await?;
+    assert_eq!(
+        count(
+            driver,
+            "input[name='fc-strict-rule'][value='capitals']:checked"
+        )
+        .await?,
+        0
+    );
     click(driver, "#fc-hint-mistake").await?;
     check_a11y(driver).await?;
     click(driver, "#theme-toggle").await?;
@@ -604,6 +620,35 @@ async fn flashcards_screens_follow_browser_back_and_forward() -> TestResult<()> 
     // From the deck list, Back leaves flashcards for where we came from.
     driver.back().await?;
     wait_for_css(driver, ".exercise-list", Duration::from_secs(10)).await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn flashcards_multiple_answers_accept_free_separators() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    for strict in [false, true] {
+        for separator in [". ", " ", "", " met daarnaast "] {
+            start_deck(
+                driver,
+                &app,
+                &format!(
+                    r#"{{"id":"vrije-antwoorden","name":"Antwoorden","mode":"two-sided",
+                        "cards":[{{"front":"Beschrijf de sfinx","parts":["half man","half leeuw"]}}],
+                        "practice":{{"strict":{strict}}},"createdAt":1}}"#
+                ),
+            )
+            .await?;
+            answer(driver, &format!("half man{separator}half leeuw")).await?;
+            wait_for_text(driver, "#result h3", "1 / 1", TIMEOUT).await?;
+            assert_eq!(count(driver, "#review-button-repeat").await?, 0);
+        }
+    }
 
     driver.clone().quit().await?;
     Ok(())

@@ -290,7 +290,11 @@ export function practiceConfig(deck, practice = deck.practice || {}) {
         deadlineOn: practice.deadlineOn === true,
         deadlineSeconds: practice.deadlineSeconds ?? 10,
         fcStrict: practice.strict === true,
-        fcStrictRules: [...(practice.strictRules ?? STRICT_RULES)],
+        // Existing strict decks keep the file-format defaults. A first switch
+        // to strict in the editor leaves capitals optional.
+        fcStrictRules: [
+            ...(practice.strictRules ?? STRICT_RULES.filter((rule) => practice.strict || rule !== "capitals")),
+        ],
         fcNearMissIsMistake: practice.nearMissIsMistake === true,
         fcHintIsMistake: practice.hintIsMistake === true,
     };

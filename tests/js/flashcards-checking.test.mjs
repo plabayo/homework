@@ -224,6 +224,35 @@ test("multi-part: strict needs every part spelled right, lenient keeps its phras
     assert.equal(tryMatchParts("wachter zon", ["wachter van de zon"], new Set(), STRICT).length, 0);
 });
 
+test("multi-part: complete answers count exactly with any separator or none", () => {
+    for (const checking of [LENIENT, STRICT]) {
+        for (const separator of [". ", " ", "", " — ", " met daarnaast ", " / ", "\n"]) {
+            const parts = ["half man", "half leeuw"];
+            const matches = tryMatchParts(parts.join(separator), parts, new Set(), checking);
+            same(matches.map((m) => m.part), parts, separator);
+            assert.ok(matches.every((m) => m.exact && !m.practiceAgain), separator);
+        }
+        same(tryMatchParts("a. b", ["a", "b"], new Set(), checking).map((m) => m.part), ["a", "b"]);
+        same(tryMatchParts("b. a", ["a", "b"], new Set(["b"]), checking).map((m) => m.part), ["a"]);
+    }
+});
+
+test("multi-part: punctuation inside an answer and strict rules still apply", () => {
+    const parts = ["Oui, je viens.", "3,5", "écouter"];
+    same(tryMatchParts(parts.join(" — "), parts, new Set(), STRICT).map((m) => m.part), parts);
+    same(tryMatchParts("oui, je viens. 3,5 ecouter", parts, new Set(), STRICT).map((m) => m.part), ["3,5"]);
+    same(tryMatchParts("Oui je viens. 3,5 écouter", parts, new Set(), STRICT).map((m) => m.part), ["3,5", "écouter"]);
+});
+
+test("multi-part: overlapping answers and repeated text cannot supply a missing answer", () => {
+    for (const checking of [LENIENT, STRICT]) {
+        same(tryMatchParts("half man", ["man", "half man"], new Set(), checking).map((m) => m.part), ["half man"]);
+        same(tryMatchParts("groot. groot", ["groot", "grootst"], new Set(), checking).map((m) => m.part), ["groot"]);
+        same(tryMatchParts("gelopen", ["lopen", "gelopen"], new Set(), checking).map((m) => m.part), ["gelopen"]);
+    }
+    same(tryMatchParts("katapult", ["kat", "aap"], new Set(), STRICT), []);
+});
+
 // ---------------------------------------------------------------------------
 // Showing what was typed against the card
 // ---------------------------------------------------------------------------
