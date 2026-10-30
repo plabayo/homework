@@ -100,7 +100,7 @@ function genProcentNaarBreuk(pool, requireSimplified) {
 function pickWholeMultiplier(den, maxWhole) {
     const minK = Math.max(1, Math.ceil(10 / den));
     const capK = Math.floor(maxWhole / den);
-    const maxK = capK < minK ? minK : capK;
+    const maxK = Math.max(capK, minK);
     return minK + Math.floor(Math.random() * (maxK - minK + 1));
 }
 

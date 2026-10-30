@@ -32,6 +32,7 @@ const ctx = createContext({
     parseInt,
     isNaN,
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     parseStrictInt: () => null,
     loadFields: () => {},
     readFields: () => ({}),
@@ -41,7 +42,7 @@ const ctx = createContext({
 
 runInContext(patched, ctx);
 
-export const { buildDeck } = ctx;
+export const { buildDeck, validateConfig } = ctx;
 
 export function withRandom(values, callback) {
     randomValues = [...values];

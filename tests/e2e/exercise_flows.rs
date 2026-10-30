@@ -124,7 +124,7 @@ async fn screen_wake_lock_is_scoped_to_active_exercise() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
-async fn mathbox_second_term_limit_applies_and_persists() -> TestResult<()> {
+async fn mathbox_term_ranges_apply_and_persist() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
@@ -132,14 +132,25 @@ async fn mathbox_second_term_limit_applies_and_persists() -> TestResult<()> {
     driver.goto(app.url("/1/mathbox")).await?;
     wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
 
-    let initial = driver.find(By::Css("#max-second-term")).await?;
-    assert_eq!(
-        initial.prop("value").await?.unwrap_or_default(),
-        "",
-        "the optional second-term limit should be blank by default",
-    );
+    for selector in [
+        "#min-first-term",
+        "#max-first-term",
+        "#min-second-term",
+        "#max-second-term",
+    ] {
+        let initial = driver.find(By::Css(selector)).await?;
+        assert_eq!(
+            initial.prop("value").await?.unwrap_or_default(),
+            "",
+            "the optional {selector} bound should be blank by default",
+        );
+    }
 
-    set_input_value(driver, "#count-until", "20").await?;
+    // The maximum only caps the answer, so the first number may exceed it.
+    set_input_value(driver, "#count-until", "10").await?;
+    set_input_value(driver, "#min-first-term", "11").await?;
+    set_input_value(driver, "#max-first-term", "20").await?;
+    set_input_value(driver, "#min-second-term", "2").await?;
     set_input_value(driver, "#max-second-term", "5").await?;
     set_input_value(driver, "#num-exercises", "1").await?;
     set_checkbox(driver, "input[name='practice'][value='som']", false).await?;
@@ -155,17 +166,69 @@ async fn mathbox_second_term_limit_applies_and_persists() -> TestResult<()> {
         .map(str::parse::<u16>)
         .collect::<Result<Vec<_>, _>>()?;
     assert!(terms.len() >= 2, "expected two terms in {prompt:?}");
-    assert!(terms[0] <= 20, "first term {} exceeds 20", terms[0]);
-    assert!(terms[1] <= 5, "second term {} exceeds 5", terms[1]);
+    assert!(
+        (11..=20).contains(&terms[0]),
+        "first term {} outside 11..=20",
+        terms[0]
+    );
+    assert!(
+        (2..=5).contains(&terms[1]),
+        "second term {} outside 2..=5",
+        terms[1]
+    );
 
-    // Starting a session persists the optional value. Return without
-    // answering and make sure the setup form restores both limits.
+    // Starting a session persists the optional values. Return without
+    // answering and make sure the setup form restores every bound.
     click(driver, "#page-exercises .button-reset").await?;
     wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
-    let count_until = driver.find(By::Css("#count-until")).await?;
-    let max_second = driver.find(By::Css("#max-second-term")).await?;
-    assert_eq!(count_until.prop("value").await?.unwrap_or_default(), "20");
-    assert_eq!(max_second.prop("value").await?.unwrap_or_default(), "5");
+    for (selector, expected) in [
+        ("#count-until", "10"),
+        ("#min-first-term", "11"),
+        ("#max-first-term", "20"),
+        ("#min-second-term", "2"),
+        ("#max-second-term", "5"),
+    ] {
+        let field = driver.find(By::Css(selector)).await?;
+        assert_eq!(
+            field.prop("value").await?.unwrap_or_default(),
+            expected,
+            "{selector} was not restored",
+        );
+    }
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn mathbox_impossible_ranges_explain_which_kind() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/mathbox")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+
+    // 15 + 10 never stays within 20, while 15 − 10 does.
+    set_input_value(driver, "#count-until", "20").await?;
+    set_input_value(driver, "#min-first-term", "15").await?;
+    set_input_value(driver, "#min-second-term", "10").await?;
+    set_checkbox(driver, "input[name='practice'][value='splitsen']", false).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    wait_for_text(
+        driver,
+        "#config-error",
+        "Met deze grenzen bestaat er geen oefening voor optellen.",
+        Duration::from_secs(5),
+    )
+    .await?;
+    let setup = driver.find(By::Css("#form-setup")).await?;
+    assert!(
+        setup.is_displayed().await?,
+        "setup form should stay visible"
+    );
 
     driver.clone().quit().await?;
     Ok(())

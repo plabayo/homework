@@ -4,6 +4,22 @@
 
 /* `.kinds` setup grid lives in theme.css. */
 
+/* "Eerste getal van … tot …" rows: a fixed name column keeps both rows'
+   inputs aligned; on narrow screens the name wraps above its bounds, which
+   always stay together on one line. */
+.term-range .term-range-name {
+    min-width: 7.5em;
+    font-weight: 500;
+}
+.term-range-bounds {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.term-range input {
+    width: 5em;
+}
+
 .split-stack {
     display: flex;
     flex-direction: column;

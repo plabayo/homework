@@ -3,7 +3,7 @@
 // Source-available; non-commercial use only.
 
 use rama::http::Request;
-use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend, p};
+use rama::http::protocols::html::{IntoHtml, div, fieldset, input, label, legend, p, span};
 use rama::http::service::web::response::IntoResponse;
 
 use crate::service::exercises::{
@@ -73,27 +73,17 @@ fn config_fields() -> impl IntoHtml {
                 required? = true,
             ),
         ),
-        div!(
-            class = "field",
-            label!(
-                r#for = "max-second-term",
-                "Grootste tweede getal (optioneel)",
-            ),
-            input!(
-                inputmode = "numeric",
-                pattern = "[0-9]*",
-                id = "max-second-term",
-                name = "max-second-term",
-                min = "1",
-                max = "1000",
-                placeholder = "zelfde maximum",
-                "aria-describedby" = "max-second-term-hint",
-            ),
+        fieldset!(
+            class = "term-ranges",
+            "aria-describedby" = "term-ranges-hint",
+            legend!("Grenzen per getal (optioneel)"),
             p!(
-                id = "max-second-term-hint",
+                id = "term-ranges-hint",
                 class = "field-hint",
-                "Laat leeg om hetzelfde maximum als hierboven te gebruiken.",
+                "De uitkomst blijft tot het getal hierboven. Laat een vakje leeg voor geen extra grens.",
             ),
+            term_range("first", "Eerste getal"),
+            term_range("second", "Tweede getal"),
         ),
         div!(
             class = "field",
@@ -121,5 +111,45 @@ fn config_fields() -> impl IntoHtml {
             ),
         ),
         time_mode_fieldset(),
+    )
+}
+
+/// One "van … tot …" row. The visible labels are short; the hidden prefix
+/// keeps each input's accessible name unambiguous.
+fn term_range(which: &'static str, name: &'static str) -> impl IntoHtml {
+    let min_id = format!("min-{which}-term");
+    let max_id = format!("max-{which}-term");
+    div!(
+        class = "field-row term-range",
+        span!(class = "term-range-name", "aria-hidden" = "true", name),
+        div!(
+            class = "term-range-bounds",
+            label!(
+                r#for = min_id.clone(),
+                span!(class = "visually-hidden", name, " "),
+                "van",
+            ),
+            input!(
+                inputmode = "numeric",
+                pattern = "[0-9]*",
+                id = min_id.clone(),
+                name = min_id,
+                size = "4",
+                placeholder = "0",
+            ),
+            label!(
+                r#for = max_id.clone(),
+                span!(class = "visually-hidden", name, " "),
+                "tot",
+            ),
+            input!(
+                inputmode = "numeric",
+                pattern = "[0-9]*",
+                id = max_id.clone(),
+                name = max_id,
+                size = "4",
+                placeholder = "max",
+            ),
+        ),
     )
 }
