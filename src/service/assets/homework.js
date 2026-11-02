@@ -1145,8 +1145,15 @@ function showLeaveGuardDialog(spec) {
             </form>
         `;
         document.body.appendChild(dlg);
+        // Settle on the click itself, not on the `close` event: that event is
+        // queued as a later task, and a home-link click landing before it
+        // would find the guard still "open" and silently resolve as "stay".
+        let settled = false;
         const close = (choice) => {
+            if (settled) return;
+            settled = true;
             leaveGuardDialogOpen = false;
+            if (dlg.open) dlg.close(choice);
             // Remove the dialog immediately on close. A CSS exit animation
             // doesn't run anyway — closed <dialog> elements get
             // `display: none` from the UA stylesheet — and leaving the
@@ -1165,10 +1172,10 @@ function showLeaveGuardDialog(spec) {
         };
         dlg.addEventListener("close", () => close(dlg.returnValue));
         dlg.querySelectorAll("[data-choice]").forEach((btn) => {
-            btn.addEventListener("click", () => dlg.close(btn.dataset.choice || "stay"));
+            btn.addEventListener("click", () => close(btn.dataset.choice));
         });
         dlg.addEventListener("click", (e) => {
-            if (e.target === dlg) dlg.close("stay");
+            if (e.target === dlg) close("stay");
         });
         if (typeof dlg.showModal === "function") {
             dlg.showModal();
