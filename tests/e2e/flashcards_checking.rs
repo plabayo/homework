@@ -85,15 +85,20 @@ async fn flashcards_strict_missing_accent_gets_a_hint_and_the_fix_is_practised_a
     let driver = &browser.driver;
     start_deck(driver, &app, STRICT_FRENCH).await?;
 
-    // Phone keyboards must not "fix" the answer for the child.
+    // Phone keyboards must not "fix" the answer for the child, and their
+    // return key should read as "go" so it is clear it submits.
     let attributes = driver
         .execute(
             "const a = document.getElementById('answer'); \
-             return [a.getAttribute('autocapitalize'), a.getAttribute('autocorrect'), a.spellcheck];",
+             return [a.getAttribute('autocapitalize'), a.getAttribute('autocorrect'), a.spellcheck, \
+                     a.getAttribute('enterkeyhint')];",
             vec![],
         )
         .await?;
-    assert_eq!(attributes.json(), &serde_json::json!(["off", "off", false]));
+    assert_eq!(
+        attributes.json(),
+        &serde_json::json!(["off", "off", false, "go"])
+    );
 
     answer(driver, "ecouter").await?;
     wait_for_text(

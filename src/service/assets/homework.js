@@ -2349,6 +2349,12 @@ export function runExercise(spec) {
             input.setAttribute("autocorrect", "off");
             input.setAttribute("spellcheck", "false");
         });
+        // Label the on-screen return key "go" so children see it submits.
+        // iPads have no digits-only keypad (`inputmode="numeric"` opens the
+        // full keyboard's 123 layer), so the plain ⏎ key is easy to miss.
+        contentEl.querySelectorAll("input:not([enterkeyhint])").forEach((input) => {
+            input.setAttribute("enterkeyhint", "go");
+        });
         // Focus the first input before the entrance animation starts so the
         // browser sees a fully-visible element (opacity: 1) at focus time.
         const firstInput = contentEl.querySelector("input, [tabindex]");
