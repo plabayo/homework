@@ -350,9 +350,11 @@ load instantly.
   — app JS uses `defer` (preserves order, runs after parse).
   Independent third-party (we have none right now) would use `async`.
   ES modules can rely on `type=module` + `<link rel="modulepreload">`.
-- **HTTP/2 and HTTP/3** `[Recommended]` — both are enabled at the
-  hosting layer. HTTP/3 (QUIC) removes head-of-line blocking on lossy
-  mobile networks, which is the school-wifi scenario.
+- **HTTP/2 and HTTP/3** `[Recommended]` — the server speaks HTTP/1.1
+  and h2 over TLS, and HTTP/3 over QUIC on UDP 443, advertised with
+  `Alt-Svc` (see `fly.toml` for the UDP service). HTTP/3 removes
+  head-of-line blocking on lossy mobile networks, which is the
+  school-wifi scenario.
 - **Speculation Rules** `[Recommended]` — `<script type="speculationrules">`
   to prefetch/prerender likely next routes (e.g. from the index to
   exercise pages). Keep the list small; over-eager prerendering wastes

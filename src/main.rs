@@ -2,24 +2,37 @@
 // See LICENSE in the repository root for details.
 // Source-available; non-commercial use only.
 
-use clap::Parser;
-use std::time::Duration;
+use clap::{Parser, value_parser};
+use std::{sync::Arc, time::Duration};
 
 use rama::{
     Layer as _,
     combinators::Either,
     error::{BoxError, ErrorContext as _},
     graceful::{self, ShutdownGuard},
-    http::{BodyLimitLayer, server::HttpServer, tls::CertIssuerHttpClient},
+    http::{
+        BodyLimitLayer,
+        core::h3::connection::Config as Http3Config,
+        headers::{AltSvc, AlternativeService},
+        layer::{
+            body_limit::BodyLimitLayer as RequestBodyLimitLayer, set_header::SetResponseHeaderLayer,
+        },
+        server::HttpServer,
+        tls::CertIssuerHttpClient,
+    },
     layer::AddInputExtensionLayer,
-    net::{Protocol, address::SocketAddress},
+    net::{Protocol, address::SocketAddress, tls::ApplicationProtocol},
     proxy::haproxy::server::HaProxyLayer,
+    quic::{
+        Endpoint, MtuDiscoveryConfig, ServerConfig, TransportConfig,
+        tls::{BoringTlsProvider, TlsOptions},
+    },
     rt::Executor,
     tcp::server::TcpListener,
     telemetry::tracing,
     tls::{
         boring::server::{BoringServerConfigExt as _, ServerCertIssuerData, TlsAcceptorLayer},
-        server::TlsServerConfig,
+        server::{LeafCertRequest, ServerAuthData, TlsServerConfig},
     },
 };
 
@@ -53,6 +66,23 @@ struct Cli {
     /// consumed by `rama::http::tls::CertIssuerHttpClient::try_from_env`).
     #[arg(long)]
     https: Option<SocketAddress>,
+
+    /// the UDP interface to serve HTTP/3 on, next to `--https`; HTTPS
+    /// responses then advertise it with `Alt-Svc`. Its port must be the one
+    /// clients reach, as `Alt-Svc` names only the port.
+    #[arg(long, requires = "https")]
+    h3: Option<SocketAddress>,
+
+    /// the largest UDP payload HTTP/3 path MTU discovery probes for (default
+    /// 1452). Lower it where the network drops larger datagrams silently.
+    #[arg(long, requires = "h3", value_parser = value_parser!(u16).range(1200..))]
+    h3_mtu_upper_bound: Option<u16>,
+
+    /// serve `--https` (and `--h3`) with a self-signed `localhost`
+    /// certificate instead of the ACME issuer: for local development and
+    /// tests only.
+    #[arg(long, requires = "https", hide = true)]
+    self_signed: bool,
 }
 
 async fn run_server(cfg: Cli) -> Result<(), BoxError> {
@@ -64,11 +94,19 @@ async fn run_server(cfg: Cli) -> Result<(), BoxError> {
     let shutdown = graceful::Shutdown::default();
 
     spawn_service_http(shutdown.guard(), cfg.http, cfg.https.is_some()).await?;
-    if let Some(https_bind) = cfg.https {
-        spawn_service_https(shutdown.guard(), https_bind).await?;
-    }
+    let h3_endpoint = match cfg.https {
+        Some(https_bind) => spawn_service_https(shutdown.guard(), https_bind, &cfg).await?,
+        None => None,
+    };
 
-    shutdown.shutdown_with_limit(Duration::from_secs(3)).await?;
+    let result = shutdown.shutdown_with_limit(Duration::from_secs(3)).await;
+    // A QUIC peer gets no reset from an exited process, it would wait out
+    // its idle timeout. HTTP/3 has drained (or run out of time) by now, so
+    // tell any peers left that we are gone.
+    if let Some(endpoint) = h3_endpoint {
+        _ = tokio::time::timeout(Duration::from_secs(1), endpoint.shutdown()).await;
+    }
+    result?;
     Ok(())
 }
 
@@ -110,25 +148,71 @@ async fn spawn_service_http(
 async fn spawn_service_https(
     guard: ShutdownGuard,
     interface: SocketAddress,
-) -> Result<(), BoxError> {
+    cfg: &Cli,
+) -> Result<Option<Endpoint>, BoxError> {
     let executor = Executor::graceful(guard.clone());
 
-    let issuer = CertIssuerHttpClient::try_from_env(executor.clone())
-        .context("create CertIssuerHttpClient from env")?;
+    let tls_server_config = if cfg.self_signed {
+        let auth = ServerAuthData::new_self_signed_leaf(LeafCertRequest::default())
+            .context("generate self-signed localhost certificate")?;
+        TlsServerConfig::new().with_server_auth(auth)
+    } else {
+        let issuer = CertIssuerHttpClient::try_from_env(executor.clone())
+            .context("create CertIssuerHttpClient from env")?;
 
-    // Cap the prefetch at 10 seconds. A slow or hung ACME endpoint must not
-    // be allowed to block server startup indefinitely — if prefetch is slow
-    // we just skip it and let real connections trigger issuance.
-    if (tokio::time::timeout(Duration::from_secs(10), issuer.prefetch_certs()).await).is_err() {
-        tracing::warn!("certificate prefetch timed out after 10s; continuing without warm cache");
+        // Cap the prefetch at 10 seconds. A slow or hung ACME endpoint must
+        // not be allowed to block server startup indefinitely — if prefetch
+        // is slow we just skip it and let real connections trigger issuance.
+        if (tokio::time::timeout(Duration::from_secs(10), issuer.prefetch_certs()).await).is_err() {
+            tracing::warn!(
+                "certificate prefetch timed out after 10s; continuing without warm cache"
+            );
+        }
+
+        TlsServerConfig::new().with_cert_issuer(ServerCertIssuerData::new(issuer))
     }
+    .with_alpn_http_auto();
 
-    let tls_server_config = TlsServerConfig::new()
-        .with_cert_issuer(ServerCertIssuerData::new(issuer))
-        .with_alpn_http_auto();
+    let h3_endpoint = match cfg.h3 {
+        Some(h3_bind) => {
+            Some(bind_http3(h3_bind, &tls_server_config, cfg.h3_mtu_upper_bound).await?)
+        }
+        None => None,
+    };
+    // Browsers always start over TCP; `Alt-Svc` tells them HTTP/3 is on
+    // offer so their next requests to this origin can switch to it.
+    let alt_svc = h3_endpoint
+        .as_ref()
+        .map(|endpoint| -> Result<AltSvc, BoxError> {
+            let port = endpoint
+                .local_addr()
+                .context("HTTP/3 endpoint address")?
+                .port();
+            Ok(AltSvc::new(AlternativeService::new(
+                ApplicationProtocol::HTTP_3,
+                port,
+            )?))
+        })
+        .transpose()?;
 
-    let svc = AddInputExtensionLayer::new(Protocol::HTTPS)
+    let svc = (
+        AddInputExtensionLayer::new(Protocol::HTTPS),
+        alt_svc.map(SetResponseHeaderLayer::overriding_typed),
+    )
         .into_layer(self::service::load_https_app_service().await?);
+
+    if let Some(endpoint) = h3_endpoint.clone() {
+        // The TCP stack caps request bodies at the connection; QUIC has no
+        // such layer, so cap them per request instead.
+        let h3_server = HttpServer::new_http3(executor.clone())
+            .service(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT).into_layer(svc.clone()));
+        let local_addr = endpoint.local_addr().context("HTTP/3 endpoint address")?;
+        let exec = executor.clone();
+        executor.spawn_task(async move {
+            tracing::info!("http/3 server ({local_addr}) up and running");
+            endpoint.serve(exec, Arc::new(h3_server)).await;
+        });
+    }
 
     let http_server = HttpServer::auto(executor.clone()).service(svc);
     // Session resumption lets a returning device (often on a flaky mobile
@@ -151,7 +235,43 @@ async fn spawn_service_https(
         tcp_listener.serve(tcp_server).await;
     });
 
-    Ok(())
+    Ok(h3_endpoint)
+}
+
+/// Bind QUIC on `interface` for HTTP/3, presenting the identity of `tls`
+/// (the ACME issuer's certificates included) and offering only `h3`.
+///
+/// The endpoint runs on an executor without the shutdown guard: one that
+/// carried it would close every connection as soon as shutdown starts,
+/// before HTTP/3 could drain its requests.
+async fn bind_http3(
+    interface: SocketAddress,
+    tls: &TlsServerConfig,
+    mtu_upper_bound: Option<u16>,
+) -> Result<Endpoint, BoxError> {
+    let tls = tls
+        .clone()
+        .with_alpn([ApplicationProtocol::HTTP_3].into_iter().collect());
+    let mut transport = TransportConfig::default();
+    Http3Config::default()
+        .configure_transport(&mut transport)
+        .context("HTTP/3 transport limits")?;
+    if let Some(upper_bound) = mtu_upper_bound {
+        transport
+            .set_mtu_discovery_config(MtuDiscoveryConfig::default().with_upper_bound(upper_bound));
+    }
+    let mut config = ServerConfig::try_from_rama_tls_with_provider(
+        &tls,
+        TlsOptions::default(),
+        &BoringTlsProvider,
+    )
+    .context("QUIC TLS server config")?;
+    config.set_transport_config(Arc::new(transport));
+    Endpoint::build(Executor::new())
+        .with_server_config(config)
+        .bind_address(interface)
+        .await
+        .context("bind QUIC endpoint for HTTP/3")
 }
 
 #[tokio::main]

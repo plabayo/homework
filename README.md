@@ -115,7 +115,15 @@ installed driver also avoids version-catalogue requests for every test session;
 CI installs the matching driver once and passes that path explicitly.
 
 The dev server runs plain HTTP by default. Pass `--https <addr>` (with
-the cert-issuer env vars wired up) to enable TLS locally.
+the cert-issuer env vars wired up) to enable TLS locally, and add
+`--h3 <addr>` to serve HTTP/3 on that UDP address as well; HTTPS responses
+then advertise it with `Alt-Svc`. The hidden `--self-signed` flag swaps the
+cert issuer for a self-signed `localhost` certificate, for local runs and
+tests:
+
+```bash
+cargo run -- --http 127.0.0.1:8080 --https 127.0.0.1:8443 --h3 127.0.0.1:8443 --self-signed
+```
 
 ### Other useful tasks
 
