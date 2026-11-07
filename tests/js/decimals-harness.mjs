@@ -7,6 +7,8 @@ import { dirname, join } from "node:path";
 import { createContext, runInContext } from "node:vm";
 import { fileURLToPath } from "node:url";
 
+import { uniqueDeck } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/decimals.js"), "utf8");
 const patched = src.replace(
@@ -22,6 +24,7 @@ testMath.random = () => {
 };
 
 const ctx = createContext({
+    uniqueDeck,
     Array,
     Object,
     String,

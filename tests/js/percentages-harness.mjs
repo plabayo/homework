@@ -11,7 +11,7 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pickWeighted, weightedPlan } from "./history-harness.mjs";
+import { pickWeighted, uniqueDeck, weightedPlan } from "./history-harness.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/percentages.js"), "utf8");
@@ -22,6 +22,7 @@ const patched = src.replace(
 );
 
 const ctx = createContext({
+    uniqueDeck,
     Array,
     Object,
     String,

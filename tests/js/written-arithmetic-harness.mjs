@@ -7,6 +7,8 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { uniqueDeck } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/written_arithmetic.js"), "utf8");
 const patched = src.replace(
@@ -27,6 +29,7 @@ function parseStrictInt(value) {
 }
 
 const ctx = createContext({
+    uniqueDeck,
     Array,
     Object,
     String,

@@ -11,12 +11,12 @@ import {
     optionListHtml,
     parseStrictInt,
     pickRandom,
-    pickWeighted,
     randomInt,
     readFields,
     runExercise,
     shuffle,
     simplifyFraction as simplify,
+    uniqueDeck,
     weightedPlan,
     wireOptions,
 } from "@homework";
@@ -314,36 +314,27 @@ function buildDeck(cfg) {
     const kinds = activeKinds(cfg);
     if (denominators.length === 0 || kinds.length === 0 || !cfg.numExercises || cfg.numExercises < 1) return [];
 
-    const deck = [];
-    const plan = weightedPlan(kinds, cfg.kindWeights, cfg.numExercises);
     // Within its share of the deck, each kind takes its variants in turn,
-    // starting from a random one.
+    // starting from a random one. A draw that finds a repeat moves on to the
+    // next variant, so a kind is only used up once all its variants are.
     const turns = new Map(kinds.map((kind) => [kind, randomInt(0, VARIANTS[kind].length - 1)]));
-    const seen = new Set();
-    let staleTries = 0;
-    let totalTries = 0;
-    while (deck.length < cfg.numExercises && totalTries < cfg.numExercises * 100) {
-        // A kind that keeps repeating itself has run out of fresh questions:
-        // hand its turn to any kind by weight.
-        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(kinds, cfg.kindWeights);
-        const variants = VARIANTS[kind];
-        const variant = variants[turns.get(kind) % variants.length];
-        const result = GENERATORS[variant](denominators);
-        totalTries++;
-        if (seen.has(result.key)) {
-            staleTries++;
-            if (staleTries > Math.max(30, seen.size)) {
-                seen.clear();
-                staleTries = 0;
-            }
-            continue;
-        }
-        seen.add(result.key);
-        staleTries = 0;
-        turns.set(kind, turns.get(kind) + 1);
-        deck.push(result.question);
-    }
-    return deck;
+    const misses = new Map(kinds.map((kind) => [kind, 0]));
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: weightedPlan(kinds, cfg.kindWeights, cfg.numExercises),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const variants = VARIANTS[kind];
+            const attempt = misses.get(kind);
+            misses.set(kind, attempt + 1);
+            const result = GENERATORS[variants[(turns.get(kind) + attempt) % variants.length]](denominators);
+            return { question: result.question, key: result.key };
+        },
+        onPick(_question, kind) {
+            turns.set(kind, turns.get(kind) + 1);
+            misses.set(kind, 0);
+        },
+    });
 }
 
 function fractionInputHtml(numId = "answer-num", denId = "answer-den", label = "jouw breuk") {

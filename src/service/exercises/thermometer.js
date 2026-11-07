@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, readFields, runExercise, weightedPlan } from "@homework";
+import { loadFields, parseStrictInt, readFields, runExercise, uniqueDeck, weightedPlan } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -133,25 +133,19 @@ function attachInteractive(root, q) {
 const KINDS = ["teken", "schrijf"];
 
 function buildDeck(cfg) {
-    const deck = [];
-    const plan = weightedPlan(cfg.kinds.length > 0 ? cfg.kinds : KINDS, cfg.kindWeights, cfg.numExercises);
-    const seen = new Set();
-    const tries = cfg.numExercises * 5 + 20;
-    for (let i = 0; i < tries && deck.length < cfg.numExercises; i++) {
-        const v = cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
-        const kind = plan[deck.length];
-        const key = `${kind}:${v}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deck.push({
-            kind,
-            value: v,
-            vmin: cfg.vmin,
-            vmax: cfg.vmax,
-            allowNegative: cfg.vmin < 0,
-        });
-    }
-    return deck;
+    const kinds = cfg.kinds.length > 0 ? cfg.kinds : KINDS;
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: weightedPlan(kinds, cfg.kindWeights, cfg.numExercises),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const value = cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
+            return {
+                question: { kind, value, vmin: cfg.vmin, vmax: cfg.vmax, allowNegative: cfg.vmin < 0 },
+                key: `${kind}:${value}`,
+            };
+        },
+    });
 }
 
 // Toggle the "diep onder 0" field whenever the negative checkbox changes.

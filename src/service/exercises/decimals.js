@@ -11,6 +11,7 @@ import {
     readFields,
     runExercise,
     shuffle,
+    uniqueDeck,
     wireOptions,
 } from "@homework";
 
@@ -226,20 +227,17 @@ function questionKey(question) {
 
 function buildDeck(cfg) {
     if (!MAX_PRECISIONS.includes(cfg.precision) || !cfg.numExercises || cfg.numExercises < 1) return [];
-    const deck = [];
-    const seen = new Set();
+    // The kinds take turns, from a random one.
     const offset = randomInt(0, QUESTION_KINDS.length - 1);
-    let tries = 0;
-    while (deck.length < cfg.numExercises && tries < cfg.numExercises * 100) {
-        const kind = QUESTION_KINDS[(offset + deck.length) % QUESTION_KINDS.length];
-        const question = generateQuestion(kind, cfg.precision);
-        const key = questionKey(question);
-        tries++;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deck.push(question);
-    }
-    return deck;
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: Array.from({ length: cfg.numExercises }, (_, i) => QUESTION_KINDS[(offset + i) % QUESTION_KINDS.length]),
+        kinds: QUESTION_KINDS,
+        draw(kind) {
+            const question = generateQuestion(kind, cfg.precision);
+            return { question, key: questionKey(question) };
+        },
+    });
 }
 
 function questionOptionsHtml(question) {

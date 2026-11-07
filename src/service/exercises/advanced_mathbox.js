@@ -6,10 +6,10 @@ import {
     formatScaledNumber,
     loadFields,
     parseStrictInt,
-    pickWeighted,
     randomInt,
     readFields,
     runExercise,
+    uniqueDeck,
     weightedPlan,
 } from "@homework";
 
@@ -66,36 +66,15 @@ function generateQuestion(kind, cfg) {
 function buildDeck(cfg) {
     if (!cfg.kinds || cfg.kinds.length === 0 || !MAXIMUMS.includes(cfg.maximum)) return [];
 
-    const deck = [];
-    const plan = weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises);
-    const seen = new Set();
-    let staleTries = 0;
-    let totalTries = 0;
-
-    while (deck.length < cfg.numExercises && totalTries < cfg.numExercises * 50) {
-        totalTries++;
-        if (staleTries > Math.max(20, seen.size)) {
-            seen.clear();
-            staleTries = 0;
-        }
-
-        // A kind that keeps repeating itself has run out of fresh questions:
-        // hand its turn to any kind by weight.
-        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(cfg.kinds, cfg.kindWeights);
-        const question = generateQuestion(kind, cfg);
-        if (!question) continue;
-        const key = questionKey(question);
-        if (seen.has(key)) {
-            staleTries++;
-            continue;
-        }
-
-        seen.add(key);
-        staleTries = 0;
-        deck.push(question);
-    }
-
-    return deck;
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const question = generateQuestion(kind, cfg);
+            return question && { question, key: questionKey(question) };
+        },
+    });
 }
 
 const SYMBOLS = {

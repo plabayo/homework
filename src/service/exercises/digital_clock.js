@@ -4,6 +4,7 @@
 
 import {
     buildReviewOptionList,
+    dealRounds,
     dutchTimePhrase,
     dutchTimePhraseVariants,
     escapeHtml,
@@ -80,10 +81,10 @@ function buildDeck(cfg) {
     for (let h = 0; h < hourMax; h++) {
         for (const m of minutes) candidates.push({ h, m });
     }
-    shuffle(candidates);
-    const slice = candidates.slice(0, cfg.numExercises);
-    const directions = weightedPlan(cfg.directions, cfg.kindWeights, slice.length);
-    return slice.map(({ h, m }, i) => {
+    // Every time once before any comes back.
+    const times = dealRounds(candidates, cfg.numExercises);
+    const directions = weightedPlan(cfg.directions, cfg.kindWeights, times.length);
+    return times.map(({ h, m }, i) => {
         const s = cfg.includeSeconds
             ? pickRandom(minutesForStep(Number(cfg.secondStep) || 5).filter((value) => value > 0))
             : 0;

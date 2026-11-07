@@ -2,7 +2,16 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, randomInt, readFields, runExercise, weightedPlan } from "@homework";
+import {
+    loadFields,
+    parseStrictInt,
+    pickRandom,
+    randomInt,
+    readFields,
+    runExercise,
+    uniqueDeck,
+    weightedPlan,
+} from "@homework";
 
 const MAX_NUMBER = 1000;
 
@@ -100,11 +109,18 @@ function buildDeck(cfg) {
     const kinds = [...plans.keys()];
     if (kinds.length === 0) return [];
 
-    return weightedPlan(kinds, cfg.kindWeights, cfg.numExercises).map((kind) => {
-        const q = plans.get(kind)();
-        // Splitsen also picks which side is hidden
-        if (kind === "splitsen") q.hide = Math.random() < 0.5 ? "a" : "b";
-        return q;
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: weightedPlan(kinds, cfg.kindWeights, cfg.numExercises),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const q = plans.get(kind)();
+            if (kind !== "splitsen") return { question: q, key: `${kind}:${q.a}:${q.b}` };
+            // Splitsen also picks which side is hidden. "10 → 9 + ?" and
+            // "10 → ? + 9" are the same task for a child: one key.
+            q.hide = Math.random() < 0.5 ? "a" : "b";
+            return { question: q, key: `${kind}:${q.answer}:${q.hide === "a" ? q.b : q.a}` };
+        },
     });
 }
 

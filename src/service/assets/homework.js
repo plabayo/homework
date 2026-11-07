@@ -612,6 +612,75 @@ export function pickWeighted(kinds, weights) {
     return kinds.at(-1);
 }
 
+/**
+ * `count` items dealt from `all` in rounds: every item once, in a fresh
+ * random order, before any comes back. For exercises that can list every
+ * question up front (maaltafels, digital clock times).
+ */
+export function dealRounds(all, count) {
+    const dealt = [];
+    while (all.length > 0 && dealt.length < count) {
+        dealt.push(...shuffle(all.slice()).slice(0, count - dealt.length));
+    }
+    return dealt;
+}
+
+/** Draws in a row that find nothing new before a kind counts as used up. */
+export const UNIQUE_PATIENCE = 2000;
+
+/**
+ * Build a deck without repeats: a question only comes back once every
+ * question the chosen kinds can make has been asked.
+ *
+ * `draw(kind)` returns `{ question, key }` (or null when the kind has
+ * nothing to offer); questions with the same key count as the same exercise.
+ * Generators draw at random, so "used up" is decided by drawing: a kind that
+ * finds nothing new in `patience` draws in a row is done — with even one
+ * fresh question left in a pool of 30, that miss has odds of about 10⁻³⁰.
+ * A used-up kind hands its turns (`plan`, see weightedPlan) to the kinds that
+ * still have fresh questions, by weight; only when every kind is used up does
+ * a new round begin, and only then may a question repeat. `onPick` hears of
+ * each question taken.
+ */
+export function uniqueDeck({
+    count,
+    plan,
+    draw,
+    kinds = [...new Set(plan)],
+    weights,
+    onPick,
+    patience = UNIQUE_PATIENCE,
+}) {
+    const deck = [];
+    const seen = new Set();
+    const usedUp = new Set();
+    while (deck.length < count) {
+        const fresh = kinds.filter((kind) => !usedUp.has(kind));
+        if (fresh.length === 0) {
+            // Nothing was taken this round: the settings allow no question.
+            if (seen.size === 0) break;
+            seen.clear();
+            usedUp.clear();
+            continue;
+        }
+        const planned = plan[deck.length];
+        const kind = fresh.includes(planned) ? planned : pickWeighted(fresh, weights);
+        let picked = null;
+        for (let tries = 0; tries < patience && !picked; tries++) {
+            const drawn = draw(kind);
+            if (drawn && !seen.has(drawn.key)) picked = drawn;
+        }
+        if (!picked) {
+            usedUp.add(kind);
+            continue;
+        }
+        seen.add(picked.key);
+        deck.push(picked.question);
+        onPick?.(picked.question, kind);
+    }
+    return deck;
+}
+
 /** Return an integer in the inclusive range `[min, max]`. */
 export function randomInt(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));

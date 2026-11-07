@@ -8,9 +8,9 @@ import {
     loadFields,
     parseStrictInt,
     pickRandom,
-    pickWeighted,
     readFields,
     runExercise,
+    uniqueDeck,
     weightedPlan,
 } from "@homework";
 
@@ -150,32 +150,15 @@ function buildDeck(cfg) {
     // (from the optional "max getal" field) overrides if set.
     const buildCfg = { ...cfg, maxWhole: cfg.maxWhole || maxWholeForDifficulty(cfg.difficulty) };
 
-    const plan = weightedPlan(kinds, cfg.kindWeights, N);
-    const seen = new Set();
-    let staleTries = 0;
-    let totalTries = 0;
-
-    while (deck.length < N && totalTries < N * 50) {
-        totalTries++;
-        if (staleTries > Math.max(20, seen.size)) {
-            seen.clear();
-            staleTries = 0;
-        }
-        // A kind that keeps repeating itself has run out of fresh questions:
-        // hand its turn to any kind by weight.
-        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(kinds, cfg.kindWeights);
-        const result = pickQuestion(kind, pool, buildCfg);
-        if (!result) continue;
-        const { q, key } = result;
-        if (seen.has(key)) {
-            staleTries++;
-            continue;
-        }
-        seen.add(key);
-        staleTries = 0;
-        deck.push(q);
-    }
-    return deck;
+    return uniqueDeck({
+        count: N,
+        plan: weightedPlan(kinds, cfg.kindWeights, N),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const result = pickQuestion(kind, pool, buildCfg);
+            return result && { question: result.q, key: result.key };
+        },
+    });
 }
 
 // ---------- Rendering ----------

@@ -11,7 +11,7 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pickWeighted, weightedPlan } from "./history-harness.mjs";
+import { pickWeighted, uniqueDeck, weightedPlan } from "./history-harness.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/fractions.js"), "utf8");
@@ -36,6 +36,7 @@ function simplifyFraction(num, den) {
 }
 
 const ctx = createContext({
+    uniqueDeck,
     Array,
     Object,
     String,

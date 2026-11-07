@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { load, parseStrictInt, read, runExercise, shuffle } from "@homework";
+import { dealRounds, load, parseStrictInt, read, runExercise } from "@homework";
 
 function getSelectedTables(form) {
     const list = [];
@@ -19,8 +19,8 @@ function buildDeck(cfg) {
             deck.push({ a: t, b: f, answer: t * f });
         }
     }
-    shuffle(deck);
-    return deck.slice(0, cfg.numExercises);
+    // Every product once before any comes back.
+    return dealRounds(deck, cfg.numExercises);
 }
 
 function bindSelectAll(form) {

@@ -49,6 +49,8 @@ const ctx = createContext({
     phraseFlipHtml: String,
     pickRandom: (values) => values[0],
     weightedPlan: (kinds, _weights, count) => Array(count).fill(kinds[0]),
+    // Rounds in listed order, like the identity shuffle above.
+    dealRounds: (all, count) => (all.length ? Array.from({ length: count }, (_, i) => all[i % all.length]) : []),
     preciseTimePhrase,
     readFields: () => ({}),
     runExercise: () => {},

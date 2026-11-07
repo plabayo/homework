@@ -85,6 +85,7 @@ runInContext(patched, ctx);
 
 export const {
     createScreenWakeLockController,
+    dealRounds,
     formatScaledNumber,
     gcd,
     isoWeekStart,
@@ -97,6 +98,7 @@ export const {
     renderAllOutcomes,
     renderHistoryGroups,
     simplifyFraction,
+    uniqueDeck,
     weeklyBuckets,
     weightedPlan,
 } = ctx;

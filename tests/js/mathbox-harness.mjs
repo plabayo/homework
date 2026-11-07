@@ -10,6 +10,8 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { uniqueDeck } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/mathbox.js"), "utf8");
 const patched = src.replace(
@@ -22,6 +24,7 @@ const testMath = Object.create(Math);
 testMath.random = () => randomValues.shift() ?? 0.5;
 
 const ctx = createContext({
+    uniqueDeck,
     Array,
     Object,
     String,

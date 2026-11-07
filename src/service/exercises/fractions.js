@@ -9,10 +9,10 @@ import {
     loadFields,
     parseStrictInt,
     pickRandom,
-    pickWeighted,
     readFields,
     runExercise,
     simplifyFraction as simplify,
+    uniqueDeck,
     weightedPlan,
 } from "@homework";
 
@@ -103,40 +103,15 @@ function buildDeck(cfg) {
         }
     }
 
-    // Track used question keys to avoid repeating the same assignment.
-    // When we fail to find an unseen question too many times in a row (signal
-    // of exhaustion), reset so repeats become allowed again.
-    const plan = weightedPlan(cfg.kinds, cfg.kindWeights, N);
-    const seen = new Set();
-    let staleTries = 0;
-    let totalTries = 0;
-
-    while (deck.length < N && totalTries < N * 50) {
-        totalTries++;
-
-        if (staleTries > Math.max(20, seen.size)) {
-            seen.clear();
-            staleTries = 0;
-        }
-
-        // A kind that keeps repeating itself has run out of fresh questions:
-        // hand its turn to any kind by weight.
-        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(cfg.kinds, cfg.kindWeights);
-        const result = pickQuestion(kind, dens, mixedPairs, cfg);
-
-        if (!result) continue;
-
-        const { q, key } = result;
-        if (seen.has(key)) {
-            staleTries++;
-            continue;
-        }
-
-        seen.add(key);
-        staleTries = 0;
-        deck.push(q);
-    }
-    return deck;
+    return uniqueDeck({
+        count: N,
+        plan: weightedPlan(cfg.kinds, cfg.kindWeights, N),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const result = pickQuestion(kind, dens, mixedPairs, cfg);
+            return result && { question: result.q, key: result.key };
+        },
+    });
 }
 
 const FEEDBACK = {

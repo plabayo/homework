@@ -6,10 +6,10 @@ import {
     formatScaledNumber,
     loadFields,
     parseStrictInt,
-    pickWeighted,
     randomInt,
     readFields,
     runExercise,
+    uniqueDeck,
     weightedPlan,
 } from "@homework";
 
@@ -170,36 +170,16 @@ function buildDeck(cfg) {
         return [];
     }
 
-    const deck = [];
-    const plan = weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises);
-    const seen = new Set();
-    let staleTries = 0;
-    let totalTries = 0;
-
-    while (deck.length < cfg.numExercises && totalTries < cfg.numExercises * 100) {
-        totalTries++;
-        if (staleTries > Math.max(20, seen.size)) {
-            seen.clear();
-            staleTries = 0;
-        }
-
-        const decimalPlaces = cfg.includeDecimals ? randomInt(1, cfg.decimalPlaces) : 0;
-        // A kind that keeps repeating itself has run out of fresh questions:
-        // hand its turn to any kind by weight.
-        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(cfg.kinds, cfg.kindWeights);
-        const question = generateQuestion(kind, cfg, decimalPlaces);
-        const key = questionKey(question);
-        if (seen.has(key)) {
-            staleTries++;
-            continue;
-        }
-
-        seen.add(key);
-        staleTries = 0;
-        deck.push(question);
-    }
-
-    return deck;
+    return uniqueDeck({
+        count: cfg.numExercises,
+        plan: weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises),
+        weights: cfg.kindWeights,
+        draw(kind) {
+            const decimalPlaces = cfg.includeDecimals ? randomInt(1, cfg.decimalPlaces) : 0;
+            const question = generateQuestion(kind, cfg, decimalPlaces);
+            return { question, key: questionKey(question) };
+        },
+    });
 }
 
 function placeName(question, placeIndex) {
