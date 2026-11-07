@@ -100,6 +100,7 @@ fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
             ),
         ),
         fieldset!(
+            "data-weights" = "ck",
             legend!("Welke oefeningen?"),
             label!(
                 input!(

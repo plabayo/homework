@@ -9,9 +9,11 @@ import {
     loadFields,
     parseStrictInt,
     pickRandom,
+    pickWeighted,
     readFields,
     runExercise,
     simplifyFraction as simplify,
+    weightedPlan,
 } from "@homework";
 
 // `frac` and `FRAC_INPUT` come from @homework so the markup stays in lock-step
@@ -104,6 +106,7 @@ function buildDeck(cfg) {
     // Track used question keys to avoid repeating the same assignment.
     // When we fail to find an unseen question too many times in a row (signal
     // of exhaustion), reset so repeats become allowed again.
+    const plan = weightedPlan(cfg.kinds, cfg.kindWeights, N);
     const seen = new Set();
     let staleTries = 0;
     let totalTries = 0;
@@ -116,7 +119,9 @@ function buildDeck(cfg) {
             staleTries = 0;
         }
 
-        const kind = pickRandom(cfg.kinds);
+        // A kind that keeps repeating itself has run out of fresh questions:
+        // hand its turn to any kind by weight.
+        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(cfg.kinds, cfg.kindWeights);
         const result = pickQuestion(kind, dens, mixedPairs, cfg);
 
         if (!result) continue;
@@ -279,6 +284,9 @@ runExercise({
         const numInput = root.querySelector("#answer-num");
         const denInput = root.querySelector("#answer-den");
         return () => ({ num: numInput.value, den: denInput.value });
+    },
+    renderPrint(q, root) {
+        root.innerHTML = renderPlay(q).html;
     },
     isCorrect(q, given) {
         if (q.kind === "breuk-van-getal") {

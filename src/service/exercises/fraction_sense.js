@@ -11,11 +11,13 @@ import {
     optionListHtml,
     parseStrictInt,
     pickRandom,
+    pickWeighted,
     randomInt,
     readFields,
     runExercise,
     shuffle,
     simplifyFraction as simplify,
+    weightedPlan,
     wireOptions,
 } from "@homework";
 
@@ -300,24 +302,32 @@ const GENERATORS = {
     "decimal-to-fraction": decimalToFractionQuestion,
 };
 
-function activeVariants(cfg) {
-    const variants = (cfg.kinds ?? []).flatMap((kind) => VARIANTS[kind] ?? []);
-    if (cfg.includeDecimals) variants.push(...VARIANTS.decimals);
-    return variants;
+// The checked kinds, plus the decimals extra when it is on.
+function activeKinds(cfg) {
+    const kinds = (cfg.kinds ?? []).filter((kind) => VARIANTS[kind]);
+    if (cfg.includeDecimals) kinds.push("decimals");
+    return kinds;
 }
 
 function buildDeck(cfg) {
     const denominators = denominatorsFor(cfg.denominatorSet);
-    const variants = activeVariants(cfg);
-    if (denominators.length === 0 || variants.length === 0 || !cfg.numExercises || cfg.numExercises < 1) return [];
+    const kinds = activeKinds(cfg);
+    if (denominators.length === 0 || kinds.length === 0 || !cfg.numExercises || cfg.numExercises < 1) return [];
 
     const deck = [];
+    const plan = weightedPlan(kinds, cfg.kindWeights, cfg.numExercises);
+    // Within its share of the deck, each kind takes its variants in turn,
+    // starting from a random one.
+    const turns = new Map(kinds.map((kind) => [kind, randomInt(0, VARIANTS[kind].length - 1)]));
     const seen = new Set();
-    const offset = randomInt(0, variants.length - 1);
     let staleTries = 0;
     let totalTries = 0;
     while (deck.length < cfg.numExercises && totalTries < cfg.numExercises * 100) {
-        const variant = variants[(offset + deck.length) % variants.length];
+        // A kind that keeps repeating itself has run out of fresh questions:
+        // hand its turn to any kind by weight.
+        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(kinds, cfg.kindWeights);
+        const variants = VARIANTS[kind];
+        const variant = variants[turns.get(kind) % variants.length];
         const result = GENERATORS[variant](denominators);
         totalTries++;
         if (seen.has(result.key)) {
@@ -330,6 +340,7 @@ function buildDeck(cfg) {
         }
         seen.add(result.key);
         staleTries = 0;
+        turns.set(kind, turns.get(kind) + 1);
         deck.push(result.question);
     }
     return deck;
@@ -631,6 +642,14 @@ const FEEDBACK = {
     "decimal-to-fraction": "zet om naar een breuk",
 };
 
+// On paper the choices are circled; the written kinds carry their own
+// instruction already.
+const PRINT_PROMPTS = {
+    "fraction-to-visual": "omcirkel de juiste strook",
+    compare: "omcirkel <, = of >",
+    order: "omcirkel de juiste volgorde",
+};
+
 const FIELDS = [
     { field: "practice", type: "checkboxes", key: "kinds" },
     { field: "denominator-set", type: "radio", key: "denominatorSet" },
@@ -662,6 +681,10 @@ runExercise({
         document.getElementById("exercise-feedback").textContent = FEEDBACK[question.kind];
         root.innerHTML = `<div class="fraction-sense-question" data-kind="${question.kind}">${renderPrompt(question)}</div>`;
         return answerGetter(question, root);
+    },
+    renderPrint(question, root) {
+        root.innerHTML = `<div class="fraction-sense-question" data-kind="${question.kind}">${renderPrompt(question)}</div>`;
+        return { prompt: PRINT_PROMPTS[question.kind] };
     },
     isCorrect: isCorrectAnswer,
     describe(question) {

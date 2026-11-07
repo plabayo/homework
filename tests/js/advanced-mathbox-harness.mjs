@@ -30,6 +30,11 @@ const ctx = createContext({
     isNaN,
     formatScaledNumber: (units) => String(units).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f"),
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    // One draw per question, like the pickRandom it replaces, so scripted
+    // random sequences keep lining up with the values they were written for.
+    pickWeighted: (kinds) => kinds[Math.floor(testMath.random() * kinds.length)],
+    weightedPlan: (kinds, _weights, count) =>
+        Array.from({ length: count }, () => kinds[Math.floor(testMath.random() * kinds.length)]),
     randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     parseStrictInt: () => null,
     loadFields: () => {},

@@ -8,8 +8,10 @@ import {
     loadFields,
     parseStrictInt,
     pickRandom,
+    pickWeighted,
     readFields,
     runExercise,
+    weightedPlan,
 } from "@homework";
 
 // ---------- Fraction pools ----------
@@ -148,6 +150,7 @@ function buildDeck(cfg) {
     // (from the optional "max getal" field) overrides if set.
     const buildCfg = { ...cfg, maxWhole: cfg.maxWhole || maxWholeForDifficulty(cfg.difficulty) };
 
+    const plan = weightedPlan(kinds, cfg.kindWeights, N);
     const seen = new Set();
     let staleTries = 0;
     let totalTries = 0;
@@ -158,7 +161,9 @@ function buildDeck(cfg) {
             seen.clear();
             staleTries = 0;
         }
-        const kind = pickRandom(kinds);
+        // A kind that keeps repeating itself has run out of fresh questions:
+        // hand its turn to any kind by weight.
+        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(kinds, cfg.kindWeights);
         const result = pickQuestion(kind, pool, buildCfg);
         if (!result) continue;
         const { q, key } = result;
@@ -311,6 +316,11 @@ runExercise({
         }
         const input = root.querySelector("#answer");
         return () => input.value;
+    },
+    renderPrint(q, root) {
+        const r = renderPlay(q);
+        root.innerHTML = r.html;
+        return { prompt: r.feedback };
     },
     isCorrect: isCorrectAnswer,
     describe(q) {

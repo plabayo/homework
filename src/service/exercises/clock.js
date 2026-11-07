@@ -21,6 +21,7 @@ import {
     runExercise,
     shuffle,
     sizeFlip,
+    weightedPlan,
     wireOptions,
     wordOptionListHtml,
 } from "@homework";
@@ -72,6 +73,8 @@ function buildDeck(cfg) {
     const wordsAllowed = allowed.filter((e) => isWordModeCandidate(e.m));
 
     const out = [];
+    const kinds = cfg.kinds.length > 0 ? cfg.kinds : ["lees", "zet"];
+    const plan = weightedPlan(kinds, cfg.kindWeights, cfg.numExercises);
     let bag = allowed.slice();
     shuffle(bag);
     let wordsBag = wordsAllowed.slice();
@@ -79,7 +82,7 @@ function buildDeck(cfg) {
 
     let safety = cfg.numExercises * 4 + 20;
     while (out.length < cfg.numExercises && safety-- > 0) {
-        const kind = pickRandom(cfg.kinds.length > 0 ? cfg.kinds : ["lees", "zet"]);
+        const kind = plan[out.length];
         let entry;
         if (kind === "zet-woorden") {
             if (wordsBag.length === 0) wordsBag = shuffle(wordsAllowed.slice());
@@ -221,6 +224,8 @@ function clockSvg(h, m, opts) {
     const interactive = !!opts.interactive;
     const s = opts.s ?? 0;
     const showSeconds = !!opts.showSeconds;
+    // A paper "zet de klok" item leaves the hands for the child to draw.
+    const showHands = opts.showHands !== false;
     // Note: hand angles are NOT included in the markup string — see
     // `initClockHands` below.
     const num = (n) => {
@@ -260,9 +265,13 @@ function clockSvg(h, m, opts) {
                 <circle class="face" cx="50" cy="50" r="46" />
                 ${ticks.join("")}
                 ${numbers.join("")}
-                <line class="hand-hour" x1="50" y1="50" x2="50" y2="${hourTip}" />
+                ${
+                    showHands
+                        ? `<line class="hand-hour" x1="50" y1="50" x2="50" y2="${hourTip}" />
                 <line class="hand-minute" x1="50" y1="50" x2="50" y2="${minTip}" />
-                ${showSeconds ? `<line class="hand-second" x1="50" y1="50" x2="50" y2="${secondTip}" />` : ""}
+                ${showSeconds ? `<line class="hand-second" x1="50" y1="50" x2="50" y2="${secondTip}" />` : ""}`
+                        : ""
+                }
                 ${
                     interactive
                         ? `
@@ -845,6 +854,26 @@ runExercise({
             </div>
         `;
         return attachInteractive(root, q);
+    },
+    renderPrint(q, root) {
+        const face = (hands) =>
+            clockSvg(q.h, q.m, {
+                interactive: false,
+                showNumbers: q.showNumbers,
+                showSeconds: q.includeSeconds,
+                s: q.s,
+                showHands: hands,
+            });
+        if (q.kind === "lees") {
+            const blank = '<input aria-label="uur"><span>:</span><input aria-label="minuten">';
+            root.innerHTML = `${face(true)}
+                <div class="time-pair">${blank}${q.includeSeconds ? '<span>:</span><input aria-label="seconden">' : ""}</div>`;
+            initClockHands(root);
+            return { prompt: "lees de klok" };
+        }
+        root.innerHTML = face(false);
+        const target = q.promptStyle === "words" ? `"${phraseFor(q)}"` : timeLabel(q.h, q.m, q.s, q.includeSeconds);
+        return { prompt: `teken de wijzers: ${target}` };
     },
     isCorrect(q, given) {
         if (!given) return false;

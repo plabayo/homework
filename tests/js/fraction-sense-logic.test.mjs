@@ -69,8 +69,10 @@ test("denominator choices expose their exact cumulative sets", () => {
 });
 
 test("buildDeck covers every variant when every checkbox is enabled", () => {
-    const deck = buildDeck(config());
-    assert.equal(deck.length, 12);
+    // The deck is shared evenly over the five kinds, and each kind takes its
+    // variants in turn: three questions per kind reach all of them.
+    const deck = buildDeck(config({ numExercises: 15 }));
+    assert.equal(deck.length, 15);
     assert.deepEqual(new Set(deck.map((question) => question.kind)), ALL_VARIANTS);
 });
 

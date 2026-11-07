@@ -19,6 +19,8 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { weightedPlan } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/clock.js"), "utf8");
 
@@ -147,6 +149,7 @@ const ctx = createContext({
     dutchTimePhraseVariants,
     minutesForStep,
     pickRandom: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    weightedPlan,
     // Identity shuffle keeps the test deterministic — order is irrelevant for
     // the properties under test (which question kinds / minute values appear).
     shuffle: (arr) => arr,

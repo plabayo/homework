@@ -22,6 +22,7 @@ import {
     runExercise,
     shuffle,
     sizeFlip,
+    weightedPlan,
     wireOptions,
     wordOptionListHtml,
 } from "@homework";
@@ -81,13 +82,14 @@ function buildDeck(cfg) {
     }
     shuffle(candidates);
     const slice = candidates.slice(0, cfg.numExercises);
-    return slice.map(({ h, m }) => {
+    const directions = weightedPlan(cfg.directions, cfg.kindWeights, slice.length);
+    return slice.map(({ h, m }, i) => {
         const s = cfg.includeSeconds
             ? pickRandom(minutesForStep(Number(cfg.secondStep) || 5).filter((value) => value > 0))
             : 0;
         return {
             // direction: 'digital-to-words' or 'words-to-digital'
-            dir: pickRandom(cfg.directions),
+            dir: directions[i],
             answerMode: cfg.answerMode || "multiple",
             use24h: !!cfg.use24h,
             granularity: cfg.granularity,
@@ -359,6 +361,22 @@ runExercise({
             sizeQuestionFlip(root);
             return wireOptions(root);
         }
+    },
+    renderPrint(q, root) {
+        const seconds = q.includeSeconds ? " has-seconds" : "";
+        if (q.dir === "digital-to-words") {
+            const dt = digitalLabel(q.h, q.m, q.s, q.use24h, q.includeSeconds);
+            root.innerHTML = `<div class="dclock${seconds}">${dt}</div><span class="print-write-line"></span>`;
+            return { prompt: "schrijf de tijd in woorden" };
+        }
+        const field = '<input class="dclock-field">';
+        const colon = '<span class="dclock-colon">:</span>';
+        // A phrase names the hour twice a day: in 24-hour mode say when it is
+        // the afternoon, or both 04:30 and 16:30 would fit "half vijf".
+        const dayPart = q.use24h && q.h >= 12 ? " ('s middags)" : "";
+        root.innerHTML = `<p class="dclock-label">${escapeHtml(q.phraseVariant || dutchTimePhrase(q.h, q.m))}${dayPart}</p>
+            <div class="dclock dclock-input${seconds}">${field}${colon}${field}${q.includeSeconds ? colon + field : ""}</div>`;
+        return { prompt: "schrijf de digitale tijd" };
     },
     isCorrect(q, given) {
         if (!given) return false;

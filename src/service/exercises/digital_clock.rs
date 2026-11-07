@@ -145,6 +145,7 @@ fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
             ),
         ),
         fieldset!(
+            "data-weights" = "dir",
             legend!("Wat oefen je?"),
             label!(
                 input!(

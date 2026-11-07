@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, readFields, runExercise, weightedPlan } from "@homework";
 
 // Geometry — works in viewBox (60 x 168). Tube is taller so each value gets
 // more vertical space; bulb is small and subtle.
@@ -130,15 +130,16 @@ function attachInteractive(root, q) {
     return () => current;
 }
 
-const KINDS = ["teken", "teken", "schrijf", "schrijf"];
+const KINDS = ["teken", "schrijf"];
 
 function buildDeck(cfg) {
     const deck = [];
+    const plan = weightedPlan(cfg.kinds.length > 0 ? cfg.kinds : KINDS, cfg.kindWeights, cfg.numExercises);
     const seen = new Set();
     const tries = cfg.numExercises * 5 + 20;
     for (let i = 0; i < tries && deck.length < cfg.numExercises; i++) {
         const v = cfg.vmin + Math.floor(Math.random() * (cfg.vmax - cfg.vmin + 1));
-        const kind = pickRandom(cfg.kinds.length > 0 ? cfg.kinds : KINDS);
+        const kind = plan[deck.length];
         const key = `${kind}:${v}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -257,6 +258,15 @@ runExercise({
                 return (negative ? "-" : "") + input.value;
             };
         }
+    },
+    renderPrint(q, root) {
+        const teken = q.kind === "teken";
+        root.innerHTML = `
+            <div class="thermo-wrap">
+                ${drawThermometer({ value: q.value, vmin: q.vmin, vmax: q.vmax, filled: !teken })}
+                ${teken ? "" : '<p class="thermo-input"><input> <span>℃</span></p>'}
+            </div>`;
+        return { prompt: teken ? `kleur tot ${q.value} ℃` : "lees de temperatuur" };
     },
     isCorrect(q, given) {
         // allowNegative because the thermometer supports sub-zero temps.

@@ -48,6 +48,7 @@ const ctx = createContext({
     parseStrictInt: Number,
     phraseFlipHtml: String,
     pickRandom: (values) => values[0],
+    weightedPlan: (kinds, _weights, count) => Array(count).fill(kinds[0]),
     preciseTimePhrase,
     readFields: () => ({}),
     runExercise: () => {},

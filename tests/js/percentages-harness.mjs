@@ -11,6 +11,8 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { pickWeighted, weightedPlan } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/percentages.js"), "utf8");
 
@@ -33,6 +35,8 @@ const ctx = createContext({
     isNaN,
     // pickRandom is imported from @homework in the real file; provide a real impl.
     pickRandom: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    pickWeighted,
+    weightedPlan,
     // Real impl of parseStrictInt mirroring homework.js — keeping these in
     // sync is the price of running pure-function tests in isolation.
     parseStrictInt: (value, opts = {}) => {

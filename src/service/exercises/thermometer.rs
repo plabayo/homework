@@ -114,6 +114,7 @@ fn config_fields() -> impl rama::http::protocols::html::IntoHtml {
             ),
         ),
         fieldset!(
+            "data-weights" = "tk",
             legend!("Welke types?"),
             label!(
                 input!(

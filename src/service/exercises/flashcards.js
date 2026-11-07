@@ -3338,6 +3338,38 @@ function renderMultiPartQuestion(q, root, mode) {
     return () => input?.value ?? "";
 }
 
+// ---------- Print renderer ----------
+
+// A card on paper: its prompt and a line per answer to write. A fill-in grid
+// prints once, as the whole list with lines for its blanks.
+function renderPrintCard(q, root, { index, deck }) {
+    if (q.kind === "fill-in") {
+        if (deck.slice(0, index).some((other) => other.blankIndices === q.blankIndices)) return false;
+        const blanks = fillInState(q).blankIndices;
+        const rows = q.allCards
+            .map((card, i) =>
+                blanks.includes(i) ? '<li><span class="print-write-line"></span></li>' : `<li>${escapeHtml(card)}</li>`,
+            )
+            .join("");
+        root.innerHTML = `<ol class="print-fill-list">${rows}</ol>`;
+        return { prompt: "vul de ontbrekende woorden in" };
+    }
+    const source = q.deckName ? `<p class="fc-source-deck">${escapeHtml(q.deckName)}</p>` : "";
+    let front = `<p class="flash-text">${escapeHtml(q.front)}</p>`;
+    if (q.kind === "image") {
+        const src = imageObjectURLs.get(q.wikimedia);
+        front = `<img alt="" class="flash-card-image"${src ? ` src="${src}"` : ""}>`;
+        if (!src) {
+            wmLoad(q.wikimedia)
+                .then((url) => root.querySelector("img")?.setAttribute("src", url))
+                .catch(() => {});
+        }
+    }
+    const lines = q.kind === "multi-part" ? Math.max(1, q.partsRequired) : 1;
+    root.innerHTML = `${source}${front}${'<span class="print-write-line"></span>'.repeat(lines)}`;
+    return q.kind === "multi-part" && lines > 1 ? { prompt: `schrijf ${lines} antwoorden` } : undefined;
+}
+
 // Store the source with every generated question, including single-deck runs.
 // It survives IndexedDB, retries, and later deck renames or deletions.
 function buildDeckQuestions(deck, cfg) {
@@ -3829,6 +3861,16 @@ runExercise({
         }
         hintUsedQuestions.delete(q);
         answerPairs.delete(q);
+    },
+
+    renderPrint: renderPrintCard,
+
+    printTitle(cfg) {
+        const names = configDeckIds(cfg)
+            .map(getDeck)
+            .filter(Boolean)
+            .map((deck) => deck.name);
+        return names.join(" + ") || "flitskaarten";
     },
 
     renderQuestion(q, root, mode) {

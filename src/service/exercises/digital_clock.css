@@ -117,3 +117,20 @@
         font-size: clamp(2.5rem, 6vw, 3.25rem);
     }
 }
+
+/* ---------- print sheet ----------
+   On paper the LED face becomes an outlined readout: a black panel would
+   only waste ink, and the boxes need to stay writable. */
+.print-item .dclock {
+    background: transparent;
+    color: var(--fg);
+    box-shadow: none;
+    font-size: 1.6rem;
+    padding: 4px 12px;
+}
+.print-item .dclock-input {
+    gap: 4px;
+}
+.print-item .dclock-label {
+    font-size: 1.05rem;
+}

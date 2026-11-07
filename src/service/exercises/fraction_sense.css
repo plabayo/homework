@@ -251,3 +251,22 @@
         padding: 12px 18px 8px;
     }
 }
+
+/* ---------- print sheet ---------- */
+.print-sheet {
+    --print-item-min: 15rem;
+}
+.print-item .fraction-visual {
+    width: 12rem;
+    max-width: 100%;
+    min-height: 32px;
+}
+/* Strips to circle stack up, each one wide enough to count its parts. */
+.print-item .fraction-visual-options {
+    flex-direction: column;
+    align-items: center;
+}
+.print-item .print-choice .fraction-visual {
+    width: 10rem;
+    min-height: 24px;
+}

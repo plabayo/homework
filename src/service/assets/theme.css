@@ -93,6 +93,15 @@
         /* Tertiary palette — for non-error highlights (purple/violet ribbons,
        lenient-match cards, etc.) */
         --info: light-dark(#7c3aed, #a78bfa);
+        /* Categorical colours for the kinds in the weight selector — one
+       per kind, distinct from each other in both schemes. Decorative
+       only: every kind is also named in text. */
+        --kind-1: light-dark(#2563eb, #60a5fa);
+        --kind-2: light-dark(#d97706, #fbbf24);
+        --kind-3: light-dark(#059669, #34d399);
+        --kind-4: light-dark(#db2777, #f472b6);
+        --kind-5: light-dark(#7c3aed, #a78bfa);
+        --kind-6: light-dark(#0891b2, #22d3ee);
 
         /* Translucent surface tints, derived from semantic colors so they shift
        automatically with the theme. */
@@ -795,13 +804,119 @@
     .result-detail-list li.item-wrong {
         border-inline-start-color: var(--bad);
     }
+    /* Amber in both schemes: --warn-fg is text-on-amber, near-black in dark
+       mode, which made this marker vanish on the dark card. */
     .result-detail-list li.item-tricky {
-        border-inline-start-color: var(--warn-fg);
+        border-inline-start-color: light-dark(#b45309, #facc15);
     }
     /* Accepted as "bijna goed" without counting as a mistake. */
     .result-detail-list li.item-near {
         border-inline-start-style: dashed;
-        border-inline-start-color: var(--warn-fg);
+        border-inline-start-color: light-dark(#b45309, #facc15);
+    }
+    .result-detail-list li.item-correct {
+        border-inline-start-color: var(--good);
+    }
+    /* "Toon alle oefeningen": the full session reads top to bottom in the
+       order it was asked, so one column — a grid would scramble it. */
+    .result-detail-list.outcome-all-list {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    .result-detail-list.outcome-all-list li {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 2px 12px;
+    }
+    .result-detail-list.outcome-all-list li > :not(.item-desc, .item-meta) {
+        flex-basis: 100%;
+    }
+    .item-num {
+        display: inline-block;
+        min-inline-size: 2ch;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .result-detail-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 12px;
+        margin-block-end: 10px;
+    }
+    .result-detail .history-perfect {
+        margin: 0;
+    }
+
+    /* ---------- show-all toggle ----------
+       A pill with an eye, like a "show password" control: closed and
+       struck through by default, opening when pressed. */
+    .show-all-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 6px 14px 6px 10px;
+        border: 1px solid var(--border-soft);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .show-all-toggle:hover {
+        color: var(--fg);
+        border-color: color-mix(in srgb, var(--fg) 45%, transparent);
+    }
+    .show-all-toggle[aria-pressed="true"] {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-tint);
+    }
+    .show-all-eye {
+        inline-size: 1.4em;
+        block-size: 1.4em;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    .show-all-eye-pupil {
+        fill: currentColor;
+        stroke: none;
+        transform-origin: 12px 12px;
+        transform: scale(0.4);
+        opacity: 0.5;
+    }
+    .show-all-eye-slash {
+        stroke-dasharray: 23;
+        stroke-dashoffset: 0;
+    }
+    .show-all-toggle[aria-pressed="true"] .show-all-eye-pupil {
+        transform: scale(1);
+        opacity: 1;
+    }
+    .show-all-toggle[aria-pressed="true"] .show-all-eye-slash {
+        stroke-dashoffset: 23;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .show-all-eye-pupil {
+            transition:
+                transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 160ms ease-out;
+        }
+        .show-all-eye-slash {
+            transition: stroke-dashoffset 200ms ease-out;
+        }
+    }
+    .history-toolbar {
+        display: flex;
+        justify-content: flex-end;
     }
     .item-desc {
         font-weight: 600;
@@ -1816,6 +1931,126 @@
             grid-template-columns: repeat(2, 1fr);
         }
     }
+
+    /* ---------- kind weight selector ----------
+       "⚖️ verdeling" under a multi-kind checklist: a collapsed summary with
+       a stacked bar previewing the split, opening onto one slider per
+       checked kind. */
+    .kind-weights {
+        border-block-start: 1px dashed var(--border-soft);
+        padding-block-start: 8px;
+        margin-block-start: 4px;
+    }
+    .kind-weights > summary {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        cursor: pointer;
+        list-style: none;
+        border-radius: var(--radius);
+        font-size: 0.95rem;
+    }
+    .kind-weights > summary::-webkit-details-marker {
+        display: none;
+    }
+    .kind-weights > summary:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+    }
+    .kind-weights-title {
+        font-weight: 600;
+    }
+    .kind-weights-title::before {
+        content: "▸ ";
+        display: inline-block;
+        color: var(--muted);
+    }
+    .kind-weights[open] .kind-weights-title::before {
+        transform: rotate(90deg);
+    }
+    .kind-weights-bar {
+        display: flex;
+        gap: 2px;
+        block-size: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    .kind-weights-segment {
+        flex: 1 1 0;
+        background: var(--kind-color);
+    }
+    .kind-weights-state {
+        color: var(--muted);
+        font-size: 0.85rem;
+    }
+    .kind-weights.is-custom .kind-weights-state {
+        color: var(--accent);
+        font-weight: 600;
+    }
+    .kind-weights-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-block: 6px 2px;
+    }
+    .kind-weight-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "swatch label share"
+            "range range range";
+        align-items: center;
+        gap: 2px 8px;
+    }
+    .kind-weight-swatch {
+        grid-area: swatch;
+        inline-size: 0.8rem;
+        block-size: 0.8rem;
+        border-radius: 3px;
+        background: var(--kind-color);
+    }
+    .kind-weight-row label {
+        grid-area: label;
+    }
+    .kind-weight-row input[type="range"] {
+        grid-area: range;
+        inline-size: 100%;
+        min-block-size: 32px;
+        accent-color: var(--kind-color);
+    }
+    .kind-weight-share {
+        grid-area: share;
+        min-inline-size: 4ch;
+        text-align: end;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+    }
+    .kind-weights-reset {
+        align-self: flex-start;
+        background: transparent;
+        border: 1px dashed var(--border-soft);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.85rem;
+        min-height: 36px;
+        padding: 4px 12px;
+    }
+    @media (min-width: 600px) {
+        .kind-weight-row {
+            grid-template-columns: auto minmax(9rem, 1fr) minmax(8rem, 1.4fr) auto;
+            grid-template-areas: "swatch label range share";
+        }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .kind-weights-segment {
+            transition: flex-grow 200ms ease-out;
+        }
+        .kind-weights-title::before {
+            transition: transform 120ms ease;
+        }
+    }
     /* ---------- exercise bar ----------
        Single header row on every exercise page: breadcrumb left, theme
        toggle right. Replaces the wider page_header — exercise screens
@@ -1888,6 +2123,260 @@
     }
     .breadcrumb .icon {
         margin-inline-end: -2px;
+    }
+
+    /* ---------- print sheet ----------
+       A paper worksheet built from the setup form. On screen it previews as
+       a sheet of paper — light even in dark mode, since that is what comes
+       out of the printer — below a toolbar that never prints. Exercises size
+       their own items via `--print-item-min` and `.print-item` rules. */
+    #page-print:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space);
+    }
+    .print-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    .print-hint {
+        text-align: center;
+    }
+    .print-sheet {
+        color-scheme: light;
+        background: #ffffff;
+        color: var(--fg);
+        inline-size: 100%;
+        max-inline-size: 210mm;
+        margin-inline: auto;
+        padding: 24px 20px;
+        border-radius: 4px;
+        box-shadow: var(--shadow-card);
+        font-size: 1.05rem;
+    }
+    .print-head {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-block-end: 12px;
+        margin-block-end: 20px;
+        border-block-end: 2px solid var(--fg);
+    }
+    .print-title {
+        font-size: 1.4rem;
+        margin: 0;
+    }
+    .print-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 24px;
+        font-size: 0.95rem;
+    }
+    .print-field {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        flex: 1 1 10rem;
+    }
+    .print-field:has(.print-line-score) {
+        flex: 0 0 auto;
+    }
+    .print-line {
+        flex: 1 1 auto;
+        min-inline-size: 6rem;
+        block-size: 1.2em;
+        border-block-end: 1.5px solid var(--fg);
+    }
+    .print-line-short {
+        flex: 0 1 8rem;
+    }
+    .print-line-score {
+        flex: 0 0 3rem;
+        min-inline-size: 3rem;
+    }
+    /* Worksheet cells: every item is a lightly outlined box — its
+       instruction (if any) on top, the exercise centered below — so a row
+       of mixed items still lines up. Cells in a row share one height and
+       read from the top. Items carry no numbers: next to sums a child would
+       read them as one more number. */
+    .print-items {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        /* A cell is at least the exercise's minimum, and at least as wide as
+           the widest one-line row (`--print-fit`, measured by homework.js)
+           plus its padding and some slack; columns grow to fill the row. */
+        grid-template-columns: repeat(
+                auto-fill,
+                minmax(min(100%, max(var(--print-item-min, 13rem), calc(var(--print-fit, 0px) + 3rem))), 1fr)
+            );
+        gap: 10px;
+    }
+    .print-item {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+        border-radius: 8px;
+        break-inside: avoid;
+    }
+    /* When any item has an instruction, every header keeps room for two
+       lines of it, so the exercises below start level across a row. */
+    .print-items:has(.print-prompt) .print-item-head {
+        min-block-size: 2.3em;
+    }
+    .print-items:not(:has(.print-prompt)) .print-item-head {
+        display: none;
+    }
+    .print-prompt {
+        text-align: center;
+        line-height: 1.3;
+        color: var(--muted);
+        font-size: 0.85rem;
+        font-style: italic;
+        text-wrap: balance;
+    }
+    .print-body {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+    }
+    .print-body p {
+        margin: 0;
+    }
+    /* Expression rows ("3 + 4 = ☐") never wrap: a "%" or "= ☐" alone on
+       the next line reads as a different exercise. The grid makes room. */
+    .print-body > p {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 1.15rem;
+    }
+    /* An answer input on paper: an empty box to write in. */
+    .print-blank {
+        display: inline-block;
+        vertical-align: middle;
+        inline-size: 3.4em;
+        block-size: 1.9em;
+        border: 1.5px solid var(--fg);
+        border-radius: 6px;
+        background: transparent;
+    }
+    /* Cream "paper" boxes would only cost ink. */
+    .print-sheet .box {
+        background: transparent;
+    }
+    /* A fraction to fill in: two equal boxes on either side of one crisp
+       bar that reaches just past them, like a written fraction line. */
+    .print-sheet .fraction-input {
+        gap: 4px;
+    }
+    .print-sheet .fraction-input .print-blank {
+        inline-size: 2.2em;
+        block-size: 1.7em;
+        border-radius: 4px;
+    }
+    .print-sheet .fraction-input .frac-bar {
+        inline-size: 2.8em;
+        min-inline-size: 0;
+        block-size: 2px;
+    }
+    /* A free-text answer on paper: a line to write on. */
+    .print-write-line {
+        display: block;
+        align-self: stretch;
+        block-size: 1.9em;
+        border-block-end: 1.5px solid var(--fg);
+    }
+    .print-sheet .option-list.print-choices {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 10px;
+        margin: 0;
+        max-inline-size: none;
+    }
+    .print-choice {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 12px;
+        border: 1.5px solid var(--border-soft);
+        border-radius: 999px;
+    }
+    .print-footer {
+        margin-block-start: 28px;
+        padding-block-start: 8px;
+        border-block-start: 1px solid var(--border-soft);
+        color: var(--muted);
+        font-size: 0.8rem;
+        text-align: center;
+    }
+    .print-footer a {
+        color: inherit;
+    }
+
+    @media print {
+        /* The footer at the foot of every page, in the page's own margin.
+           Keep the text in step with `.print-footer` in homework.js. */
+        @page {
+            margin: 14mm 12mm 16mm;
+            @bottom-center {
+                content: "Gegenereerd met elementary.training, een open source educatieve tool van plabayo.tech.";
+                color: #4b5563;
+                font-family: system-ui, sans-serif;
+                font-size: 8pt;
+            }
+        }
+        .print-sheet.has-page-footer .print-footer {
+            display: none;
+        }
+        /* !important beats the theme toggle's inline color-scheme. */
+        html {
+            color-scheme: light !important;
+        }
+        /* Paper doesn't move. */
+        *,
+        ::before,
+        ::after {
+            animation: none !important;
+            transition: none !important;
+        }
+        body {
+            padding: 0;
+            background: #ffffff;
+        }
+        .skip-link,
+        #confetti,
+        .lang-banner,
+        .offline-banner,
+        .exercise-bar,
+        .print-toolbar,
+        .print-hint {
+            display: none !important;
+        }
+        .page {
+            max-width: none;
+        }
+        .print-sheet {
+            max-inline-size: none;
+            padding: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        .print-sheet a {
+            text-decoration: none;
+        }
     }
 } /* end @layer base */
 

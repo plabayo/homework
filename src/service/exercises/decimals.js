@@ -343,6 +343,14 @@ const FEEDBACK = {
     round: "rond het kommagetal af",
 };
 
+// On paper the choices are circled; rounding says what to do already.
+const PRINT_PROMPTS = {
+    "place-value": "omcirkel de juiste waarde",
+    compare: "omcirkel <, = of >",
+    order: "omcirkel de juiste volgorde",
+    "number-line": "welk getal staat bij de stip?",
+};
+
 const FIELDS = [
     { field: "precision", type: "radio", key: "precision" },
     { field: "num-exercises", type: "number", key: "numExercises" },
@@ -374,6 +382,10 @@ runExercise({
         if (question.options) return wireOptions(root);
         const input = root.querySelector("#answer");
         return () => input.value;
+    },
+    renderPrint(question, root) {
+        root.innerHTML = `<div class="decimal-question" data-kind="${question.kind}">${renderPrompt(question)}</div>`;
+        return { prompt: PRINT_PROMPTS[question.kind] };
     },
     isCorrect: isCorrectAnswer,
     describe(question) {

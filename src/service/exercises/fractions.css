@@ -90,3 +90,11 @@
         animation: pop-in 220ms ease-out 180ms both;
     }
 }
+
+/* ---------- print sheet ----------
+   One line, always: the sheet picks fewer columns instead (see theme.css). */
+.print-item .fraction-expr {
+    flex-wrap: nowrap;
+    gap: 0.4em;
+    font-size: 1.15rem;
+}

@@ -1756,3 +1756,24 @@
     flex-direction: column;
     align-items: center;
 }
+
+/* ---------- print sheet ---------- */
+.print-sheet {
+    --print-item-min: 16rem;
+}
+.print-item .flash-text {
+    font-weight: 600;
+}
+.print-item .flash-card-image {
+    max-inline-size: 10rem;
+    max-block-size: 8rem;
+    object-fit: contain;
+}
+.print-fill-list {
+    align-self: stretch;
+    text-align: start;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-inline-start: 1.6em;
+}

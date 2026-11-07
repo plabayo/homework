@@ -537,6 +537,81 @@ export function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// ---------- kind weights ----------
+//
+// Exercises that mix kinds (som, verschil, splitsen, …) share the deck out
+// over the checked kinds. A parent can bias that split per kind with a
+// 1–5 weight; every kind starts at the middle, so the default is fair.
+
+export const KIND_WEIGHT_MIN = 1;
+export const KIND_WEIGHT_MAX = 5;
+export const KIND_WEIGHT_DEFAULT = 3;
+const KIND_WEIGHT_LABELS = ["", "zelden", "minder", "normaal", "meer", "vaak"];
+
+/** The weight of `kind` in a saved `kindWeights` map; anything missing or
+ *  out of range (old configs, hand-edited storage) counts as the default. */
+export function kindWeight(weights, kind) {
+    const w = weights?.[kind];
+    return Number.isInteger(w) && w >= KIND_WEIGHT_MIN && w <= KIND_WEIGHT_MAX ? w : KIND_WEIGHT_DEFAULT;
+}
+
+// Split `total` over `weights` proportionally (largest remainder). Ties for a
+// leftover unit go to the earliest index in `order`.
+function apportion(weights, total, order = weights.map((_, i) => i)) {
+    const sum = weights.reduce((a, b) => a + b, 0);
+    if (sum <= 0 || total <= 0) return weights.map(() => 0);
+    const exact = weights.map((w) => (w * total) / sum);
+    const counts = exact.map(Math.floor);
+    let left = total - counts.reduce((a, b) => a + b, 0);
+    const byRemainder = order.slice().sort((a, b) => exact[b] - counts[b] - (exact[a] - counts[a]));
+    for (const i of byRemainder) {
+        if (left <= 0) break;
+        counts[i]++;
+        left--;
+    }
+    return counts;
+}
+
+/** Whole-percent share per kind, summing to 100 — what the selector shows. */
+export function kindShares(kinds, weights) {
+    return apportion(
+        kinds.map((kind) => kindWeight(weights, kind)),
+        100,
+    );
+}
+
+/**
+ * The kind of every question in a deck of `count`, shuffled: each kind gets
+ * its weighted share of the deck (equal weights → an even split), so the
+ * percentages a parent sets are what the child gets, not just on average.
+ * Leftover questions go to randomly chosen kinds among the closest calls.
+ */
+export function weightedPlan(kinds, weights, count) {
+    if (kinds.length === 0 || count <= 0) return [];
+    const counts = apportion(
+        kinds.map((kind) => kindWeight(weights, kind)),
+        count,
+        shuffle(kinds.map((_, i) => i)),
+    );
+    return shuffle(kinds.flatMap((kind, i) => Array(counts[i]).fill(kind)));
+}
+
+/**
+ * One kind at random, in proportion to its weight. Decks fall back to this
+ * when a kind runs out of fresh questions before its planned share is full
+ * (e.g. "breuk → procent" on the easiest level knows only a handful), so the
+ * deck fills up without repeats.
+ */
+export function pickWeighted(kinds, weights) {
+    const ws = kinds.map((kind) => kindWeight(weights, kind));
+    let r = Math.random() * ws.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < kinds.length; i++) {
+        r -= ws[i];
+        if (r < 0) return kinds[i];
+    }
+    return kinds.at(-1);
+}
+
 /** Return an integer in the inclusive range `[min, max]`. */
 export function randomInt(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
@@ -1419,6 +1494,162 @@ function pickMistakes(spec, mistakes) {
     });
 }
 
+// ---------- print sheet ----------
+
+/**
+ * Turn an exercise's on-screen markup into something a pencil can answer:
+ * answer inputs become empty boxes to write in (keeping their classes, so a
+ * splitsen box still looks like one), choice buttons become options to
+ * circle, and anything only a tap can work (peeks, hint toggles) goes away.
+ * Ids are dropped too — the same `#answer` repeats on every item — except
+ * inside SVG, where `clip-path: url(#…)` depends on them.
+ */
+export function makePrintable(root) {
+    for (const input of root.querySelectorAll("input:not([type='checkbox']):not([type='radio'])")) {
+        const blank = document.createElement("span");
+        blank.className = `print-blank ${input.className}`.trim();
+        input.replaceWith(blank);
+    }
+    for (const flip of root.querySelectorAll(".phrase-flip")) {
+        flip.replaceWith(flip.querySelector(".phrase-flip-front")?.textContent ?? "");
+    }
+    for (const button of root.querySelectorAll("button.option")) {
+        const choice = document.createElement("span");
+        choice.className = "print-choice";
+        const front = button.querySelector(".word-option-front");
+        if (front) choice.textContent = front.textContent;
+        else choice.innerHTML = button.innerHTML;
+        button.replaceWith(choice);
+    }
+    for (const button of root.querySelectorAll("button")) button.remove();
+    for (const list of root.querySelectorAll(".option-list")) {
+        list.classList.add("print-choices");
+        list.removeAttribute("role");
+    }
+    for (const el of root.querySelectorAll("[id]")) {
+        if (!el.closest("svg")) el.removeAttribute("id");
+    }
+    for (const el of root.querySelectorAll("label[for], [aria-describedby]")) {
+        el.removeAttribute("for");
+        el.removeAttribute("aria-describedby");
+    }
+}
+
+// ---------- kind weight selector ----------
+
+/**
+ * Enhance every `fieldset[data-weights="<checkbox name>"]` in the setup form
+ * with a "⚖️ verdeling" disclosure: one 1–5 slider per checked kind, a
+ * stacked bar that previews the split, and a reset to an even split. It is
+ * only shown while two or more kinds are checked — with one kind there is
+ * nothing to share. Returns `{ read, load, sync }` for the config round trip.
+ */
+function setupKindWeights(form) {
+    const groups = [...(form?.querySelectorAll("fieldset[data-weights]") ?? [])].map(mountKindWeightGroup);
+    return {
+        read() {
+            return Object.assign({}, ...groups.map((group) => group.read()));
+        },
+        load(saved) {
+            for (const group of groups) group.load(saved);
+        },
+        sync() {
+            for (const group of groups) group.sync();
+        },
+        get enabled() {
+            return groups.length > 0;
+        },
+    };
+}
+
+function mountKindWeightGroup(fieldset) {
+    const name = fieldset.dataset.weights;
+    const boxes = [...fieldset.querySelectorAll(`input[type="checkbox"][name="${name}"]`)];
+    const rows = boxes.map((box, i) => {
+        const id = `kind-weight-${name}-${i}`;
+        const label = box.closest("label")?.textContent.trim() || box.value;
+        return `<div class="kind-weight-row" data-kind="${escapeHtml(box.value)}">
+            <span class="kind-weight-swatch" aria-hidden="true"></span>
+            <label for="${id}">${escapeHtml(label)}</label>
+            <input type="range" id="${id}" min="${KIND_WEIGHT_MIN}" max="${KIND_WEIGHT_MAX}" step="1"
+                value="${KIND_WEIGHT_DEFAULT}">
+            <output for="${id}" class="kind-weight-share"></output>
+        </div>`;
+    });
+    const widget = document.createElement("details");
+    widget.className = "kind-weights";
+    widget.innerHTML = `
+        <summary>
+            <span class="kind-weights-title">⚖️ verdeling</span>
+            <span class="kind-weights-bar" aria-hidden="true">${boxes.map(() => '<span class="kind-weights-segment"></span>').join("")}</span>
+            <span class="kind-weights-state"></span>
+        </summary>
+        <div class="kind-weights-panel">
+            <p class="field-hint">Schuif naar rechts om een soort vaker te krijgen, naar links voor minder.</p>
+            ${rows.join("")}
+            <button type="button" class="kind-weights-reset">↺ gelijk verdelen</button>
+        </div>`;
+    fieldset.append(widget);
+
+    const rowEls = [...widget.querySelectorAll(".kind-weight-row")];
+    const segments = [...widget.querySelectorAll(".kind-weights-segment")];
+    const ranges = rowEls.map((row) => row.querySelector("input[type='range']"));
+    const shares = rowEls.map((row) => row.querySelector("output"));
+    const state = widget.querySelector(".kind-weights-state");
+    const reset = widget.querySelector(".kind-weights-reset");
+    // Colours are set through the CSSOM: inline style attributes would need
+    // 'unsafe-inline' in the page's CSP.
+    rowEls.forEach((row, i) => {
+        const color = `var(--kind-${(i % 6) + 1})`;
+        row.style.setProperty("--kind-color", color);
+        segments[i].style.setProperty("--kind-color", color);
+    });
+
+    const weightAt = (i) => Number(ranges[i].value);
+
+    function sync() {
+        const checked = boxes.map((box) => box.checked);
+        const kinds = boxes.filter((_, i) => checked[i]).map((box) => box.value);
+        const weights = Object.fromEntries(boxes.map((box, i) => [box.value, weightAt(i)]));
+        const pct = kindShares(kinds, weights);
+        let k = 0;
+        boxes.forEach((_, i) => {
+            rowEls[i].hidden = !checked[i];
+            segments[i].hidden = !checked[i];
+            segments[i].style.flexGrow = String(weightAt(i));
+            if (!checked[i]) return;
+            const share = `${pct[k++]}%`;
+            shares[i].textContent = share;
+            ranges[i].setAttribute("aria-valuetext", `${KIND_WEIGHT_LABELS[weightAt(i)]}, ${share}`);
+        });
+        const even = new Set(kinds.map((kind) => weights[kind])).size <= 1;
+        state.textContent = even ? "gelijk" : "aangepast";
+        widget.classList.toggle("is-custom", !even);
+        reset.disabled = even;
+        widget.hidden = kinds.length < 2;
+    }
+
+    fieldset.addEventListener("change", sync);
+    widget.addEventListener("input", sync);
+    reset.addEventListener("click", () => {
+        for (const range of ranges) range.value = String(KIND_WEIGHT_DEFAULT);
+        sync();
+    });
+
+    return {
+        sync,
+        read() {
+            return Object.fromEntries(boxes.map((box, i) => [box.value, weightAt(i)]));
+        },
+        load(saved) {
+            if (!saved || typeof saved !== "object") return;
+            boxes.forEach((box, i) => {
+                ranges[i].value = String(kindWeight(saved, box.value));
+            });
+        },
+    };
+}
+
 // ---------- result page helpers ----------
 
 function cycleSummaryLine(session, n) {
@@ -1571,6 +1802,58 @@ export function weeklyBuckets(sessions, { topMistakesLimit = 3 } = {}) {
     return out;
 }
 
+// ---------- "show all exercises" toggle ----------
+//
+// By default the result screen and the history list only the questions that
+// went wrong. One shared eye toggle flips both to the complete session, in
+// the order the questions were asked. The choice is a per-viewer convenience,
+// so it lives in localStorage; an in-memory copy keeps the toggle working
+// when storage is unavailable.
+
+const SHOW_ALL_KEY = "homework:show-all-outcomes";
+let _showAllOutcomes = null;
+
+function showAllOutcomes() {
+    if (_showAllOutcomes === null) {
+        try {
+            _showAllOutcomes = localStorage.getItem(SHOW_ALL_KEY) === "1";
+        } catch {
+            _showAllOutcomes = false;
+        }
+    }
+    return _showAllOutcomes;
+}
+
+function setShowAllOutcomes(on) {
+    _showAllOutcomes = on;
+    try {
+        localStorage.setItem(SHOW_ALL_KEY, on ? "1" : "0");
+    } catch {}
+    for (const toggle of document.querySelectorAll(".show-all-toggle")) {
+        toggle.setAttribute("aria-pressed", String(on));
+    }
+    document.dispatchEvent(new CustomEvent("homework:show-all-changed"));
+}
+
+// An eye that opens when the toggle is pressed: the slash retracts and the
+// pupil appears, like a "show password" control.
+const SHOW_ALL_EYE = `<svg class="show-all-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path class="show-all-eye-lid" d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/>
+    <circle class="show-all-eye-pupil" cx="12" cy="12" r="3"/>
+    <line class="show-all-eye-slash" x1="4" y1="4" x2="20" y2="20"/>
+</svg>`;
+
+/** A toggle button (aria-pressed) that switches every outcome list between
+ *  "mistakes only" and "all exercises". Wired by one delegated listener. */
+function showAllToggleHtml() {
+    return `<button type="button" class="show-all-toggle" aria-pressed="${showAllOutcomes()}">${SHOW_ALL_EYE}<span>toon alle oefeningen</span></button>`;
+}
+
+document.addEventListener("click", (e) => {
+    if (!e.target.closest?.(".show-all-toggle")) return;
+    setShowAllOutcomes(!showAllOutcomes());
+});
+
 // `detail` is the exercise's optional `renderOutcomeDetail` hook: trusted,
 // already-escaped HTML that explains one outcome (e.g. what was typed).
 function renderOutcomeItem(q, kind, detail) {
@@ -1616,6 +1899,26 @@ function outcomeStatus(q) {
     return q.exact === false ? "bijna goed" : "✓ goed";
 }
 
+// One question of a complete outcome list, whatever went right or wrong.
+// `number` is its position in the session (omitted inside deck groups, which
+// repeat their own count); `elapsed` adds how long the answer took.
+function renderOutcomeLine(q, detail, { number = null, elapsed = false } = {}) {
+    const attempts = q.attempts > 0 ? ` · ${q.attempts}× fout vooraf` : "";
+    const time = elapsed && q.elapsedMs > 0 ? ` · ⏱️ ${formatMillis(q.elapsedMs)}` : "";
+    const desc = q.label || JSON.stringify(q.question);
+    const num = number === null ? "" : `<span class="item-num" aria-hidden="true">${number}.</span> `;
+    return `<li class="item-${outcomeKind(q)}"><span class="item-desc">${num}${escapeHtml(desc)}</span><span class="item-meta">${escapeHtml(outcomeStatus(q))}${attempts}${time}</span>${detail?.(q) || ""}</li>`;
+}
+
+/** Every question of a session in the order it was asked. */
+export function renderAllOutcomes(session, detail, listClass = "result-detail-list") {
+    const elapsed = !!session.timeMode;
+    const items = (session.questions || [])
+        .map((q, i) => renderOutcomeLine(q, detail, { number: i + 1, elapsed }))
+        .join("");
+    return `<ol class="${listClass} outcome-all-list">${items}</ol>`;
+}
+
 // Exercises can group their complete history by source, while the default
 // history keeps its existing focus on mistakes. All labels are stored text.
 function renderHistoryGroups(groups, detail) {
@@ -1625,25 +1928,36 @@ function renderHistoryGroups(groups, detail) {
         <section class="history-deck">
             <h3>${escapeHtml(group.name)} · ${group.questions.length} ${group.questions.length === 1 ? "oefenvraag" : "oefenvragen"}</h3>
             <ul class="result-detail-list history-detail-list">${group.questions
-                .map((q) => {
-                    const attempts = q.attempts > 0 ? ` · ${q.attempts}× fout vooraf` : "";
-                    const desc = q.label || JSON.stringify(q.question);
-                    return `<li class="item-${outcomeKind(q)}"><span class="item-desc">${escapeHtml(desc)}</span><span class="item-meta">${escapeHtml(outcomeStatus(q))}${attempts}</span>${detail?.(q) || ""}</li>`;
-                })
+                .map((q) => renderOutcomeLine(q, detail))
                 .join("")}</ul>
         </section>`,
         )
         .join("");
 }
 
-function renderTrickyList(session, detail) {
+// The result screen's question list: what went wrong, or — with the eye
+// toggle on — every question of the session.
+function resultOutcomesHtml(session, detail) {
+    if (showAllOutcomes()) return renderAllOutcomes(session, detail);
     const outcomes = splitQuestionOutcomes(session);
-    if (outcomes.wrong.length + outcomes.tricky.length + outcomes.near.length === 0) return "";
-    const items = renderOutcomeItems(outcomes, detail);
+    if (outcomes.wrong.length + outcomes.tricky.length + outcomes.near.length === 0) {
+        return '<p class="history-perfect">✨ alles vlekkeloos</p>';
+    }
+    return `<ul class="result-detail-list">${renderOutcomeItems(outcomes, detail)}</ul>`;
+}
+
+function resultOutcomesTitle() {
+    return showAllOutcomes() ? "Alle oefeningen" : "Wat ging moeilijk";
+}
+
+function renderResultOutcomes(session, detail) {
     return `
         <section class="result-detail">
-            <h3 class="section-title">Wat ging moeilijk</h3>
-            <ul class="result-detail-list">${items}</ul>
+            <div class="result-detail-head">
+                <h3 class="section-title">${resultOutcomesTitle()}</h3>
+                ${showAllToggleHtml()}
+            </div>
+            <div class="result-detail-body">${resultOutcomesHtml(session, detail)}</div>
         </section>
     `;
 }
@@ -1782,7 +2096,18 @@ export function createScreenWakeLockController({
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
  *   onBeforeReset?: () => void               — called before returning to setup (e.g. to clean up exercise-specific state)
+ *   renderPrint?: (q, root, { index, deck }) => void | false | { prompt? }
+ *      Fill `root` with a paper version of the question; enables the
+ *      "🖨️ afdrukken" button. Answer inputs and option buttons may be left
+ *      in: the framework turns them into boxes to write in and options to
+ *      circle. `prompt` is a short instruction above the item. Return false
+ *      to leave a question out (e.g. one already printed as part of a group).
+ *      The sheet has no answer key: the grown-up corrects it.
+ *   printTitle?: (config) => string           — heading of the print sheet
  * }
+ *
+ * The config handed to buildDeck carries `kindWeights` ({ kind: 1–5 }) when
+ * the setup form has a `fieldset[data-weights]`; pass it to weightedPlan().
  */
 
 // Module-level trampoline for the `visibilitychange` listener.
@@ -1815,6 +2140,8 @@ export function runExercise(spec) {
     const contentEl = document.getElementById("exercise-content");
     const skipBtn = document.getElementById("button-skip");
     const resultEl = document.getElementById("result");
+    const printSection = document.getElementById("page-print");
+    const printSheet = document.getElementById("print-sheet");
     const screenWakeLock = createScreenWakeLockController();
 
     // Any text/number-style answer input inside the current question card.
@@ -1949,6 +2276,7 @@ export function runExercise(spec) {
         if (skipBtn) skipBtn.hidden = false;
     }
     const errorEl = document.getElementById("config-error");
+    const kindWeights = setupKindWeights(formSetup);
 
     const clockEl = document.getElementById("exercise-clock");
     const exerciseEl = document.getElementById("exercise");
@@ -1977,6 +2305,10 @@ export function runExercise(spec) {
         deadlineTimerHandle: null,
         // Consecutive first-try correct answers; drives the glow intensity.
         streak: 0,
+        // The session on the result screen, re-listed when the eye toggles.
+        resultSession: null,
+        // The deck and config on the print sheet: `{ deck, cfg }`.
+        printDeck: null,
     };
 
     function timeModeOn() {
@@ -2139,12 +2471,13 @@ export function runExercise(spec) {
     let _hasShownOnce = false;
     // The screen on show, and the address of each one in history.
     let currentView = "setup";
-    const VIEW_HASHES = { play: "#oefenen", result: "#resultaat" };
+    const VIEW_HASHES = { play: "#oefenen", result: "#resultaat", print: "#afdrukken" };
     function show(which) {
         currentView = which;
         setup.hidden = which !== "setup";
         play.hidden = which !== "play";
         result.hidden = which !== "result";
+        if (printSection) printSection.hidden = which !== "print";
         if (which !== "result") stopConfetti();
         if (which === "play") void screenWakeLock.start();
         else void screenWakeLock.stop();
@@ -2158,7 +2491,7 @@ export function runExercise(spec) {
         // is being set up by runExercise's bootstrap, no user-initiated
         // navigation has happened yet, and animating here makes axe/a11y
         // checks see the page mid-fade (with reduced effective contrast).
-        const activeSection = which === "setup" ? setup : which === "play" ? play : result;
+        const activeSection = { setup, play, result, print: printSection }[which];
         if (activeSection && _hasShownOnce) {
             activeSection.classList.remove("section-enter");
             void activeSection.offsetWidth;
@@ -2167,6 +2500,10 @@ export function runExercise(spec) {
         _hasShownOnce = true;
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
+        if (which === "print") {
+            fitPrintColumns();
+            printSection?.scrollIntoView({ behavior: "smooth" });
+        }
         if (which === "play") {
             setLeaveGuard(leaveGuardId, {
                 beforeUnloadMessage: "Je oefening is nog niet klaar.",
@@ -2228,6 +2565,10 @@ export function runExercise(spec) {
             show("result");
             return;
         }
+        if (view === "print" && state.printDeck) {
+            show("print");
+            return;
+        }
         // A session that ended cannot be resumed by going Forward to it.
         history.back();
     }
@@ -2243,6 +2584,7 @@ export function runExercise(spec) {
             const saved = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
             if (saved && spec.loadConfig) spec.loadConfig(formSetup, saved);
             if (saved) {
+                kindWeights.load(saved.kindWeights);
                 const tm = formSetup?.elements?.["time-mode"];
                 if (tm && typeof saved.timeMode === "boolean") tm.checked = saved.timeMode;
                 const dOn = formSetup?.elements?.["deadline-on"];
@@ -2253,8 +2595,10 @@ export function runExercise(spec) {
                 }
             }
         } catch {}
-        // Sync visibility of both nested toggles to whatever was restored.
+        // Sync visibility of both nested toggles to whatever was restored,
+        // and the weight selector to the kinds the exercise just checked.
         syncTimeModeFields();
+        kindWeights.sync();
     }
 
     // The time-mode block has two layers of disclosure:
@@ -2285,6 +2629,7 @@ export function runExercise(spec) {
         // Use parseStrictInt so "1e5" or " 30 " can't sneak past validation.
         // If parsing fails, treat as 0 (deadline off) rather than NaN.
         cfg.deadlineSeconds = cfg.deadlineOn && ds?.value ? (parseStrictInt(ds.value) ?? 0) : 0;
+        if (kindWeights.enabled) cfg.kindWeights = kindWeights.read();
         return cfg;
     }
 
@@ -2731,7 +3076,7 @@ export function runExercise(spec) {
 
         const cyclesList = state.cycles.map((c, i) => cycleSummaryLine(c, i + 1)).join("");
 
-        const trickyList = renderTrickyList(session, spec.renderOutcomeDetail);
+        const outcomesSection = renderResultOutcomes(session, spec.renderOutcomeDetail);
 
         const reviewable = session.questions.some(isPracticeMistake);
 
@@ -2747,9 +3092,10 @@ export function runExercise(spec) {
                 ${reviewable ? `<button type="button" class="default-button primary btn-lift" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
                 <button type="button" class="default-button button-reset btn-lift">🆕 nieuwe oefening</button>
             </div>
-            ${trickyList}
+            ${outcomesSection}
         `;
         resultEl.innerHTML = html;
+        state.resultSession = session;
 
         // hook up the freshly-rendered "🆕 nieuwe oefening" — the global
         // .button-reset listener was wired before this button existed.
@@ -2774,30 +3120,163 @@ export function runExercise(spec) {
 
     // --- form wiring ---
 
-    formSetup?.addEventListener("submit", (e) => {
-        e.preventDefault();
+    // Read, validate and save the setup form, then build a deck from it.
+    // Shared by "start" and "afdrukken"; null (with the error shown) when the
+    // settings don't add up.
+    function configuredDeck() {
         setError(null);
         let cfg;
         try {
             cfg = readConfigWithTimeMode(formSetup);
         } catch (err) {
             setError(String(err.message || err));
-            return;
+            return null;
         }
         if (spec.validateConfig) {
             const err = spec.validateConfig(cfg);
             if (err) {
                 setError(err);
-                return;
+                return null;
             }
         }
         persistConfig(cfg);
         const deck = spec.buildDeck(cfg);
         if (!deck || deck.length === 0) {
             setError("Geen oefeningen gegenereerd, controleer je instellingen.");
-            return;
+            return null;
         }
-        startSession(deck, cfg, "normal");
+        return { deck, cfg };
+    }
+
+    formSetup?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const built = configuredDeck();
+        if (built) startSession(built.deck, built.cfg, "normal");
+    });
+
+    // --- print ---
+
+    const printButton = document.getElementById("button-print");
+    if (printButton && spec.renderPrint) printButton.hidden = false;
+
+    function printTitle(cfg) {
+        return spec.printTitle?.(cfg) || printSection?.dataset.label || spec.label;
+    }
+
+    function renderPrintSheet() {
+        const { deck, cfg } = state.printDeck;
+        const title = printTitle(cfg);
+        const icon = printSection?.dataset.icon || "";
+        const footer = `<footer class="print-footer">
+            Gegenereerd met <a href="https://elementary.training">elementary.training</a>,
+            een open source educatieve tool van <a href="https://plabayo.tech">plabayo.tech</a>.
+        </footer>`;
+        printSheet.innerHTML = `
+            <header class="print-head">
+                <h2 class="print-title"><span aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(title)}</h2>
+                <div class="print-fields">
+                    <span class="print-field">naam <span class="print-line"></span></span>
+                    <span class="print-field">datum <span class="print-line print-line-short"></span></span>
+                    <span class="print-field">score <span class="print-line print-line-score"></span> / <span class="print-total"></span></span>
+                </div>
+            </header>
+            <ol class="print-items"></ol>
+            ${footer}`;
+        // Browsers with page-margin boxes print the footer at the foot of
+        // every page (theme.css); the others keep it below the exercises.
+        printSheet.classList.toggle("has-page-footer", "CSSMarginRule" in window);
+        const items = printSheet.querySelector(".print-items");
+        let number = 0;
+        deck.forEach((q, index) => {
+            const item = document.createElement("li");
+            item.className = "print-item";
+            const head = document.createElement("div");
+            head.className = "print-item-head";
+            const body = document.createElement("div");
+            body.className = "print-body";
+            item.append(head, body);
+            items.append(item);
+            const printed = spec.renderPrint(q, body, { index, deck });
+            if (printed === false) {
+                item.remove();
+                return;
+            }
+            // No item numbers: next to sums they read as one more number.
+            number++;
+            if (printed?.prompt) {
+                const prompt = document.createElement("p");
+                prompt.className = "print-prompt";
+                prompt.textContent = printed.prompt;
+                head.append(prompt);
+            }
+            makePrintable(body);
+        });
+        printSheet.querySelector(".print-total").textContent = String(number);
+        fitPrintColumns();
+    }
+
+    // Rows that must stay on one line ("¼ = ☐ %") decide how narrow a cell may
+    // get: measure the widest one and let the grid fall back to fewer columns
+    // rather than wrap it. Content width comes from a Range, so a row that
+    // stretches to its cell still counts for what it holds. Needs layout, so
+    // it only runs while the sheet is showing.
+    function fitPrintColumns() {
+        const items = printSheet?.querySelector(".print-items");
+        if (!items || !printSection || printSection.hidden) return;
+        const range = document.createRange();
+        let widest = 0;
+        for (const el of items.querySelectorAll(".print-body *:not(svg *)")) {
+            let width = 0;
+            if (el.tagName === "TABLE") {
+                width = el.offsetWidth;
+            } else {
+                const style = getComputedStyle(el);
+                if (!style.display.endsWith("flex") || style.flexDirection !== "row" || style.flexWrap !== "nowrap") {
+                    continue;
+                }
+                range.selectNodeContents(el);
+                width = range.getBoundingClientRect().width;
+            }
+            widest = Math.max(widest, width);
+        }
+        items.style.setProperty("--print-fit", `${Math.ceil(widest)}px`);
+    }
+
+    function openPrintView() {
+        const built = configuredDeck();
+        if (!built) return;
+        preparePrintDeck(built);
+        pushPageView(VIEW_HASHES.print);
+        show("print");
+    }
+
+    function preparePrintDeck({ deck, cfg }) {
+        const prepared = spec.prepareDeck ? spec.prepareDeck(deck, "print") : deck;
+        if (spec.prepareQuestion) {
+            for (const q of prepared) spec.prepareQuestion(q);
+        }
+        state.printDeck = { deck: prepared, cfg };
+        renderPrintSheet();
+    }
+
+    printButton?.addEventListener("click", openPrintView);
+    document.getElementById("print-now")?.addEventListener("click", () => window.print());
+    document.getElementById("print-reshuffle")?.addEventListener("click", () => {
+        if (!state.printDeck) return;
+        const deck = spec.buildDeck(state.printDeck.cfg);
+        if (deck?.length) preparePrintDeck({ deck, cfg: state.printDeck.cfg });
+    });
+    // Name the saved PDF after the sheet rather than the web page.
+    let titleBeforePrint = null;
+    window.addEventListener("beforeprint", () => {
+        if (currentView !== "print" || !state.printDeck) return;
+        titleBeforePrint = document.title;
+        document.title = `${printTitle(state.printDeck.cfg)} — oefenblad`;
+    });
+    window.addEventListener("afterprint", () => {
+        if (titleBeforePrint === null) return;
+        document.title = titleBeforePrint;
+        titleBeforePrint = null;
     });
 
     formExercise?.addEventListener("submit", (e) => {
@@ -2906,6 +3385,15 @@ export function runExercise(spec) {
         if (!picked || picked.length === 0) return;
         const cfg = readConfigWithTimeMode(formSetup);
         startSession(shuffle(picked.slice()), cfg, "mistakes");
+    });
+
+    // The eye toggle swaps only the list, so the toggle itself keeps focus.
+    document.addEventListener("homework:show-all-changed", () => {
+        const session = state.resultSession;
+        const section = resultEl?.querySelector(".result-detail");
+        if (!session || !section) return;
+        section.querySelector(".section-title").textContent = resultOutcomesTitle();
+        section.querySelector(".result-detail-body").innerHTML = resultOutcomesHtml(session, spec.renderOutcomeDetail);
     });
 
     loadSavedConfig();
@@ -3047,13 +3535,19 @@ async function setupHistoryView(spec) {
                     <span>${formatDate(s.finishedAt || s.startedAt)}</span>
                     <span>${scoreParts.join(" · ")}</span>
                 </div>
-                ${
-                    hasMistakes
-                        ? `<ul class="result-detail-list history-detail-list">${items}</ul>`
-                        : `<p class="history-perfect">✨ alles vlekkeloos</p>`
-                }
+                ${sessionCardBody(s, hasMistakes, items)}
             </article>
         `;
+    }
+
+    // The question list of a session card: every question with the eye
+    // toggle on, otherwise only what went wrong.
+    function sessionCardBody(s, hasMistakes, items) {
+        if (showAllOutcomes() && (s.questions || []).length > 0) {
+            return renderAllOutcomes(s, spec?.renderOutcomeDetail, "result-detail-list history-detail-list");
+        }
+        if (hasMistakes) return `<ul class="result-detail-list history-detail-list">${items}</ul>`;
+        return `<p class="history-perfect">✨ alles vlekkeloos</p>`;
     }
 
     /** Render a weekly aggregation card. Uses `<details>` so disclosure
@@ -3097,6 +3591,16 @@ async function setupHistoryView(spec) {
 
     if (root.dataset.bound === "true") return;
     root.dataset.bound = "true";
+
+    // Deck-grouped histories already list every question, so only the
+    // mistakes-first history gets the eye toggle.
+    if (!spec?.historyGroups) {
+        const toolbar = document.createElement("div");
+        toolbar.className = "history-toolbar";
+        toolbar.innerHTML = showAllToggleHtml();
+        root.querySelector(".history-content").insertBefore(toolbar, list);
+    }
+    document.addEventListener("homework:show-all-changed", () => refresh());
 
     // "toon meer" lives inside `.history-list` which `refresh()` rewrites,
     // so we delegate from the stable parent. Each click reveals `RECENT_STEP`

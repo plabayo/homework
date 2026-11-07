@@ -2444,6 +2444,38 @@ Bringhurst's guideline: use justified text only with serif fonts and adequate co
 ```
 
 MDN: <https://developer.mozilla.org/en-US/docs/Web/CSS/break-inside>, <https://developer.mozilla.org/en-US/docs/Web/CSS/@page>
+
+#### A footer on every page (learned on the worksheet)
+
+The tempting fix, `position: fixed` on the footer, is unreliable in print:
+browsers won't paint it into the page margin (a negative offset pushes it onto
+the next page instead), and Chrome did not repeat it once the content ran past
+one page. Any leftover `transform` on an ancestor (an entrance animation with
+`fill-mode: both`) also turns `fixed` into "fixed to that ancestor".
+
+Use the page's own margin boxes; feature-detect them in JS and keep an in-flow
+footer as the fallback, so it never prints twice:
+
+```css
+@media print {
+  * { animation: none !important; transition: none !important; } /* paper doesn't move */
+  @page {
+    margin: 14mm 12mm 16mm;
+    @bottom-center { content: "Gegenereerd met …"; font-size: 8pt; }
+  }
+  .has-page-footer .print-footer { display: none; }
+}
+```
+
+```js
+sheet.classList.toggle("has-page-footer", "CSSMarginRule" in window); // Chrome 131+
+```
+
+Check print layout as the printer sees it: headless Chrome's
+`Page.printToPDF` (over CDP) renders the real pages, and rows that must not
+wrap (`¼ = ☐ %`) are easier to keep together by measuring them and letting the
+grid drop a column than by guessing a fixed `minmax()` per exercise.
+
 ## Visual Styling
 
 A concept-organized cheat sheet for color, gradients, shadows, filters, images, radii, clipping, and scrollbars. Each section emphasizes the *why* and includes working snippets.

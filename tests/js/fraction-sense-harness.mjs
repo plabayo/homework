@@ -70,6 +70,10 @@ const ctx = createContext({
     optionListHtml: () => "",
     parseStrictInt: strictInt,
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    pickWeighted: (kinds) => kinds[Math.floor(testMath.random() * kinds.length)],
+    // An even split, shuffled — what the real plan gives with equal weights.
+    weightedPlan: (kinds, _weights, count) =>
+        testShuffle(Array.from({ length: count }, (_, index) => kinds[index % kinds.length])),
     randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     readFields: () => ({}),
     runExercise: () => {},

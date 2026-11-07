@@ -43,6 +43,11 @@ const ctx = createContext({
         return `${units < 0 ? "−" : ""}${whole}${places > 0 ? `,${digits.slice(split)}` : ""}`;
     },
     pickRandom: (values) => values[Math.floor(testMath.random() * values.length)],
+    // One draw per question, like the pickRandom it replaces, so scripted
+    // random sequences keep lining up with the values they were written for.
+    pickWeighted: (kinds) => kinds[Math.floor(testMath.random() * kinds.length)],
+    weightedPlan: (kinds, _weights, count) =>
+        Array.from({ length: count }, () => kinds[Math.floor(testMath.random() * kinds.length)]),
     randomInt: (min, max) => min + Math.floor(testMath.random() * (max - min + 1)),
     parseStrictInt,
     loadFields: () => {},

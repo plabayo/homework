@@ -147,3 +147,11 @@
         padding: 12px 18px 6px;
     }
 }
+
+/* ---------- print sheet ---------- */
+.print-sheet {
+    --print-item-min: 15rem;
+}
+.print-item .decimal-expression {
+    font-size: 1.2rem;
+}

@@ -11,6 +11,8 @@ import { createContext, runInContext } from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { pickWeighted, weightedPlan } from "./history-harness.mjs";
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(dir, "../../src/service/exercises/fractions.js"), "utf8");
 
@@ -50,6 +52,8 @@ const ctx = createContext({
     simplify: simplifyFraction,
     // pickRandom is imported from @homework in the real file; provide a real impl.
     pickRandom: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    pickWeighted,
+    weightedPlan,
     // Stubs for the remaining @homework imports — never called by pure functions.
     loadFields: () => {},
     readFields: () => ({}),

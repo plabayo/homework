@@ -165,3 +165,11 @@
             border-color 130ms ease;
     }
 }
+
+/* ---------- print sheet ---------- */
+.print-sheet {
+    --print-item-min: 9rem;
+}
+.print-item .thermo {
+    width: 64px;
+}

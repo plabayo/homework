@@ -172,7 +172,9 @@ async fn fraction_sense_all_question_types_and_catalogue_order() -> TestResult<(
     set_checkbox(driver, "input[value='improper']", true).await?;
     set_checkbox(driver, "#include-decimals", true).await?;
     click(driver, "input[name='denominator-set'][value='large']").await?;
-    set_input_value(driver, "#num-exercises", "12").await?;
+    // The deck is shared evenly over the five kinds and each kind takes its
+    // variants in turn: three questions per kind reach every variant.
+    set_input_value(driver, "#num-exercises", "15").await?;
     click(driver, "#form-setup button[type='submit']").await?;
 
     wait_for_css(driver, ".fraction-sense-question", Duration::from_secs(10)).await?;
@@ -180,7 +182,7 @@ async fn fraction_sense_all_question_types_and_catalogue_order() -> TestResult<(
     check_a11y(driver).await?;
 
     let mut seen = BTreeSet::new();
-    for index in 0..12 {
+    for index in 0..15 {
         let layout = driver.execute(CHECK_LAYOUT, vec![]).await?;
         assert_eq!(
             layout.json()["comfortable"].as_bool(),
@@ -202,11 +204,11 @@ async fn fraction_sense_all_question_types_and_catalogue_order() -> TestResult<(
             .ok_or("fraction-sense question kind should be a string")?;
         seen.insert(kind.to_owned());
         click(driver, "#button-check").await?;
-        if index < 11 {
+        if index < 14 {
             wait_for_text(
                 driver,
                 "#exercise-title",
-                &format!("oefening {} van 12", index + 2),
+                &format!("oefening {} van 15", index + 2),
                 Duration::from_secs(10),
             )
             .await?;
@@ -230,7 +232,7 @@ async fn fraction_sense_all_question_types_and_catalogue_order() -> TestResult<(
             "decimal-to-fraction".to_owned(),
         ])
     );
-    wait_for_text(driver, "#result h3", "12 / 12", Duration::from_secs(10)).await?;
+    wait_for_text(driver, "#result h3", "15 / 15", Duration::from_secs(10)).await?;
 
     driver.clone().quit().await?;
     Ok(())

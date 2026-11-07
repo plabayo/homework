@@ -273,3 +273,22 @@
         transition: none;
     }
 }
+
+/* ---------- print sheet ----------
+   Clocks on paper are smaller so a page holds a dozen; "zet de klok"
+   items print the face without hands for the child to draw. */
+.print-sheet {
+    --print-item-min: 11rem;
+}
+.print-item .clock {
+    --clock-size: 9rem;
+}
+.print-item .clock .face {
+    fill: transparent;
+}
+.print-item .time-pair {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}

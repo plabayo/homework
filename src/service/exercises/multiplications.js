@@ -56,6 +56,15 @@ function bindSelectAll(form) {
     });
 }
 
+function playHtml(q) {
+    return `
+        <p>
+            <span>${q.a} × ${q.b} =</span>
+            <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="1000" required>
+        </p>
+    `;
+}
+
 const form = document.getElementById("form-setup");
 bindSelectAll(form);
 
@@ -96,14 +105,12 @@ runExercise({
             `;
             return;
         }
-        root.innerHTML = `
-            <p>
-                <span>${q.a} × ${q.b} =</span>
-                <input inputmode="numeric" pattern="[0-9]+" id="answer" name="answer" min="0" max="1000" required>
-            </p>
-        `;
+        root.innerHTML = playHtml(q);
         const input = root.querySelector("#answer");
         return () => input.value;
+    },
+    renderPrint(q, root) {
+        root.innerHTML = playHtml(q);
     },
     isCorrect(q, given) {
         const n = parseStrictInt(given);

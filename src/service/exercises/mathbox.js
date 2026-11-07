@@ -2,7 +2,7 @@
 // License: https://github.com/plabayo/homework/blob/main/LICENSE
 // Source-available; non-commercial use only.
 
-import { loadFields, parseStrictInt, pickRandom, randomInt, readFields, runExercise } from "@homework";
+import { loadFields, parseStrictInt, pickRandom, randomInt, readFields, runExercise, weightedPlan } from "@homework";
 
 const MAX_NUMBER = 1000;
 
@@ -100,15 +100,12 @@ function buildDeck(cfg) {
     const kinds = [...plans.keys()];
     if (kinds.length === 0) return [];
 
-    const deck = [];
-    while (deck.length < cfg.numExercises) {
-        const kind = pickRandom(kinds);
+    return weightedPlan(kinds, cfg.kindWeights, cfg.numExercises).map((kind) => {
         const q = plans.get(kind)();
         // Splitsen also picks which side is hidden
         if (kind === "splitsen") q.hide = Math.random() < 0.5 ? "a" : "b";
-        deck.push(q);
-    }
-    return deck;
+        return q;
+    });
 }
 
 function validateTerm(min, max, name) {
@@ -239,6 +236,9 @@ runExercise({
         root.innerHTML = r.html;
         const input = root.querySelector("#answer");
         return () => input.value;
+    },
+    renderPrint(q, root) {
+        root.innerHTML = renderPlay(q).html;
     },
     isCorrect(q, given) {
         const expect = q.kind === "splitsen" ? (q.hide === "a" ? q.a : q.b) : q.answer;

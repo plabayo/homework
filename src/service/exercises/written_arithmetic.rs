@@ -91,6 +91,7 @@ fn config_fields() -> impl IntoHtml {
             ),
         ),
         fieldset!(
+            "data-weights" = "practice",
             legend!("Wat wil je oefenen?"),
             div!(
                 class = "kinds",

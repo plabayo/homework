@@ -268,6 +268,16 @@ pub fn exercise_scaffold(
                         class = "default-button primary btn-lift",
                         "🟢 start met oefenen"
                     ),
+                    // Revealed by homework.js for exercises with a paper
+                    // version (`renderPrint`).
+                    button!(
+                        r#type = "button",
+                        id = "button-print",
+                        class = "default-button btn-lift",
+                        hidden? = true,
+                        span!("aria-hidden" = "true", "🖨️ "),
+                        "afdrukken",
+                    ),
                 ),
             ),
             setup_extra,
@@ -348,6 +358,47 @@ pub fn exercise_scaffold(
             ),
             div!(id = "result"),
         ),
+        print_section(info),
+    )
+}
+
+/// The print view: a paper worksheet built from the setup form, with a
+/// toolbar that is never printed. `homework.js` fills `#print-sheet` and
+/// reads the icon and label for its heading from the data attributes.
+fn print_section(info: ExerciseInfo) -> impl IntoHtml {
+    section!(
+        id = "page-print",
+        "data-icon" = info.icon,
+        "data-label" = info.label,
+        hidden? = true,
+        div!(
+            class = "exercise-meta print-toolbar",
+            button!(
+                r#type = "button",
+                class = "default-button button-reset btn-lift",
+                "terug naar menu ↩️"
+            ),
+            div!(
+                class = "print-actions",
+                button!(
+                    r#type = "button",
+                    id = "print-reshuffle",
+                    class = "default-button btn-lift",
+                    "🔀 andere oefeningen",
+                ),
+                button!(
+                    r#type = "button",
+                    id = "print-now",
+                    class = "default-button primary btn-lift",
+                    "🖨️ afdrukken",
+                ),
+            ),
+        ),
+        p!(
+            class = "field-hint print-hint",
+            "Tip: kies \"Opslaan als PDF\" in het afdrukvenster om het blad te bewaren of door te sturen.",
+        ),
+        div!(id = "print-sheet", class = "print-sheet"),
     )
 }
 

@@ -77,3 +77,14 @@
         animation: pop-in 80ms ease-out 150ms both;
     }
 }
+
+/* ---------- print sheet ----------
+   Splitsen on paper: the given parts and the empty one share one compact
+   box size, so the empty box reads as "the same kind of number goes here". */
+.print-item .split-part {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 3em;
+    block-size: 2.2em;
+    padding: 0;
+}

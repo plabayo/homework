@@ -36,3 +36,12 @@
     align-items: center;
     gap: 6px;
 }
+
+/* ---------- print sheet ----------
+   Handwritten five- and six-digit answers need a wider box. */
+.print-item .print-blank {
+    inline-size: 6em;
+}
+.print-item .remainder-field .print-blank {
+    inline-size: 4em;
+}

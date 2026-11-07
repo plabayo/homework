@@ -51,3 +51,12 @@
         animation: pop-in 220ms ease-out 180ms both;
     }
 }
+
+/* ---------- print sheet ----------
+   One line, always: the sheet picks fewer columns instead (see theme.css). */
+.print-item .pct-expr {
+    flex-wrap: nowrap;
+    gap: 0.35em;
+    font-size: 1.15rem;
+    padding-block: 0;
+}

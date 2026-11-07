@@ -134,3 +134,19 @@
         font-size: 0.62rem;
     }
 }
+
+/* ---------- print sheet ----------
+   Every result cell (and the carry row above) is a box to write in. */
+.print-sheet {
+    --print-item-min: 15rem;
+}
+.print-item .written-calculation th,
+.print-item .written-calculation td {
+    width: 2.2rem;
+    min-width: 2.2rem;
+    height: 2.2rem;
+}
+.print-item .written-result,
+.print-item .written-transfer {
+    border: 1px dashed color-mix(in srgb, var(--fg) 45%, transparent);
+}

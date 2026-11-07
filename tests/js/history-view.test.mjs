@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 
-import { isoWeekStart, partitionForHistoryView, weeklyBuckets } from "./history-harness.mjs";
+import { isoWeekStart, partitionForHistoryView, renderAllOutcomes, weeklyBuckets } from "./history-harness.mjs";
 
 // --- helpers ---------------------------------------------------------------
 
@@ -316,4 +316,34 @@ test("isoWeekStart: year boundary — Jan 1 falling on a Sunday", () => {
     assert.equal(ws.getFullYear(), 2022);
     assert.equal(ws.getMonth(), 11); // December
     assert.equal(ws.getDate(), 26);
+});
+
+// --- renderAllOutcomes ("toon alle oefeningen") -----------------------------
+
+test("renderAllOutcomes: lists every question in the order it was asked", () => {
+    const html = renderAllOutcomes({
+        questions: [
+            { label: "2 + 2 = 4", correct: true, attempts: 0 },
+            { label: "5 − 3 = 2", correct: false, attempts: 3 },
+            { label: "6 + 1 = 7", correct: true, attempts: 1 },
+            { label: "9 − 4 = 5", correct: false, attempts: 0, skipped: true },
+        ],
+    });
+    const labels = [...html.matchAll(/<\/span> ([^<]+)<\/span>/g)].map((m) => m[1]);
+    assert.deepEqual(labels, ["2 + 2 = 4", "5 − 3 = 2", "6 + 1 = 7", "9 − 4 = 5"]);
+    const kinds = [...html.matchAll(/<li class="item-(\w+)"/g)].map((m) => m[1]);
+    assert.deepEqual(kinds, ["correct", "wrong", "tricky", "wrong"]);
+    assert.match(html, /^<ol class="result-detail-list outcome-all-list">/);
+    assert.match(html, />4\.<\/span>/);
+    assert.match(html, /overgeslagen/);
+});
+
+test("renderAllOutcomes: escapes stored labels and shows times in time mode", () => {
+    const html = renderAllOutcomes({
+        timeMode: true,
+        questions: [{ label: '<img src=x onerror="alert(1)">', correct: true, attempts: 0, elapsedMs: 4200 }],
+    });
+    assert.ok(!html.includes("<img"), "label must be escaped");
+    assert.match(html, /⏱️ 4s/);
+    assert.ok(!renderAllOutcomes({ questions: [{ label: "x", correct: true, elapsedMs: 4200 }] }).includes("⏱️"));
 });

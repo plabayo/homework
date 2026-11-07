@@ -6,10 +6,11 @@ import {
     formatScaledNumber,
     loadFields,
     parseStrictInt,
-    pickRandom,
+    pickWeighted,
     randomInt,
     readFields,
     runExercise,
+    weightedPlan,
 } from "@homework";
 
 const MAXIMUMS = [1_000, 10_000, 100_000];
@@ -170,6 +171,7 @@ function buildDeck(cfg) {
     }
 
     const deck = [];
+    const plan = weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises);
     const seen = new Set();
     let staleTries = 0;
     let totalTries = 0;
@@ -182,7 +184,10 @@ function buildDeck(cfg) {
         }
 
         const decimalPlaces = cfg.includeDecimals ? randomInt(1, cfg.decimalPlaces) : 0;
-        const question = generateQuestion(pickRandom(cfg.kinds), cfg, decimalPlaces);
+        // A kind that keeps repeating itself has run out of fresh questions:
+        // hand its turn to any kind by weight.
+        const kind = staleTries < 5 ? plan[deck.length] : pickWeighted(cfg.kinds, cfg.kindWeights);
+        const question = generateQuestion(kind, cfg, decimalPlaces);
         const key = questionKey(question);
         if (seen.has(key)) {
             staleTries++;
@@ -254,6 +259,7 @@ function resultCell(question, placeIndex, mode) {
         const value = mode.kind === "review" && leadingCarry(question) ? "1" : "";
         return `<span data-leading-result aria-live="polite">${value}</span>`;
     }
+    if (mode.kind === "print") return "";
     if (mode.kind === "review" || placeIndex < progress) return String(step.result);
     if (placeIndex !== progress) return "";
 
@@ -480,6 +486,9 @@ runExercise({
                 transferToggle?.removeEventListener("click", toggleTransfer);
             },
         };
+    },
+    renderPrint(question, root) {
+        root.innerHTML = calculationHtml(question, { kind: "print" });
     },
     evaluateAnswer(question, given) {
         if (!stepIsCorrect(question, given)) return { correct: false, feedback: feedbackForStep(question, given) };
