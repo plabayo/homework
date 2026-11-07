@@ -117,6 +117,7 @@ runInContext(patched, ctx);
 // All are top-level `function` declarations so they land on ctx directly.
 export const {
     buildDeckQuestions,
+    cardSheets,
     flashcardHistoryGroups,
     buildCombinedQuestions,
     groupQuestions,

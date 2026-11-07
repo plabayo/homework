@@ -3340,10 +3340,43 @@ function renderMultiPartQuestion(q, root, mode) {
 
 // ---------- Print renderer ----------
 
-// A card on paper: its prompt and a line per answer to write. A fill-in grid
-// prints once, as the whole list with lines for its blanks.
+// Two paper versions. A test lists every card as a row: what is shown on the
+// left, lines to write the answer on the right. Cut-out cards print each card
+// at a fixed spot, fronts and backs on alternating pages.
+const PRINT_MODES = [
+    { value: "test", label: "📝 toets" },
+    {
+        value: "cards",
+        label: "✂️ kaartjes om te knippen",
+        hint: 'Druk dubbelzijdig af met "omslaan langs de lange zijde", op ware grootte (100 %): elke achterkant valt dan precies achter zijn voorkant. Knip langs de stippellijnen.',
+    },
+];
+
+function printModesFor(cfg) {
+    const decks = configDeckIds(cfg).map(getDeck).filter(Boolean);
+    // Cards without a back have nothing to put on the other side.
+    return decks.some((deck) => deckMode(deck) !== "one-sided") ? PRINT_MODES : [];
+}
+
+function printImageHtml(filename, className) {
+    const src = imageObjectURLs.get(filename);
+    return `<img alt="" class="${className}" data-wikimedia="${escapeHtml(filename)}"${src ? ` src="${src}"` : ""}>`;
+}
+
+// Images not cached yet are fetched after the sheet is on screen.
+function loadPrintImages() {
+    for (const img of document.querySelectorAll("#print-sheet img[data-wikimedia]:not([src])")) {
+        wmLoad(img.dataset.wikimedia)
+            .then((url) => img.setAttribute("src", url))
+            .catch(() => {});
+    }
+}
+
+// A test row: the shown side, and a line per answer to write.
 function renderPrintCard(q, root, { index, deck }) {
+    setTimeout(loadPrintImages, 0);
     if (q.kind === "fill-in") {
+        // A fill-in grid is one exercise on paper, however many blanks it has.
         if (deck.slice(0, index).some((other) => other.blankIndices === q.blankIndices)) return false;
         const blanks = fillInState(q).blankIndices;
         const rows = q.allCards
@@ -3351,23 +3384,87 @@ function renderPrintCard(q, root, { index, deck }) {
                 blanks.includes(i) ? '<li><span class="print-write-line"></span></li>' : `<li>${escapeHtml(card)}</li>`,
             )
             .join("");
-        root.innerHTML = `<ol class="print-fill-list">${rows}</ol>`;
-        return { prompt: "vul de ontbrekende woorden in" };
+        root.innerHTML = `<p class="fc-print-instruction">Vul de ontbrekende woorden in.</p>
+            <ol class="print-fill-list">${rows}</ol>`;
+        return;
     }
-    const source = q.deckName ? `<p class="fc-source-deck">${escapeHtml(q.deckName)}</p>` : "";
-    let front = `<p class="flash-text">${escapeHtml(q.front)}</p>`;
-    if (q.kind === "image") {
-        const src = imageObjectURLs.get(q.wikimedia);
-        front = `<img alt="" class="flash-card-image"${src ? ` src="${src}"` : ""}>`;
-        if (!src) {
-            wmLoad(q.wikimedia)
-                .then((url) => root.querySelector("img")?.setAttribute("src", url))
-                .catch(() => {});
-        }
-    }
+    const source = q.deckName ? `<span class="fc-print-deck">${escapeHtml(q.deckName)}</span>` : "";
+    const shown = q.kind === "image" ? printImageHtml(q.wikimedia, "fc-print-image") : escapeHtml(q.front);
     const lines = q.kind === "multi-part" ? Math.max(1, q.partsRequired) : 1;
-    root.innerHTML = `${source}${front}${'<span class="print-write-line"></span>'.repeat(lines)}`;
-    return q.kind === "multi-part" && lines > 1 ? { prompt: `schrijf ${lines} antwoorden` } : undefined;
+    const hint = lines > 1 ? `<span class="fc-print-hint">${lines} antwoorden</span>` : "";
+    root.innerHTML = `<div class="fc-print-row">
+        <div class="fc-print-front">${source}${shown}${hint}</div>
+        <div class="fc-print-answer">${'<span class="print-write-line"></span>'.repeat(lines)}</div>
+    </div>`;
+}
+
+const CARD_COLUMNS = 3;
+const CARD_ROWS = 4;
+
+/**
+ * Lay cards out for double-sided printing: every page of fronts is followed
+ * by a page of backs with each row reversed, so that — flipped on the long
+ * edge — every back lands exactly behind its front. Empty slots (`null`) on
+ * the last page keep the positions.
+ */
+function cardSheets(cards, columns = CARD_COLUMNS, rows = CARD_ROWS) {
+    const perPage = columns * rows;
+    const sheets = [];
+    for (let start = 0; start < cards.length; start += perPage) {
+        const front = Array.from({ length: perPage }, (_, i) => cards[start + i] ?? null);
+        const back = [];
+        for (let row = 0; row < rows; row++) {
+            back.push(...front.slice(row * columns, (row + 1) * columns).reverse());
+        }
+        sheets.push({ front, back });
+    }
+    return sheets;
+}
+
+// Long words get a smaller size so they stay on the card.
+function cardTextClass(text) {
+    const length = String(text).length;
+    if (length <= 12) return "fc-card-text is-short";
+    if (length <= 40) return "fc-card-text";
+    return "fc-card-text is-long";
+}
+
+function cardFaceHtml(card, side) {
+    if (side === "front") {
+        const deck = card.deckName ? `<span class="fc-card-deck">${escapeHtml(card.deckName)}</span>` : "";
+        if (card.frontKind === "image") return `${printImageHtml(card.wikimedia, "fc-card-image")}${deck}`;
+        return `<span class="${cardTextClass(card.frontText)}">${escapeHtml(card.frontText)}</span>${deck}`;
+    }
+    if (card.oneSided) return "";
+    if (card.backParts) {
+        return `<ul class="fc-card-parts">${card.backParts.map((part) => `<li>${escapeHtml(part)}</li>`).join("")}</ul>`;
+    }
+    return `<span class="${cardTextClass(card.backText)}">${escapeHtml(card.backText)}</span>`;
+}
+
+function cardPageHtml(slots, side) {
+    const cells = slots
+        .map((card) =>
+            card
+                ? `<div class="fc-print-card">${cardFaceHtml(card, side)}</div>`
+                : '<div class="fc-print-card is-empty"></div>',
+        )
+        .join("");
+    return `<div class="fc-card-grid" data-side="${side}">${cells}</div>`;
+}
+
+// Cut-out cards: every card of the chosen decks, once, front and back.
+function printCardPages(mode, cfg) {
+    if (mode !== "cards") return null;
+    const decks = configDeckIds(cfg).map(getDeck).filter(Boolean);
+    const cards = decks.flatMap((deck) =>
+        buildReviewCards(deck).map((card) => ({ ...card, deckName: decks.length > 1 ? deck.name : "" })),
+    );
+    setTimeout(loadPrintImages, 0);
+    return cardSheets(cards).flatMap(({ front, back }) => [
+        { className: "fc-card-page", html: cardPageHtml(front, "front") },
+        { className: "fc-card-page", html: cardPageHtml(back, "back") },
+    ]);
 }
 
 // Store the source with every generated question, including single-deck runs.
@@ -3864,6 +3961,10 @@ runExercise({
     },
 
     renderPrint: renderPrintCard,
+
+    printModes: printModesFor,
+
+    printPages: printCardPages,
 
     printTitle(cfg) {
         const names = configDeckIds(cfg)

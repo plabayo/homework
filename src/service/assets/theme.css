@@ -2126,10 +2126,12 @@
     }
 
     /* ---------- print sheet ----------
-       A paper worksheet built from the setup form. On screen it previews as
-       a sheet of paper — light even in dark mode, since that is what comes
-       out of the printer — below a toolbar that never prints. Exercises size
-       their own items via `--print-item-min` and `.print-item` rules. */
+       A paper worksheet built from the setup form, laid out as real A4
+       pages (homework.js deals the items out over them). On screen the
+       pages preview as paper — light even in dark mode, since that is what
+       comes out of the printer — scaled to fit, below a toolbar that never
+       prints. Exercises size their own items via `--print-item-min` and
+       `.print-item` rules. */
     #page-print:not([hidden]) {
         display: flex;
         flex-direction: column;
@@ -2145,17 +2147,63 @@
     .print-hint {
         text-align: center;
     }
+    .print-modes {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+    .print-mode {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 6px 14px;
+        border: 1px solid var(--border-soft);
+        border-radius: 999px;
+        cursor: pointer;
+    }
+    .print-mode:has(:checked) {
+        border-color: var(--accent);
+        background: var(--accent-tint);
+        color: var(--accent);
+    }
+    .print-mode:has(:focus-visible) {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+    }
+    .print-mode input {
+        accent-color: var(--accent);
+    }
     .print-sheet {
+        inline-size: 100%;
+    }
+    .print-pages {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        zoom: var(--print-zoom, 1);
+    }
+    /* One A4 sheet: margins inside the box, the footer pinned to its foot. */
+    .print-page {
+        --page-top: 14mm;
+        --page-side: 12mm;
+        --page-foot: 18mm;
+        position: relative;
+        box-sizing: border-box;
+        inline-size: 210mm;
+        block-size: 297mm;
+        padding: var(--page-top) var(--page-side) 0;
+        overflow: hidden;
         color-scheme: light;
         background: #ffffff;
         color: var(--fg);
-        inline-size: 100%;
-        max-inline-size: 210mm;
-        margin-inline: auto;
-        padding: 24px 20px;
-        border-radius: 4px;
         box-shadow: var(--shadow-card);
         font-size: 1.05rem;
+    }
+    .print-page-body {
+        block-size: calc(297mm - var(--page-top) - var(--page-foot));
     }
     .print-head {
         display: flex;
@@ -2315,8 +2363,10 @@
         border-radius: 999px;
     }
     .print-footer {
-        margin-block-start: 28px;
-        padding-block-start: 8px;
+        position: absolute;
+        inset-inline: var(--page-side);
+        inset-block-end: 8mm;
+        padding-block-start: 6px;
         border-block-start: 1px solid var(--border-soft);
         color: var(--muted);
         font-size: 0.8rem;
@@ -2327,19 +2377,12 @@
     }
 
     @media print {
-        /* The footer at the foot of every page, in the page's own margin.
-           Keep the text in step with `.print-footer` in homework.js. */
+        /* The pages bring their own margins and footer. A zero page margin
+           also makes browsers leave out their URL/date headers and footers
+           (Chrome only offers them when the top or bottom margin is > 0). */
         @page {
-            margin: 14mm 12mm 16mm;
-            @bottom-center {
-                content: "Gegenereerd met elementary.training, een open source educatieve tool van plabayo.tech.";
-                color: #4b5563;
-                font-family: system-ui, sans-serif;
-                font-size: 8pt;
-            }
-        }
-        .print-sheet.has-page-footer .print-footer {
-            display: none;
+            size: A4;
+            margin: 0;
         }
         /* !important beats the theme toggle's inline color-scheme. */
         html {
@@ -2368,14 +2411,27 @@
         .page {
             max-width: none;
         }
-        .print-sheet {
-            max-inline-size: none;
-            padding: 0;
-            border-radius: 0;
+        #page-print {
+            margin: 0;
+        }
+        .print-pages {
+            display: block;
+            zoom: 1;
+        }
+        /* 1 mm of slack against rounding past the printable page. */
+        .print-page {
+            block-size: 296mm;
             box-shadow: none;
+            break-after: page;
+        }
+        .print-page:last-child {
+            break-after: auto;
         }
         .print-sheet a {
             text-decoration: none;
+        }
+        .print-modes {
+            display: none !important;
         }
     }
 } /* end @layer base */

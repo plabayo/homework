@@ -394,6 +394,15 @@ fn print_section(info: ExerciseInfo) -> impl IntoHtml {
                 ),
             ),
         ),
+        // Filled by homework.js when the exercise offers more than one
+        // paper version (flashcards: a test, or cards to cut out).
+        div!(
+            id = "print-modes",
+            class = "print-modes",
+            role = "radiogroup",
+            "aria-label" = "soort blad",
+            hidden? = true,
+        ),
         p!(
             class = "field-hint print-hint",
             "Tip: kies \"Opslaan als PDF\" in het afdrukvenster om het blad te bewaren of door te sturen.",

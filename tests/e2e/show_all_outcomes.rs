@@ -5,7 +5,9 @@
 // The eye toggle that switches the result screen and the history from
 // "only what went wrong" to every exercise, in the order it was asked.
 
-use super::helpers::{click, set_checkbox, set_input_value, wait_for_css, wait_for_text};
+use super::helpers::{
+    click, poll_until, set_checkbox, set_input_value, wait_for_css, wait_for_text,
+};
 use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -138,18 +140,19 @@ async fn show_all_toggle_lists_every_exercise_in_order() -> TestResult<()> {
         TIMEOUT,
     )
     .await?;
+    // The history re-reads IndexedDB before it re-renders, and the tricky
+    // item is in both lists: wait for the list to shrink, not for the item.
+    poll_until("the history to list only the mistake", TIMEOUT, || async {
+        let items = list_items(driver, ".history-recent .history-session li").await?;
+        Ok(items.len() == 1)
+    })
+    .await?;
     wait_for_css(
         driver,
         ".history-recent .history-session li.item-tricky",
         TIMEOUT,
     )
     .await?;
-    assert_eq!(
-        list_items(driver, ".history-recent .history-session li")
-            .await?
-            .len(),
-        1
-    );
 
     driver.clone().quit().await?;
     Ok(())

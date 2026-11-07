@@ -2445,36 +2445,48 @@ Bringhurst's guideline: use justified text only with serif fonts and adequate co
 
 MDN: <https://developer.mozilla.org/en-US/docs/Web/CSS/break-inside>, <https://developer.mozilla.org/en-US/docs/Web/CSS/@page>
 
-#### A footer on every page (learned on the worksheet)
+#### Exact pages: footers, no browser headers, duplex (learned on the worksheet)
 
-The tempting fix, `position: fixed` on the footer, is unreliable in print:
-browsers won't paint it into the page margin (a negative offset pushes it onto
-the next page instead), and Chrome did not repeat it once the content ran past
-one page. Any leftover `transform` on an ancestor (an entrance animation with
-`fill-mode: both`) also turns `fixed` into "fixed to that ancestor".
+Three things a printed worksheet needs that flowing content can't promise:
+our footer at the foot of *every* page, no browser URL/date headers, and —
+for cards to cut out — the same spot on both sides of the paper.
 
-Use the page's own margin boxes; feature-detect them in JS and keep an in-flow
-footer as the fallback, so it never prints twice:
+What doesn't work:
+
+- `position: fixed` footers. Browsers won't paint them into the page margin
+  (a negative offset spills onto the next page) and Chrome did not repeat one
+  reliably. An ancestor's leftover `transform` (an entrance animation with
+  `fill-mode: both`) also turns `fixed` into "fixed to that ancestor".
+- `@page` margin boxes (`@bottom-center`, Chrome 131+) do print on every page,
+  but they need a page margin — and Chrome only *offers* its own headers and
+  footers when the top or bottom page margin is greater than 0. You can't
+  have both.
+- `@page { size: A4 }` doesn't preselect the printer's paper size; Chrome's
+  dialog starts from the printer default. It does fix "Save as PDF".
+
+What does: lay the sheet out as real page boxes and let the page margin be 0.
 
 ```css
 @media print {
-  * { animation: none !important; transition: none !important; } /* paper doesn't move */
-  @page {
-    margin: 14mm 12mm 16mm;
-    @bottom-center { content: "Gegenereerd met …"; font-size: 8pt; }
-  }
-  .has-page-footer .print-footer { display: none; }
+  @page { size: A4; margin: 0; }     /* no browser header/footer */
+  .print-page { block-size: 296mm; break-after: page; } /* 1 mm slack */
+  .print-page:last-child { break-after: auto; }
 }
+.print-page { position: relative; inline-size: 210mm; block-size: 297mm; padding: 14mm 12mm 0; }
+.print-footer { position: absolute; inset-block-end: 8mm; }
 ```
 
-```js
-sheet.classList.toggle("has-page-footer", "CSSMarginRule" in window); // Chrome 131+
-```
+Deal items out over the pages in JS (measure once, move whole grid rows), and
+scale the boxes down on screen with `zoom`, reset to 1 in print. Gotchas:
+a site-wide `section + section { margin-top }` pushed every page after the
+first off its sheet (use `div`s), and a box of exactly 297 mm adds a blank page
+after each sheet. For duplex cards, centre the grid on the page and mirror
+each row on the back page: flipped on the long edge, column `c` on the front
+is column `n − 1 − c` on the back.
 
-Check print layout as the printer sees it: headless Chrome's
-`Page.printToPDF` (over CDP) renders the real pages, and rows that must not
-wrap (`¼ = ☐ %`) are easier to keep together by measuring them and letting the
-grid drop a column than by guessing a fixed `minmax()` per exercise.
+Check the result as the printer sees it: headless Chrome's `Page.printToPDF`
+(over CDP) renders the real pages — compare its page count with your page
+boxes, an extra page means something spills.
 
 ## Visual Styling
 

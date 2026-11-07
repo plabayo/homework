@@ -1757,23 +1757,146 @@
     align-items: center;
 }
 
-/* ---------- print sheet ---------- */
+/* ---------- print sheet: test ----------
+   A word test: every card a ruled row, the shown side on the left and a
+   line per answer on the right, two rows side by side. */
 .print-sheet {
-    --print-item-min: 16rem;
+    --print-item-min: 20rem;
 }
-.print-item .flash-text {
+.print-item:has(.fc-print-row) {
+    padding: 10px 6px 8px;
+    border: 0;
+    border-block-end: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+    border-radius: 0;
+}
+.print-body > .fc-print-row {
+    align-self: stretch;
+}
+.fc-print-row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: end;
+    gap: 14px;
+    text-align: start;
+}
+.fc-print-front {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     font-weight: 600;
+    overflow-wrap: anywhere;
 }
-.print-item .flash-card-image {
-    max-inline-size: 10rem;
-    max-block-size: 8rem;
+.fc-print-deck,
+.fc-print-hint {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.fc-print-image {
+    max-inline-size: 7rem;
+    max-block-size: 5rem;
     object-fit: contain;
+}
+.fc-print-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.fc-print-answer .print-write-line {
+    block-size: 1.5em;
+}
+/* A fill-in grid takes the full width, its words in two columns. */
+.print-item:has(.print-fill-list) {
+    grid-column: 1 / -1;
+}
+.fc-print-instruction {
+    align-self: flex-start;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-style: italic;
 }
 .print-fill-list {
     align-self: stretch;
+    columns: 2;
+    column-gap: 36px;
     text-align: start;
+    padding-inline-start: 1.6em;
+}
+.print-fill-list li {
+    break-inside: avoid;
+    min-block-size: 2em;
+    padding-block: 4px;
+}
+
+/* ---------- print sheet: cards to cut out ----------
+   3 × 4 cards of 63 × 66 mm, centred on the A4 page so the grid sits at the
+   same spot on both sides of the paper (homework.js mirrors the backs). One
+   dashed outline per card, overlapping its neighbour's, gives a single cut
+   line between cards. */
+.print-page.fc-card-page {
+    padding: 0;
+}
+.fc-card-page .print-page-body {
+    display: grid;
+    place-content: center;
+    block-size: 100%;
+}
+.fc-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 63mm);
+    grid-auto-rows: 66mm;
+}
+.fc-print-card {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding-inline-start: 1.6em;
+    align-items: center;
+    justify-content: center;
+    gap: 3mm;
+    box-sizing: border-box;
+    padding: 6mm;
+    overflow: hidden;
+    outline: 0.3mm dashed #9ca3af;
+    outline-offset: -0.15mm;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.fc-print-card.is-empty {
+    outline: 0;
+}
+.fc-card-text {
+    font-size: 15pt;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.fc-card-text.is-short {
+    font-size: 22pt;
+}
+.fc-card-text.is-long {
+    font-size: 11pt;
+    font-weight: 500;
+}
+.fc-card-image {
+    max-inline-size: 100%;
+    max-block-size: 44mm;
+    object-fit: contain;
+}
+.fc-card-parts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13pt;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.fc-card-deck {
+    position: absolute;
+    inset-block-end: 3mm;
+    inset-inline: 3mm;
+    color: var(--muted);
+    font-size: 7pt;
+}
+/* No rule above the footer here: it would read as one more cut line. */
+.fc-card-page .print-footer {
+    border: 0;
 }

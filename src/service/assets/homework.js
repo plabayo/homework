@@ -2096,7 +2096,7 @@ export function createScreenWakeLockController({
  *   isCorrect: (q, given) => boolean
  *   describe?: (q) => string                  — short label for history
  *   onBeforeReset?: () => void               — called before returning to setup (e.g. to clean up exercise-specific state)
- *   renderPrint?: (q, root, { index, deck }) => void | false | { prompt? }
+ *   renderPrint?: (q, root, { index, deck, mode }) => void | false | { prompt? }
  *      Fill `root` with a paper version of the question; enables the
  *      "🖨️ afdrukken" button. Answer inputs and option buttons may be left
  *      in: the framework turns them into boxes to write in and options to
@@ -2104,6 +2104,10 @@ export function createScreenWakeLockController({
  *      to leave a question out (e.g. one already printed as part of a group).
  *      The sheet has no answer key: the grown-up corrects it.
  *   printTitle?: (config) => string           — heading of the print sheet
+ *   printModes?: (config) => [{ value, label, hint? }] — paper versions to choose
+ *      from (first is the default); `mode` reaches renderPrint and printPages
+ *   printPages?: (mode, config) => null | [{ html, className? }] — lay out whole
+ *      A4 pages instead of the item sheet (trusted HTML, one entry per page)
  * }
  *
  * The config handed to buildDeck carries `kindWeights` ({ kind: 1–5 }) when
@@ -2501,7 +2505,7 @@ export function runExercise(spec) {
         if (which === "play") play.scrollIntoView({ behavior: "smooth" });
         if (which === "result") result.scrollIntoView({ behavior: "smooth" });
         if (which === "print") {
-            fitPrintColumns();
+            scalePrintPages();
             printSection?.scrollIntoView({ behavior: "smooth" });
         }
         if (which === "play") {
@@ -3155,23 +3159,102 @@ export function runExercise(spec) {
     });
 
     // --- print ---
+    //
+    // The worksheet is laid out as real A4 pages (210 × 297 mm boxes) rather
+    // than one long flow: the print stylesheet then sets `@page { margin: 0 }`
+    // — which is what makes browsers drop their own URL/date headers and
+    // footers — and every page carries our footer at its foot. Items are
+    // measured once in a page and dealt out over the pages row by row, so no
+    // exercise is ever cut by a page edge. On screen the pages are scaled
+    // down (`zoom`) to fit; in print they are their true size.
 
     const printButton = document.getElementById("button-print");
+    const printModesEl = document.getElementById("print-modes");
+    const printHintEl = printSection?.querySelector(".print-hint");
+    const printHintDefault = printHintEl?.textContent ?? "";
+    // Read per use: an exercise id can follow its selection (flashcards: one
+    // id per deck), so the choice is remembered per deck.
+    const printModeKey = () => `homework:print-mode:${spec.id}`;
     if (printButton && spec.renderPrint) printButton.hidden = false;
 
     function printTitle(cfg) {
         return spec.printTitle?.(cfg) || printSection?.dataset.label || spec.label;
     }
 
+    // Exercises may offer more than one paper version (flashcards: a test or
+    // cards to cut out). The first is the default; the choice is remembered.
+    function printModes(cfg) {
+        const modes = spec.printModes?.(cfg) ?? [];
+        return modes.length > 1 ? modes : [];
+    }
+
+    function currentPrintMode(modes) {
+        if (modes.length === 0) return null;
+        let saved = null;
+        try {
+            saved = localStorage.getItem(printModeKey());
+        } catch {}
+        return modes.some((mode) => mode.value === saved) ? saved : modes[0].value;
+    }
+
+    function renderPrintModes(modes, active) {
+        if (!printModesEl) return;
+        printModesEl.hidden = modes.length === 0;
+        printModesEl.innerHTML = modes
+            .map(
+                (mode) =>
+                    `<label class="print-mode"><input type="radio" name="print-mode" value="${escapeHtml(mode.value)}"${
+                        mode.value === active ? " checked" : ""
+                    }> ${escapeHtml(mode.label)}</label>`,
+            )
+            .join("");
+        const hint = modes.find((mode) => mode.value === active)?.hint;
+        if (printHintEl) printHintEl.textContent = hint || printHintDefault;
+    }
+
+    const PRINT_FOOTER = `<footer class="print-footer">
+        Gegenereerd met <a href="https://elementary.training">elementary.training</a>,
+        een open source educatieve tool van <a href="https://plabayo.tech">plabayo.tech</a>.
+    </footer>`;
+
+    function printPage(className = "") {
+        // A div, not a section: the site's `section + section` spacing would
+        // push every page after the first off its sheet.
+        const page = document.createElement("div");
+        page.className = `print-page ${className}`.trim();
+        page.innerHTML = `<div class="print-page-body"></div>${PRINT_FOOTER}`;
+        return page;
+    }
+
     function renderPrintSheet() {
         const { deck, cfg } = state.printDeck;
+        const modes = printModes(cfg);
+        const mode = currentPrintMode(modes);
+        renderPrintModes(modes, mode);
+        printSheet.dataset.printMode = mode ?? "";
+        printSheet.style.setProperty("--print-zoom", "1");
+        printSheet.innerHTML = '<div class="print-pages"></div>';
+        const pages = printSheet.querySelector(".print-pages");
+
+        // An exercise can lay out whole pages itself (cut-out cards, whose
+        // fronts and backs must land on exactly the same spot).
+        const custom = spec.printPages?.(mode, cfg);
+        const reshuffle = document.getElementById("print-reshuffle");
+        if (reshuffle) reshuffle.hidden = !!custom;
+        if (custom) {
+            for (const { html, className } of custom) {
+                const page = printPage(className);
+                page.querySelector(".print-page-body").innerHTML = html;
+                pages.append(page);
+            }
+            scalePrintPages();
+            return;
+        }
+
         const title = printTitle(cfg);
         const icon = printSection?.dataset.icon || "";
-        const footer = `<footer class="print-footer">
-            Gegenereerd met <a href="https://elementary.training">elementary.training</a>,
-            een open source educatieve tool van <a href="https://plabayo.tech">plabayo.tech</a>.
-        </footer>`;
-        printSheet.innerHTML = `
+        const first = printPage();
+        first.querySelector(".print-page-body").innerHTML = `
             <header class="print-head">
                 <h2 class="print-title"><span aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(title)}</h2>
                 <div class="print-fields">
@@ -3180,12 +3263,9 @@ export function runExercise(spec) {
                     <span class="print-field">score <span class="print-line print-line-score"></span> / <span class="print-total"></span></span>
                 </div>
             </header>
-            <ol class="print-items"></ol>
-            ${footer}`;
-        // Browsers with page-margin boxes print the footer at the foot of
-        // every page (theme.css); the others keep it below the exercises.
-        printSheet.classList.toggle("has-page-footer", "CSSMarginRule" in window);
-        const items = printSheet.querySelector(".print-items");
+            <ol class="print-items"></ol>`;
+        pages.append(first);
+        const items = first.querySelector(".print-items");
         let number = 0;
         deck.forEach((q, index) => {
             const item = document.createElement("li");
@@ -3196,7 +3276,7 @@ export function runExercise(spec) {
             body.className = "print-body";
             item.append(head, body);
             items.append(item);
-            const printed = spec.renderPrint(q, body, { index, deck });
+            const printed = spec.renderPrint(q, body, { index, deck, mode });
             if (printed === false) {
                 item.remove();
                 return;
@@ -3211,18 +3291,17 @@ export function runExercise(spec) {
             }
             makePrintable(body);
         });
-        printSheet.querySelector(".print-total").textContent = String(number);
-        fitPrintColumns();
+        first.querySelector(".print-total").textContent = String(number);
+        fitPrintColumns(items);
+        paginatePrintItems(first, items);
+        scalePrintPages();
     }
 
     // Rows that must stay on one line ("¼ = ☐ %") decide how narrow a cell may
     // get: measure the widest one and let the grid fall back to fewer columns
     // rather than wrap it. Content width comes from a Range, so a row that
-    // stretches to its cell still counts for what it holds. Needs layout, so
-    // it only runs while the sheet is showing.
-    function fitPrintColumns() {
-        const items = printSheet?.querySelector(".print-items");
-        if (!items || !printSection || printSection.hidden) return;
+    // stretches to its cell still counts for what it holds.
+    function fitPrintColumns(items) {
         const range = document.createRange();
         let widest = 0;
         for (const el of items.querySelectorAll(".print-body *:not(svg *)")) {
@@ -3242,12 +3321,60 @@ export function runExercise(spec) {
         items.style.setProperty("--print-fit", `${Math.ceil(widest)}px`);
     }
 
+    // Deal the items of the first page out over as many pages as they need,
+    // a whole grid row at a time. Every page grid gets the same column width,
+    // so rows keep the height they were measured at.
+    function paginatePrintItems(first, items) {
+        const rows = [];
+        for (const item of items.children) {
+            const top = item.offsetTop;
+            const row = rows.at(-1);
+            if (row && row.top === top) {
+                row.items.push(item);
+                row.bottom = Math.max(row.bottom, top + item.offsetHeight);
+            } else {
+                rows.push({ top, bottom: top + item.offsetHeight, items: [item] });
+            }
+        }
+        // Offsets are relative to the page (the positioned ancestor).
+        const body = first.querySelector(".print-page-body");
+        const bodyHeight = body.clientHeight;
+        let room = bodyHeight - (items.offsetTop - body.offsetTop);
+        let pageTop = rows[0]?.top ?? 0;
+        let list = items;
+        let page = first;
+        for (const row of rows) {
+            if (row.bottom - pageTop > room && row.top > pageTop) {
+                page = printPage();
+                list = document.createElement("ol");
+                list.className = "print-items";
+                list.style.setProperty("--print-fit", items.style.getPropertyValue("--print-fit"));
+                page.querySelector(".print-page-body").append(list);
+                first.parentElement.append(page);
+                room = bodyHeight;
+                pageTop = row.top;
+            }
+            if (list !== items) list.append(...row.items);
+        }
+    }
+
+    // On screen, shrink the A4 pages to the width there is; print resets it.
+    function scalePrintPages() {
+        const page = printSheet?.querySelector(".print-page");
+        if (!page || printSection.hidden) return;
+        printSheet.style.setProperty("--print-zoom", "1");
+        const zoom = Math.min(1, printSheet.clientWidth / page.offsetWidth);
+        printSheet.style.setProperty("--print-zoom", String(Math.floor(zoom * 1000) / 1000));
+    }
+
     function openPrintView() {
         const built = configuredDeck();
         if (!built) return;
         preparePrintDeck(built);
         pushPageView(VIEW_HASHES.print);
+        // Laying out the pages needs the view on screen.
         show("print");
+        renderPrintSheet();
     }
 
     function preparePrintDeck({ deck, cfg }) {
@@ -3256,7 +3383,6 @@ export function runExercise(spec) {
             for (const q of prepared) spec.prepareQuestion(q);
         }
         state.printDeck = { deck: prepared, cfg };
-        renderPrintSheet();
     }
 
     printButton?.addEventListener("click", openPrintView);
@@ -3264,7 +3390,19 @@ export function runExercise(spec) {
     document.getElementById("print-reshuffle")?.addEventListener("click", () => {
         if (!state.printDeck) return;
         const deck = spec.buildDeck(state.printDeck.cfg);
-        if (deck?.length) preparePrintDeck({ deck, cfg: state.printDeck.cfg });
+        if (!deck?.length) return;
+        preparePrintDeck({ deck, cfg: state.printDeck.cfg });
+        renderPrintSheet();
+    });
+    printModesEl?.addEventListener("change", (e) => {
+        if (e.target.name !== "print-mode" || !state.printDeck) return;
+        try {
+            localStorage.setItem(printModeKey(), e.target.value);
+        } catch {}
+        renderPrintSheet();
+    });
+    window.addEventListener("resize", () => {
+        if (currentView === "print") scalePrintPages();
     });
     // Name the saved PDF after the sheet rather than the web page.
     let titleBeforePrint = null;
