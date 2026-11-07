@@ -646,7 +646,9 @@ export function uniqueDeck({
     count,
     plan,
     draw,
-    kinds = [...new Set(plan)],
+    // Every kind that can make questions — not just the ones in `plan`: a
+    // weighted plan of a few questions can leave a kind out entirely.
+    kinds,
     weights,
     onPick,
     patience = UNIQUE_PATIENCE,
@@ -1076,6 +1078,11 @@ function formatDate(ts) {
     }
 }
 
+/** Glide to a new screen — or jump, for whoever asked for less motion. */
+export function scrollBehavior() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 function blurActiveElement() {
     const active = document.activeElement;
     if (active instanceof HTMLElement && typeof active.blur === "function") {
@@ -1193,6 +1200,20 @@ export function pushPageView(hash) {
 }
 
 export function replacePageView(hash) {
+    // The leave guard's sentinel sits on top of the view it guards. Replacing
+    // the sentinel would leave that view's entry below it (Back from a result
+    // would land on the finished session's `#oefenen`), and replacing the
+    // view after one step back would leave the sentinel ahead, in Forward.
+    // So step back over both, and push the new view: the push also drops the
+    // stale entries ahead. It waits for the step to land.
+    if (leaveGuardSentinelArmed && history.state?.__homeworkLeaveGuard && !leavingView) {
+        leaveGuardSentinelArmed = false;
+        suppressLeaveGuardPop = true;
+        leavingView = true;
+        queuedView = { push: true, hash };
+        history.go(-2);
+        return;
+    }
     applyView(false, hash);
 }
 
@@ -1633,11 +1654,16 @@ function setupKindWeights(form) {
 
 function mountKindWeightGroup(fieldset) {
     const name = fieldset.dataset.weights;
-    const boxes = [...fieldset.querySelectorAll(`input[type="checkbox"][name="${name}"]`)];
+    // An extra elsewhere in the form can join the split as one more kind
+    // (`data-weight-group="<name>" data-weight-kind="<kind>"`), e.g. the
+    // decimals extra of the breukenwijzer.
+    const extras = fieldset.form?.querySelectorAll(`input[type="checkbox"][data-weight-group="${name}"]`) ?? [];
+    const boxes = [...fieldset.querySelectorAll(`input[type="checkbox"][name="${name}"]`), ...extras];
+    const kindOf = (box) => box.dataset.weightKind || box.value;
     const rows = boxes.map((box, i) => {
         const id = `kind-weight-${name}-${i}`;
-        const label = box.closest("label")?.textContent.trim() || box.value;
-        return `<div class="kind-weight-row" data-kind="${escapeHtml(box.value)}">
+        const label = box.closest("label")?.textContent.trim() || kindOf(box);
+        return `<div class="kind-weight-row" data-kind="${escapeHtml(kindOf(box))}">
             <span class="kind-weight-swatch" aria-hidden="true"></span>
             <label for="${id}">${escapeHtml(label)}</label>
             <input type="range" id="${id}" min="${KIND_WEIGHT_MIN}" max="${KIND_WEIGHT_MAX}" step="1"
@@ -1678,8 +1704,8 @@ function mountKindWeightGroup(fieldset) {
 
     function sync() {
         const checked = boxes.map((box) => box.checked);
-        const kinds = boxes.filter((_, i) => checked[i]).map((box) => box.value);
-        const weights = Object.fromEntries(boxes.map((box, i) => [box.value, weightAt(i)]));
+        const kinds = boxes.filter((_, i) => checked[i]).map(kindOf);
+        const weights = Object.fromEntries(boxes.map((box, i) => [kindOf(box), weightAt(i)]));
         const pct = kindShares(kinds, weights);
         let k = 0;
         boxes.forEach((_, i) => {
@@ -1698,7 +1724,7 @@ function mountKindWeightGroup(fieldset) {
         widget.hidden = kinds.length < 2;
     }
 
-    fieldset.addEventListener("change", sync);
+    (fieldset.form ?? fieldset).addEventListener("change", sync);
     widget.addEventListener("input", sync);
     reset.addEventListener("click", () => {
         for (const range of ranges) range.value = String(KIND_WEIGHT_DEFAULT);
@@ -1708,12 +1734,12 @@ function mountKindWeightGroup(fieldset) {
     return {
         sync,
         read() {
-            return Object.fromEntries(boxes.map((box, i) => [box.value, weightAt(i)]));
+            return Object.fromEntries(boxes.map((box, i) => [kindOf(box), weightAt(i)]));
         },
         load(saved) {
             if (!saved || typeof saved !== "object") return;
             boxes.forEach((box, i) => {
-                ranges[i].value = String(kindWeight(saved, box.value));
+                ranges[i].value = String(kindWeight(saved, kindOf(box)));
             });
         },
     };
@@ -2171,6 +2197,8 @@ export function createScreenWakeLockController({
  *      in: the framework turns them into boxes to write in and options to
  *      circle. `prompt` is a short instruction above the item. Return false
  *      to leave a question out (e.g. one already printed as part of a group).
+ *      Items never break across pages; a list marked `data-print-split` that
+ *      makes its item taller than a page continues in items of its own.
  *      The sheet has no answer key: the grown-up corrects it.
  *   printTitle?: (config) => string           — heading of the print sheet
  *   printModes?: (config) => [{ value, label, hint? }] — paper versions to choose
@@ -2571,11 +2599,12 @@ export function runExercise(spec) {
             activeSection.classList.add("section-enter");
         }
         _hasShownOnce = true;
-        if (which === "play") play.scrollIntoView({ behavior: "smooth" });
-        if (which === "result") result.scrollIntoView({ behavior: "smooth" });
+        const behavior = scrollBehavior();
+        if (which === "play") play.scrollIntoView({ behavior });
+        if (which === "result") result.scrollIntoView({ behavior });
         if (which === "print") {
             scalePrintPages();
-            printSection?.scrollIntoView({ behavior: "smooth" });
+            printSection?.scrollIntoView({ behavior });
         }
         if (which === "play") {
             setLeaveGuard(leaveGuardId, {
@@ -3336,7 +3365,7 @@ export function runExercise(spec) {
         pages.append(first);
         const items = first.querySelector(".print-items");
         let number = 0;
-        deck.forEach((q, index) => {
+        const newItem = () => {
             const item = document.createElement("li");
             item.className = "print-item";
             const head = document.createElement("div");
@@ -3345,6 +3374,10 @@ export function runExercise(spec) {
             body.className = "print-body";
             item.append(head, body);
             items.append(item);
+            return { item, head, body };
+        };
+        deck.forEach((q, index) => {
+            const { item, head, body } = newItem();
             const printed = spec.renderPrint(q, body, { index, deck, mode });
             if (printed === false) {
                 item.remove();
@@ -3394,6 +3427,13 @@ export function runExercise(spec) {
     // a whole grid row at a time. Every page grid gets the same column width,
     // so rows keep the height they were measured at.
     function paginatePrintItems(first, items) {
+        // Offsets are relative to the page (the positioned ancestor).
+        const body = first.querySelector(".print-page-body");
+        const bodyHeight = body.clientHeight;
+        // Under the sheet's heading the first page has less room; later rows
+        // can always move to a fresh page.
+        const firstRoom = bodyHeight - (items.offsetTop - body.offsetTop);
+        splitTallItems(items, bodyHeight, firstRoom);
         const rows = [];
         for (const item of items.children) {
             const top = item.offsetTop;
@@ -3405,10 +3445,7 @@ export function runExercise(spec) {
                 rows.push({ top, bottom: top + item.offsetHeight, items: [item] });
             }
         }
-        // Offsets are relative to the page (the positioned ancestor).
-        const body = first.querySelector(".print-page-body");
-        const bodyHeight = body.clientHeight;
-        let room = bodyHeight - (items.offsetTop - body.offsetTop);
+        let room = firstRoom;
         let pageTop = rows[0]?.top ?? 0;
         let list = items;
         let page = first;
@@ -3424,6 +3461,28 @@ export function runExercise(spec) {
                 pageTop = row.top;
             }
             if (list !== items) list.append(...row.items);
+        }
+    }
+
+    // An item taller than a page can't move to the next page whole: a list
+    // in it marked `data-print-split` continues in items of its own, cut at
+    // the row that no longer fits (by rendered height, so long rows count
+    // for what they take), its numbering running on.
+    function splitTallItems(items, limit, firstRoom) {
+        const firstTop = items.firstElementChild?.offsetTop;
+        for (let item = items.firstElementChild; item; item = item.nextElementSibling) {
+            const list = item.querySelector("[data-print-split]");
+            const room = item.offsetTop === firstTop ? firstRoom : limit;
+            if (!list || item.offsetHeight <= room) continue;
+            const rest = list.cloneNode(false);
+            while (item.offsetHeight > room && list.children.length > 1) rest.prepend(list.lastElementChild);
+            if (rest.children.length === 0) continue;
+            if (list.tagName === "OL") rest.start = list.start + list.children.length;
+            const next = document.createElement("li");
+            next.className = "print-item";
+            next.innerHTML = '<div class="print-item-head"></div><div class="print-body"></div>';
+            next.querySelector(".print-body").append(rest);
+            item.after(next);
         }
     }
 

@@ -22,6 +22,7 @@ import {
     buildClockOptions,
     buildDeck,
     dutchTimePhraseVariants,
+    exerciseSpec,
     handAngles,
     nearestAngle,
     turnsCrossed,
@@ -316,4 +317,10 @@ test("1-minute alternative + Flemish 'na' propagate to the new minutes", () => {
     for (const v of v33) {
         assert.ok(!v.includes(" na half "), `m=33 must not produce "na half" (got "${v}")`);
     }
+});
+
+test("a lees-mistake saved before seconds existed is still answerable", () => {
+    const legacy = { kind: "lees", h: 3, m: 15 };
+    exerciseSpec.prepareQuestion(legacy);
+    assert.equal(exerciseSpec.isCorrect(legacy, { h: "3", m: "15" }), true);
 });

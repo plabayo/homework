@@ -113,10 +113,13 @@ fn config_fields() -> impl IntoHtml {
         fieldset!(
             legend!("Extra oefening"),
             label!(
+                // Joins the "Wat wil je oefenen?" split as one more kind.
                 input!(
                     r#type = "checkbox",
                     id = "include-decimals",
                     name = "include-decimals",
+                    "data-weight-group" = "practice",
+                    "data-weight-kind" = "decimals",
                 ),
                 " breuken en kommagetallen omzetten (bijv. 3/4 = 0,75)",
             ),

@@ -153,6 +153,7 @@ function buildDeck(cfg) {
     return uniqueDeck({
         count: N,
         plan: weightedPlan(kinds, cfg.kindWeights, N),
+        kinds,
         weights: cfg.kindWeights,
         draw(kind) {
             const result = pickQuestion(kind, pool, buildCfg);

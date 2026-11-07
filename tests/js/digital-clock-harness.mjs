@@ -21,6 +21,8 @@ const minutesForStep = (step) => {
 };
 const preciseTimePhrase = (h, m, s) => `${h} uur, ${m} minuten en ${s} seconden`;
 
+// The exercise spec handed to runExercise, for answer-checking tests.
+let exerciseSpec;
 const ctx = createContext({
     Array,
     Boolean,
@@ -53,7 +55,9 @@ const ctx = createContext({
     dealRounds: (all, count) => (all.length ? Array.from({ length: count }, (_, i) => all[i % all.length]) : []),
     preciseTimePhrase,
     readFields: () => ({}),
-    runExercise: () => {},
+    runExercise: (spec) => {
+        exerciseSpec = spec;
+    },
     shuffle: (values) => values,
     sizeFlip: () => {},
     wireOptions: () => {},
@@ -61,5 +65,7 @@ const ctx = createContext({
 });
 
 runInContext(patched, ctx);
+
+export { exerciseSpec };
 
 export const { buildDeck, buildDistractors } = ctx;

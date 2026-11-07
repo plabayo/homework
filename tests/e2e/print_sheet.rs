@@ -206,3 +206,44 @@ async fn print_sheet_flashcards_as_cards_to_cut_out() -> TestResult<()> {
     driver.clone().quit().await?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn print_sheet_continues_a_long_list_on_the_next_pages() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/extra/flashcards")).await?;
+    driver
+        .execute(
+            "localStorage.setItem('homework_flashcard_decks', JSON.stringify([{id:'long',name:'Lang',mode:'one-sided',
+                cards: Array.from({ length: 100 }, (_, i) => ({ front: `een lange zin om te onthouden, nummer ${i + 1}` })),
+                createdAt: 1}]));",
+            vec![],
+        )
+        .await?;
+    driver.refresh().await?;
+    wait_for_css(driver, ".deck-item[data-deck-id='long']", TIMEOUT).await?;
+    click(driver, ".deck-item[data-deck-id='long'] .deck-select-btn").await?;
+    click(driver, "#button-print").await?;
+    wait_for_css(driver, "#print-sheet .print-fill-list", TIMEOUT).await?;
+
+    // Nothing hangs past the bottom of its page, and all 100 rows are there.
+    let report = driver
+        .execute(
+            "const pages = [...document.querySelectorAll('#print-sheet .print-page')];
+             const clipped = pages.some(page => {
+                 const limit = page.querySelector('.print-page-body').getBoundingClientRect().bottom + 1;
+                 return [...page.querySelectorAll('.print-item')].some(item => item.getBoundingClientRect().bottom > limit);
+             });
+             const rows = document.querySelectorAll('#print-sheet .print-fill-list li').length;
+             return `${pages.length > 1}|${clipped}|${rows}`;",
+            vec![],
+        )
+        .await?;
+    assert_eq!(report.json().as_str(), Some("true|false|100"));
+
+    driver.clone().quit().await?;
+    Ok(())
+}

@@ -30,6 +30,7 @@ test("uniqueDeck: nothing repeats until the whole pool has been asked", () => {
         const deck = uniqueDeck({
             count: 12,
             plan: Array(12).fill("x"),
+            kinds: ["x"],
             draw: () => {
                 const key = pick(pool);
                 return { question: key, key };
@@ -57,7 +58,7 @@ test("uniqueDeck: a used-up kind hands its turns to kinds with fresh questions",
 });
 
 test("uniqueDeck: settings that allow no question give an empty deck", () => {
-    assert.deepEqual(uniqueDeck({ count: 5, plan: Array(5).fill("x"), draw: () => null }), []);
+    assert.deepEqual(uniqueDeck({ count: 5, plan: Array(5).fill("x"), kinds: ["x"], draw: () => null }), []);
 });
 
 test("uniqueDeck: onPick hears every question taken", () => {
@@ -66,6 +67,7 @@ test("uniqueDeck: onPick hears every question taken", () => {
     uniqueDeck({
         count: 3,
         plan: ["k", "k", "k"],
+        kinds: ["k"],
         draw: () => ({ question: next, key: next++ }),
         onPick: (question, kind) => taken.push(`${kind}${question}`),
     });
@@ -127,5 +129,28 @@ test("breukendoos: no repeats while the pool lasts", () => {
         });
         const keys = deck.map((q) => `${q.kind}:${q.aNum}/${q.aDen}:${q.bNum}/${q.bDen}`);
         assert.equal(new Set(keys).size, keys.length);
+    }
+});
+
+test("rekendoos: a kind the weights leave out of a short plan still saves the deck from repeats", () => {
+    // 3 + 0 … 3 + 0: with sums weighted 5 : 1 and two questions, the plan has
+    // no difference in it — yet the differences are the only fresh questions.
+    for (let run = 0; run < 20; run++) {
+        const deck = withRandom(
+            Array.from({ length: 20_000 }, () => Math.random()),
+            () =>
+                mathboxDeck({
+                    countUntil: 3,
+                    minFirstTerm: 3,
+                    maxFirstTerm: 3,
+                    minSecondTerm: 0,
+                    maxSecondTerm: 3,
+                    numExercises: 2,
+                    kinds: ["som", "verschil"],
+                    kindWeights: { som: 5, verschil: 1 },
+                }),
+        );
+        const keys = deck.map((q) => `${q.kind}:${q.a}:${q.b}`);
+        assert.equal(new Set(keys).size, 2, `repeated ${keys.join(", ")}`);
     }
 });

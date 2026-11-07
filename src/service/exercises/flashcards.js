@@ -23,6 +23,7 @@ import {
     pushPageView,
     refreshLeaveGuards,
     runExercise,
+    scrollBehavior,
     setLeaveGuard,
     shuffle,
 } from "@homework";
@@ -2075,7 +2076,7 @@ function showReviewPage() {
     setupPage().hidden = true;
     playPage().hidden = false;
     resultPage().hidden = true;
-    playPage().scrollIntoView({ behavior: "smooth" });
+    playPage().scrollIntoView({ behavior: scrollBehavior() });
 }
 
 function stopReviewSession({ keepPage = false } = {}) {
@@ -2107,7 +2108,7 @@ function stopReviewSession({ keepPage = false } = {}) {
         setupPage().hidden = false;
         playPage().hidden = true;
         resultPage().hidden = true;
-        setupPage().scrollIntoView({ behavior: "smooth" });
+        setupPage().scrollIntoView({ behavior: scrollBehavior() });
     }
     syncReviewLaunchButton();
 }
@@ -3384,8 +3385,9 @@ function renderPrintCard(q, root, { index, deck }) {
                 blanks.includes(i) ? '<li><span class="print-write-line"></span></li>' : `<li>${escapeHtml(card)}</li>`,
             )
             .join("");
+        // A long list continues over the next pages (data-print-split).
         root.innerHTML = `<p class="fc-print-instruction">Vul de ontbrekende woorden in.</p>
-            <ol class="print-fill-list">${rows}</ol>`;
+            <ol class="print-fill-list" data-print-split>${rows}</ol>`;
         return;
     }
     const source = q.deckName ? `<span class="fc-print-deck">${escapeHtml(q.deckName)}</span>` : "";

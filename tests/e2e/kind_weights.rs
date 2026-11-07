@@ -125,3 +125,41 @@ async fn kind_weights_shape_the_deck_and_are_remembered() -> TestResult<()> {
     driver.clone().quit().await?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn kind_weights_count_the_decimals_extra_as_a_kind() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/2/fraction-sense")).await?;
+    wait_for_css(driver, ".kind-weights:not([hidden])", TIMEOUT).await?;
+    wait_for_css(
+        driver,
+        ".kind-weight-row[data-kind='decimals'][hidden]",
+        TIMEOUT,
+    )
+    .await?;
+    set_checkbox(driver, "#include-decimals", true).await?;
+    wait_for_css(
+        driver,
+        ".kind-weight-row[data-kind='decimals']:not([hidden])",
+        TIMEOUT,
+    )
+    .await?;
+    let rows = js_string(
+        driver,
+        "return String(document.querySelectorAll('.kind-weight-row:not([hidden])').length);",
+    )
+    .await?;
+    let shares = js_string(
+        driver,
+        "return [...document.querySelectorAll('.kind-weight-row:not([hidden]) output')].map(o => parseInt(o.textContent, 10)).reduce((a, b) => a + b, 0).toString();",
+    )
+    .await?;
+    assert_eq!(shares, "100", "{rows} kinds should share 100%");
+
+    driver.clone().quit().await?;
+    Ok(())
+}

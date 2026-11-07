@@ -2201,6 +2201,10 @@
         color: var(--fg);
         box-shadow: var(--shadow-card);
         font-size: 1.05rem;
+        /* Shading carries meaning (a fraction strip's coloured parts), so it
+           prints even when "background graphics" is off in the dialog. */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     .print-page-body {
         block-size: calc(297mm - var(--page-top) - var(--page-foot));

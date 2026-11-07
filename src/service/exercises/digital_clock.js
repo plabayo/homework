@@ -77,17 +77,17 @@ function minutesForGranularity(granularity) {
 function buildDeck(cfg) {
     const minutes = minutesForGranularity(cfg.granularity);
     const hourMax = cfg.use24h ? 24 : 12;
+    const seconds = cfg.includeSeconds ? minutesForStep(Number(cfg.secondStep) || 5).filter((value) => value > 0) : [0];
     const candidates = [];
     for (let h = 0; h < hourMax; h++) {
-        for (const m of minutes) candidates.push({ h, m });
+        for (const m of minutes) {
+            for (const s of seconds) candidates.push({ h, m, s });
+        }
     }
-    // Every time once before any comes back.
+    // Every time — seconds included — once before any comes back.
     const times = dealRounds(candidates, cfg.numExercises);
     const directions = weightedPlan(cfg.directions, cfg.kindWeights, times.length);
-    return times.map(({ h, m }, i) => {
-        const s = cfg.includeSeconds
-            ? pickRandom(minutesForStep(Number(cfg.secondStep) || 5).filter((value) => value > 0))
-            : 0;
+    return times.map(({ h, m, s }, i) => {
         return {
             // direction: 'digital-to-words' or 'words-to-digital'
             dir: directions[i],
@@ -255,6 +255,10 @@ runExercise({
         return null;
     },
     buildDeck,
+    // Mistakes saved before seconds existed have no `s`: they mean :00.
+    prepareQuestion(q) {
+        q.s ??= 0;
+    },
     renderQuestion(q, root, mode) {
         if (mode.kind === "review") {
             renderDigitalClockReview(q, root, mode);
@@ -401,8 +405,11 @@ runExercise({
             // For multiple choice we generated only same-half-day distractors,
             // so a strict match works. For fill-in we accept any hour that
             // shares the question's mod-12 (so "half drie" → 02:30 and 14:30
-            // are both fine), since both genuinely describe the same phrase.
-            if (q.answerMode === "fill") {
+            // are both fine), since both genuinely describe the same phrase —
+            // except the exact 24-hour wording with seconds ("veertien uur,
+            // …"), which names one hour only.
+            const exactPhrase = q.includeSeconds && q.use24h;
+            if (q.answerMode === "fill" && !exactPhrase) {
                 return h % 12 === q.h % 12 && m === q.m && s === q.s;
             }
             return h === q.h && m === q.m && s === q.s;

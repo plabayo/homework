@@ -5,7 +5,7 @@
 import assert from "node:assert";
 import { test } from "node:test";
 
-import { buildDeck, buildDistractors } from "./digital-clock-harness.mjs";
+import { buildDeck, buildDistractors, exerciseSpec } from "./digital-clock-harness.mjs";
 
 function cfg(overrides = {}) {
     return {
@@ -57,4 +57,32 @@ test("second-aware distractors never duplicate the target", () => {
             [q.h % 12, q.m, q.s],
         );
     }
+});
+
+test("fill-in: the exact 24-hour wording with seconds names one hour only", () => {
+    const q = { dir: "words-to-digital", answerMode: "fill", use24h: true, includeSeconds: true, h: 14, m: 15, s: 5 };
+    assert.equal(exerciseSpec.isCorrect(q, JSON.stringify({ h: 14, m: 15, s: 5 })), true);
+    assert.equal(exerciseSpec.isCorrect(q, JSON.stringify({ h: 2, m: 15, s: 5 })), false);
+    // "half drie" stays either half of the day.
+    const colloquial = { ...q, includeSeconds: false, h: 14, m: 30, s: 0 };
+    assert.equal(exerciseSpec.isCorrect(colloquial, JSON.stringify({ h: 2, m: 30, s: 0 })), true);
+});
+
+test("a mistake saved before seconds existed is still answerable", () => {
+    const legacy = { dir: "words-to-digital", answerMode: "fill", use24h: false, h: 3, m: 15 };
+    exerciseSpec.prepareQuestion(legacy);
+    assert.equal(exerciseSpec.isCorrect(legacy, JSON.stringify({ h: 3, m: 15 })), true);
+});
+
+test("buildDeck: with seconds, no time repeats before every h:m:s was asked", () => {
+    const deck = buildDeck({
+        numExercises: 24,
+        granularity: "uur",
+        use24h: false,
+        includeSeconds: true,
+        secondStep: 5,
+        directions: ["digital-to-words"],
+    });
+    const times = deck.map((q) => `${q.h}:${q.m}:${q.s}`);
+    assert.equal(new Set(times).size, 24);
 });

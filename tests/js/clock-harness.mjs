@@ -132,6 +132,8 @@ function minutesForStep(step) {
     return out;
 }
 
+// The exercise spec handed to runExercise, for answer-checking tests.
+let exerciseSpec;
 const ctx = createContext({
     Array,
     Object,
@@ -170,7 +172,9 @@ const ctx = createContext({
     wordOptionListHtml: () => "",
     loadFields: () => {},
     readFields: () => ({}),
-    runExercise: () => {},
+    runExercise: (spec) => {
+        exerciseSpec = spec;
+    },
     wireOptions: () => {},
     // DOM stub — pure functions never hit these; the stubs only exist so
     // module-level references don't throw during runInContext (clock.js
@@ -187,6 +191,8 @@ const ctx = createContext({
 });
 
 runInContext(patched, ctx);
+
+export { exerciseSpec };
 
 export const { buildClockOptions, buildDeck, handAngles, nearestAngle, turnsCrossed } = ctx;
 // Re-export helpers too — tests can use these directly without

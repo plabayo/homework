@@ -149,3 +149,14 @@ test("generated mixed-number conversions use canonical fractional parts", () => 
         assert.equal(a, 1, `${question.kind}: ${fraction.num}/${fraction.den}`);
     }
 });
+
+test("compare: both fractions are real, also with halves in the mix", () => {
+    for (let run = 0; run < 20; run++) {
+        for (const question of buildDeck(config({ kinds: ["compare"], includeDecimals: false, denominatorSet: "small", numExercises: 40 }))) {
+            if (question.kind !== "compare") continue;
+            for (const side of [question.left, question.right]) {
+                assert.ok(Number.isInteger(side.num) && side.num > 0, `bad numerator in ${JSON.stringify(question)}`);
+            }
+        }
+    }
+});

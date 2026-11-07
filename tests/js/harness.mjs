@@ -107,6 +107,7 @@ const ctx = createContext({
     runExercise: (spec) => {
         exerciseSpec = spec;
     },
+    scrollBehavior: () => "auto",
     setLeaveGuard: () => {},
     shuffle: (arr) => arr,
 });

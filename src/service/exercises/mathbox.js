@@ -112,6 +112,7 @@ function buildDeck(cfg) {
     return uniqueDeck({
         count: cfg.numExercises,
         plan: weightedPlan(kinds, cfg.kindWeights, cfg.numExercises),
+        kinds,
         weights: cfg.kindWeights,
         draw(kind) {
             const q = plans.get(kind)();

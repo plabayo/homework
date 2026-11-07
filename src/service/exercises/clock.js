@@ -875,6 +875,10 @@ runExercise({
         const target = q.promptStyle === "words" ? `"${phraseFor(q)}"` : timeLabel(q.h, q.m, q.s, q.includeSeconds);
         return { prompt: `teken de wijzers: ${target}` };
     },
+    // Mistakes saved before seconds existed have no `s`: they mean :00.
+    prepareQuestion(q) {
+        q.s ??= 0;
+    },
     isCorrect(q, given) {
         if (!given) return false;
         if (q.kind === "lees") {

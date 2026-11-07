@@ -173,6 +173,7 @@ function buildDeck(cfg) {
     return uniqueDeck({
         count: cfg.numExercises,
         plan: weightedPlan(cfg.kinds, cfg.kindWeights, cfg.numExercises),
+        kinds: cfg.kinds,
         weights: cfg.kindWeights,
         draw(kind) {
             const decimalPlaces = cfg.includeDecimals ? randomInt(1, cfg.decimalPlaces) : 0;

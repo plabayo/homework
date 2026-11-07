@@ -129,7 +129,8 @@ function compareQuestion(denominators) {
         left = { num: 1, den: leftDen };
         right = { num: 1, den: rightDen };
     } else {
-        const den = pickRandom(denominators);
+        // Two different numerators below the denominator: halves have only one.
+        const den = pickRandom(denominators.filter((value) => value >= 3));
         const [leftNum, rightNum] = shuffle(Array.from({ length: den - 1 }, (_, index) => index + 1)).slice(0, 2);
         left = { num: leftNum, den };
         right = { num: rightNum, den };
@@ -322,6 +323,7 @@ function buildDeck(cfg) {
     return uniqueDeck({
         count: cfg.numExercises,
         plan: weightedPlan(kinds, cfg.kindWeights, cfg.numExercises),
+        kinds,
         weights: cfg.kindWeights,
         draw(kind) {
             const variants = VARIANTS[kind];

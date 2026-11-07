@@ -159,37 +159,31 @@ async fn digital_clock_seconds_render_exact_words_and_three_fields() -> TestResu
     let browser = BrowserHarness::spawn().await?;
     let driver = &browser.driver;
 
-    // Pin the deck shuffle and second selection so every run covers midnight,
-    // an ordinary 24-hour time, and the 12-hour/singular-second wording.
+    // Pin the deck shuffle (it deals whole h:m:s times) so every run covers
+    // midnight, an ordinary 24-hour time, and the 12-hour/singular-second
+    // wording.
     // A random prompt used to fail whenever "middernacht" replaced "uur".
     for (random, use_24h, second_step, expected_phrase, answer) in [
         (
             0.0,
             true,
             "5",
-            "middernacht, vijftien minuten en vijf seconden",
-            ["00", "15", "05"],
+            "middernacht, nul minuten en tien seconden",
+            ["00", "00", "10"],
+        ),
+        (
+            0.4,
+            true,
+            "5",
+            "achttien uur, vijfenveertig minuten en vijftig seconden",
+            ["18", "45", "50"],
         ),
         (
             0.5,
-            true,
-            "5",
-            "middernacht, nul minuten en dertig seconden",
-            ["00", "00", "30"],
-        ),
-        (
-            0.2,
-            true,
-            "5",
-            "drieëntwintig uur, dertig minuten en vijftien seconden",
-            ["23", "30", "15"],
-        ),
-        (
-            0.0,
             false,
             "1",
-            "twaalf uur, vijftien minuten en een seconde",
-            ["12", "15", "01"],
+            "twaalf uur, nul minuten en een seconde",
+            ["12", "00", "01"],
         ),
     ] {
         driver.goto(app.url("/2/digital-clock")).await?;

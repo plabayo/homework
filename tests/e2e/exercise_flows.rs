@@ -35,6 +35,79 @@ async fn multiplications_happy_path_reaches_finish() -> TestResult<()> {
     Ok(())
 }
 
+/// Finishing a session replaces it with its result in history: "terug naar
+/// menu" lands on the setup screen with no `#oefenen` left behind, and
+/// Forward brings the result back. The leave guard's extra history entry
+/// (armed by the first answer) used to make the menu step land on the
+/// finished session's address instead.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn finished_session_leaves_no_session_address_in_history() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+    let hash = || async {
+        let value = driver.execute("return location.hash;", vec![]).await?;
+        TestResult::Ok(value.json().as_str().unwrap_or_default().to_owned())
+    };
+
+    driver.goto(app.url("/1/multiplications")).await?;
+    wait_for_css(driver, "#form-setup", Duration::from_secs(10)).await?;
+    set_input_value(driver, "#num-exercises", "2").await?;
+    set_checkbox(driver, "#table-2", true).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    for number in 1..=2 {
+        wait_for_text(
+            driver,
+            "#exercise-title",
+            &format!("oefening {number} van 2"),
+            Duration::from_secs(10),
+        )
+        .await?;
+        let prompt =
+            wait_for_nonempty_text(driver, "#exercise-content p", Duration::from_secs(2)).await?;
+        let answer = parse_product_answer(&prompt)?;
+        set_input_value(driver, "#answer", &answer.to_string()).await?;
+        click(driver, "#button-check").await?;
+    }
+    wait_for_text(driver, "#result h3", "2 / 2", Duration::from_secs(10)).await?;
+    poll_until("the result's address", Duration::from_secs(5), || async {
+        Ok(hash().await? == "#resultaat")
+    })
+    .await?;
+
+    click(driver, "#page-result .button-reset").await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", Duration::from_secs(10)).await?;
+    poll_until(
+        "the setup screen's address",
+        Duration::from_secs(5),
+        || async { Ok(hash().await?.is_empty()) },
+    )
+    .await?;
+
+    driver.forward().await?;
+    wait_for_css(
+        driver,
+        "#page-result:not([hidden])",
+        Duration::from_secs(10),
+    )
+    .await?;
+    assert_eq!(hash().await?, "#resultaat");
+    // Nothing of the finished session is left ahead of the result either.
+    driver.forward().await?;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(hash().await?, "#resultaat");
+    wait_for_css(
+        driver,
+        "#page-result:not([hidden])",
+        Duration::from_secs(10),
+    )
+    .await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn screen_wake_lock_is_scoped_to_active_exercise() -> TestResult<()> {
