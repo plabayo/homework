@@ -3434,6 +3434,11 @@ export function runExercise(spec) {
         // can always move to a fresh page.
         const firstRoom = bodyHeight - (items.offsetTop - body.offsetTop);
         splitTallItems(items, bodyHeight, firstRoom);
+        // A `dense` grid may place an item before ones that precede it in the
+        // markup: put the markup in the order the grid shows (the layout stays
+        // the same), so rows can be read off one after another.
+        const shown = [...items.children].sort((a, b) => a.offsetTop - b.offsetTop || a.offsetLeft - b.offsetLeft);
+        items.append(...shown);
         const rows = [];
         for (const item of items.children) {
             const top = item.offsetTop;

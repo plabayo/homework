@@ -209,6 +209,77 @@ async fn print_sheet_flashcards_as_cards_to_cut_out() -> TestResult<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn print_sheet_flashcard_test_from_several_decks() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    // 40 two-way cards: the chance they all show the same side is 2⁻³⁹.
+    driver.goto(app.url("/extra/flashcards")).await?;
+    driver
+        .execute(
+            r#"
+        const words = Array.from({ length: 40 }, (_, i) => ({ front: `nl${i}`, back: `fr${i}` }));
+        localStorage.setItem('homework_flashcard_decks', JSON.stringify([
+            {id:'fr',name:'Frans',mode:'two-sided',bidirectional:true,cards:words,createdAt:1},
+            {id:'flags',name:'Vlaggen',mode:'two-sided',cards:[
+                {front:'België',back:'zwart',parts:['zwart','geel','rood']}],createdAt:2}
+        ]));
+    "#,
+            vec![],
+        )
+        .await?;
+    driver.refresh().await?;
+    wait_for_css(driver, ".deck-item[data-deck-id='fr']", TIMEOUT).await?;
+    click(driver, ".deck-item[data-deck-id='fr'] .deck-select-btn").await?;
+    click(driver, "#fc-toggle-multiple").await?;
+    click(driver, "input[data-deck-id='flags']").await?;
+    wait_for_text(driver, ".fc-selection-count", "2 decks", TIMEOUT).await?;
+    click(driver, "#button-print").await?;
+
+    wait_for_css_count(driver, "#print-sheet .fc-print-row", 41, TIMEOUT).await?;
+    wait_for_text(
+        driver,
+        "#print-sheet .print-title",
+        "Frans + Vlaggen",
+        TIMEOUT,
+    )
+    .await?;
+    // The title names the decks; the rows only hold the questions.
+    let fronts = driver
+        .execute(
+            "return [...document.querySelectorAll('#print-sheet .fc-print-front')].map(e => e.textContent.trim());",
+            vec![],
+        )
+        .await?;
+    let fronts: Vec<String> = serde_json::from_value(fronts.json().clone())?;
+    assert!(
+        fronts
+            .iter()
+            .all(|f| !f.contains("Frans") && !f.contains("Vlaggen")),
+        "no deck name next to a question: {fronts:?}"
+    );
+    // A two-way deck asks from both sides.
+    assert!(fronts.iter().any(|f| f.starts_with("nl")), "{fronts:?}");
+    assert!(fronts.iter().any(|f| f.starts_with("fr")), "{fronts:?}");
+
+    // Several answers take the whole width, one line each, side by side.
+    let wide = driver
+        .execute(
+            "const row = document.querySelector('#print-sheet .fc-print-row.is-wide');
+             const lines = [...row.querySelectorAll('.print-write-line')].map(l => l.getBoundingClientRect().top);
+             return [row.closest('.print-item').offsetWidth === row.closest('.print-items').clientWidth, lines.length, new Set(lines).size];",
+            vec![],
+        )
+        .await?;
+    assert_eq!(wide.json(), &serde_json::json!([true, 3, 1]));
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
 async fn print_sheet_continues_a_long_list_on_the_next_pages() -> TestResult<()> {
     let app = TestApp::spawn()?;
     let browser = BrowserHarness::spawn().await?;

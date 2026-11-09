@@ -3390,12 +3390,15 @@ function renderPrintCard(q, root, { index, deck }) {
             <ol class="print-fill-list" data-print-split>${rows}</ol>`;
         return;
     }
-    const source = q.deckName ? `<span class="fc-print-deck">${escapeHtml(q.deckName)}</span>` : "";
+    // No deck name per row: the sheet's title already names every deck. Which
+    // side a two-way card shows was drawn when the question was made.
     const shown = q.kind === "image" ? printImageHtml(q.wikimedia, "fc-print-image") : escapeHtml(q.front);
     const lines = q.kind === "multi-part" ? Math.max(1, q.partsRequired) : 1;
     const hint = lines > 1 ? `<span class="fc-print-hint">${lines} antwoorden</span>` : "";
-    root.innerHTML = `<div class="fc-print-row">
-        <div class="fc-print-front">${source}${shown}${hint}</div>
+    // A card with several answers takes the full width, its lines side by
+    // side, so it stays one row high and leaves its neighbour compact.
+    root.innerHTML = `<div class="fc-print-row${lines > 1 ? " is-wide" : ""}">
+        <div class="fc-print-front">${shown}${hint}</div>
         <div class="fc-print-answer">${'<span class="print-write-line"></span>'.repeat(lines)}</div>
     </div>`;
 }

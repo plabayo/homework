@@ -1759,15 +1759,23 @@
 
 /* ---------- print sheet: test ----------
    A word test: every card a ruled row, the shown side on the left and a
-   line per answer on the right, two rows side by side. */
+   line per answer on the right, two columns of boxes side by side. Boxes
+   are as low as handwriting allows, so a page holds many words. */
 .print-sheet {
     --print-item-min: 20rem;
 }
+/* `dense`: a full-width row leaves no hole before it, the next half-width
+   row moves up into it (the order is shuffled anyway). */
+.print-items:has(.fc-print-row) {
+    grid-auto-flow: row dense;
+    gap: 6px 10px;
+}
+/* Each question its own outlined box, like the other worksheets, but with
+   little padding: clearly apart, yet many to a page. */
 .print-item:has(.fc-print-row) {
-    padding: 10px 6px 8px;
-    border: 0;
-    border-block-end: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
-    border-radius: 0;
+    padding: 6px 12px 7px;
+    border-color: color-mix(in srgb, var(--fg) 30%, transparent);
+    border-radius: 6px;
 }
 .print-body > .fc-print-row {
     align-self: stretch;
@@ -1776,7 +1784,7 @@
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     align-items: end;
-    gap: 14px;
+    gap: 12px;
     text-align: start;
 }
 .fc-print-front {
@@ -1784,9 +1792,9 @@
     flex-direction: column;
     gap: 2px;
     font-weight: 600;
+    line-height: 1.25;
     overflow-wrap: anywhere;
 }
-.fc-print-deck,
 .fc-print-hint {
     color: var(--muted);
     font-size: 0.75rem;
@@ -1794,16 +1802,31 @@
 }
 .fc-print-image {
     max-inline-size: 7rem;
-    max-block-size: 5rem;
+    max-block-size: 4rem;
     object-fit: contain;
 }
 .fc-print-answer {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 .fc-print-answer .print-write-line {
-    block-size: 1.5em;
+    block-size: 1.4em;
+}
+/* Several answers: the whole width, the lines next to each other. The shown
+   side keeps about the width it has in a half-width row. */
+.print-item:has(.fc-print-row.is-wide) {
+    grid-column: 1 / -1;
+}
+.fc-print-row.is-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
+}
+.fc-print-row.is-wide .fc-print-answer {
+    flex-flow: row wrap;
+    gap: 10px 16px;
+}
+.fc-print-row.is-wide .print-write-line {
+    flex: 1 1 8rem;
 }
 /* A fill-in grid takes the full width, its words in two columns. */
 .print-item:has(.print-fill-list) {
