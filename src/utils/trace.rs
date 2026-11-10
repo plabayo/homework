@@ -6,8 +6,8 @@ use std::io::IsTerminal as _;
 
 use rama::{
     error::{BoxError, ErrorContext as _},
+    graceful::WeakScope,
     http::client::EasyHttpWebClient,
-    rt::Executor,
     telemetry::{
         opentelemetry::{
             KeyValue,
@@ -64,7 +64,7 @@ fn init_structured(default_directive: impl Into<Directive>) -> Result<(), BoxErr
         .without_tls_proxy_support()
         .without_proxy_support()
         .with_tls_support_using_boringssl(TlsClientConfig::default())
-        .with_default_http_connector(Executor::default())
+        .with_default_http_connector(WeakScope::detached())
         .with_default_connection_pool()
         .build_client();
     let exporter = OtelExporter::from_env_http(svc).context("build OTLP HTTP span exporter")?;

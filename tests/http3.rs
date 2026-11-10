@@ -13,6 +13,7 @@ mod support;
 use std::time::Duration;
 
 use rama::{
+    graceful::WeakScope,
     http::{
         Body, StatusCode, Version,
         body::util::BodyExt as _,
@@ -20,7 +21,6 @@ use rama::{
         header::ALT_SVC,
         service::client::HttpClientExt as _,
     },
-    rt::Executor,
     tls::client::{ServerVerifyMode, TlsClientConfig},
 };
 use support::app::TestApp;
@@ -36,8 +36,8 @@ async fn https_advertises_and_serves_http3() -> TestResult<()> {
 
     // The server's certificate is self-signed for `localhost`.
     let tls = TlsClientConfig::new().with_server_verify(ServerVerifyMode::Disable);
-    let exec = Executor::default();
-    let h3 = Http3Connector::builder(exec.clone())
+    let scope = WeakScope::detached();
+    let h3 = Http3Connector::builder(scope.clone())
         .with_tls_config(tls.clone())
         .build()
         .await?;
@@ -47,7 +47,7 @@ async fn https_advertises_and_serves_http3() -> TestResult<()> {
         .without_tls_proxy_support()
         .without_proxy_support()
         .with_tls_support_using_boringssl(tls)
-        .with_default_http_connector(exec)
+        .with_default_http_connector(scope)
         .with_http3_support(h3)
         .with_default_connection_pool()
         .without_alt_svc()

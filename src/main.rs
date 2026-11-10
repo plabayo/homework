@@ -9,7 +9,7 @@ use rama::{
     Layer as _,
     combinators::Either,
     error::{BoxError, ErrorContext as _},
-    graceful::{self, ShutdownGuard},
+    graceful::{Scope, WeakScope},
     http::{
         BodyLimitLayer,
         core::h3::connection::Config as Http3Config,
@@ -27,7 +27,6 @@ use rama::{
         Endpoint, MtuDiscoveryConfig, ServerConfig, TransportConfig,
         tls::{BoringTlsProvider, TlsOptions},
     },
-    rt::Executor,
     tcp::server::TcpListener,
     telemetry::tracing,
     tls::{
@@ -86,20 +85,22 @@ struct Cli {
 }
 
 async fn run_server(cfg: Cli) -> Result<(), BoxError> {
-    // Shutdown::default() already listens for SIGINT and (on Unix) SIGTERM
-    // via tokio-graceful's `default_signal()`, so spawning our own signal
-    // handler here is unnecessary — but the dependency on that detail is
-    // load-bearing for graceful Fly deploys, so this comment is the
-    // contract.
-    let shutdown = graceful::Shutdown::default();
+    // The root scope is cancelled by SIGINT and (on Unix) SIGTERM via
+    // rama's `default_signal()`, so spawning our own signal handler here is
+    // unnecessary — but that detail is load-bearing for graceful Fly
+    // deploys, so this comment is the contract. The grace bounds the drain:
+    // once it runs out the hard phase drops whatever is still in flight.
+    let scope = Scope::new()
+        .with_default_signal()
+        .with_grace(Duration::from_secs(3));
 
-    spawn_service_http(shutdown.guard(), cfg.http, cfg.https.is_some()).await?;
+    spawn_service_http(&scope, cfg.http, cfg.https.is_some()).await?;
     let h3_endpoint = match cfg.https {
-        Some(https_bind) => spawn_service_https(shutdown.guard(), https_bind, &cfg).await?,
+        Some(https_bind) => spawn_service_https(&scope, https_bind, &cfg).await?,
         None => None,
     };
 
-    let result = shutdown.shutdown_with_limit(Duration::from_secs(3)).await;
+    let result = scope.join_once_cancelled().await;
     // A QUIC peer gets no reset from an exited process, it would wait out
     // its idle timeout. HTTP/3 has drained (or run out of time) by now, so
     // tell any peers left that we are gone.
@@ -111,7 +112,7 @@ async fn run_server(cfg: Cli) -> Result<(), BoxError> {
 }
 
 async fn spawn_service_http(
-    guard: ShutdownGuard,
+    scope: &Scope,
     interface: SocketAddress,
     https_enabled: bool,
 ) -> Result<(), BoxError> {
@@ -121,8 +122,8 @@ async fn spawn_service_http(
         Either::B(self::service::load_https_app_service().await?)
     };
 
-    let exec = Executor::graceful(guard.clone());
-    let http_server = HttpServer::auto(exec.clone()).service(svc);
+    let weak_scope = scope.clone_weak();
+    let http_server = HttpServer::auto(weak_scope.clone()).service(svc);
     // `with_peek(true)` makes the layer auto-detect a PROXY header and fall
     // through to plain HTTP when there isn't one, so the same binary serves
     // Fly's edge (which prepends the header) and a bare `just run` locally.
@@ -135,9 +136,9 @@ async fn spawn_service_http(
         HaProxyLayer::new().with_peek(true),
     )
         .into_layer(http_server);
-    let tcp_listener = TcpListener::bind_address(interface, exec).await?;
+    let tcp_listener = TcpListener::bind_address(interface, weak_scope).await?;
 
-    guard.into_spawn_task_fn(async move |_guard| {
+    scope.spawn_task(async move {
         tracing::info!("http server ({interface}) up and running");
         tcp_listener.serve(tcp_server).await;
     });
@@ -146,18 +147,18 @@ async fn spawn_service_http(
 }
 
 async fn spawn_service_https(
-    guard: ShutdownGuard,
+    scope: &Scope,
     interface: SocketAddress,
     cfg: &Cli,
 ) -> Result<Option<Endpoint>, BoxError> {
-    let executor = Executor::graceful(guard.clone());
+    let weak_scope = scope.clone_weak();
 
     let tls_server_config = if cfg.self_signed {
         let auth = ServerAuthData::new_self_signed_leaf(LeafCertRequest::default())
             .context("generate self-signed localhost certificate")?;
         TlsServerConfig::new().with_server_auth(auth)
     } else {
-        let issuer = CertIssuerHttpClient::try_from_env(executor.clone())
+        let issuer = CertIssuerHttpClient::try_from_env(weak_scope.clone())
             .context("create CertIssuerHttpClient from env")?;
 
         // Cap the prefetch at 10 seconds. A slow or hung ACME endpoint must
@@ -204,17 +205,17 @@ async fn spawn_service_https(
     if let Some(endpoint) = h3_endpoint.clone() {
         // The TCP stack caps request bodies at the connection; QUIC has no
         // such layer, so cap them per request instead.
-        let h3_server = HttpServer::new_http3(executor.clone())
+        let h3_server = HttpServer::new_http3(weak_scope.clone())
             .service(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT).into_layer(svc.clone()));
         let local_addr = endpoint.local_addr().context("HTTP/3 endpoint address")?;
-        let exec = executor.clone();
-        executor.spawn_task(async move {
+        let h3_scope = weak_scope.clone();
+        scope.spawn_task(async move {
             tracing::info!("http/3 server ({local_addr}) up and running");
-            endpoint.serve(exec, Arc::new(h3_server)).await;
+            endpoint.serve(h3_scope, Arc::new(h3_server)).await;
         });
     }
 
-    let http_server = HttpServer::auto(executor.clone()).service(svc);
+    let http_server = HttpServer::auto(weak_scope.clone()).service(svc);
     // Session resumption lets a returning device (often on a flaky mobile
     // connection) skip the full handshake. Tickets are stateless: the
     // server stores nothing, and their keys live only in this process, so
@@ -228,9 +229,9 @@ async fn spawn_service_https(
     )
         .into_layer(http_server);
 
-    let tcp_listener = TcpListener::bind_address(interface, executor).await?;
+    let tcp_listener = TcpListener::bind_address(interface, weak_scope).await?;
 
-    guard.into_spawn_task_fn(async move |_guard| {
+    scope.spawn_task(async move {
         tracing::info!("https server ({interface}) up and running");
         tcp_listener.serve(tcp_server).await;
     });
@@ -241,9 +242,10 @@ async fn spawn_service_https(
 /// Bind QUIC on `interface` for HTTP/3, presenting the identity of `tls`
 /// (the ACME issuer's certificates included) and offering only `h3`.
 ///
-/// The endpoint runs on an executor without the shutdown guard: one that
-/// carried it would close every connection as soon as shutdown starts,
-/// before HTTP/3 could drain its requests.
+/// The endpoint is built in a detached scope, outside the root one: an
+/// endpoint closes every connection as soon as its own scope is cancelled,
+/// before HTTP/3 could drain its requests. Serving it in the root scope is
+/// what ties its connections to the shutdown.
 async fn bind_http3(
     interface: SocketAddress,
     tls: &TlsServerConfig,
@@ -267,7 +269,7 @@ async fn bind_http3(
     )
     .context("QUIC TLS server config")?;
     config.set_transport_config(Arc::new(transport));
-    Endpoint::build(Executor::new())
+    Endpoint::build(WeakScope::detached())
         .with_server_config(config)
         .bind_address(interface)
         .await
@@ -281,7 +283,7 @@ async fn main() -> Result<(), BoxError> {
     let cli = Cli::parse();
 
     // Return the error from main rather than std::process::exit() so
-    // destructors — including the graceful guard's spawned-task cleanup —
+    // destructors — including the root scope's spawned-task cleanup —
     // get a chance to run. Rust's `Termination` impl prints the error and
     // exits with code 1 on its own; no extra eprintln necessary (and a
     // duplicate print clutters log collectors).
