@@ -93,7 +93,7 @@ test-e2e-ci *ARGS:
 # Lighthouse accessibility audit — requires the server to be running (`just run` in another terminal)
 [unix]
 lighthouse URL="http://localhost:8080":
-	npx --yes lighthouse@12 {{URL}} \
+	npx --yes lighthouse@13 {{URL}} \
 		--only-categories=accessibility \
 		--output=json \
 		--chrome-flags="--headless=new" \
@@ -108,7 +108,7 @@ lighthouse URL="http://localhost:8080":
 	    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe" \
 	) | Where-Object { Test-Path $_ } | Select-Object -First 1; \
 	if (-not $b) { Write-Error 'No Chrome or Edge found'; exit 1 }; \
-	$r = npx --yes lighthouse@12 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
+	$r = npx --yes lighthouse@13 {{URL}} --only-categories=accessibility --output=json "--chrome-path=$b" "--chrome-flags=--headless=new" --quiet 2>$null | Out-String | ConvertFrom-Json; \
 	Write-Host "score: $($r.categories.accessibility.score) ($($r.categories.accessibility.title))"
 
 # build, boot the server, and assert the
@@ -134,7 +134,7 @@ lighthouse-ci:
 	    sleep 0.5
 	done
 	for path in / /1/multiplications; do
-	    score=$(npx --yes lighthouse@12 "http://${audit_addr}${path}" \
+	    score=$(npx --yes lighthouse@13 "http://${audit_addr}${path}" \
 	        --only-categories=accessibility --output=json \
 	        --chrome-flags="--headless=new" --quiet 2>/dev/null \
 	        | python3 -c "import json,sys; print(json.load(sys.stdin)['categories']['accessibility']['score'])")

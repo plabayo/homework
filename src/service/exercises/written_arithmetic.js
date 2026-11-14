@@ -224,7 +224,7 @@ function transferCell(question, placeIndex, mode) {
         const [, fullPlaceName] = placeName(question, placeIndex);
         const action = question.kind === "som" ? "onthouden" : "lenen";
         return `<button type="button" class="written-transfer-toggle" aria-pressed="false"
-            aria-label="1 ${action} bij de ${fullPlaceName}" aria-describedby="written-transfer-hint">0</button>`;
+            aria-label="0 of 1 ${action} bij de ${fullPlaceName}" aria-describedby="written-transfer-hint">0</button>`;
     }
     const step = question.steps[placeIndex];
     const visible = mode.kind === "review" || placeIndex === progress;

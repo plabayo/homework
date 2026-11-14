@@ -1760,14 +1760,31 @@ function cycleSummaryLine(session, n) {
             ? `<span class="cycle-time">⏱️ ${formatMillis(session.durationMs)}</span>`
             : "";
     return `
-        <div class="cycle-row">
+        <summary class="cycle-row">
             <span class="cycle-num">ronde ${n}</span>
             <span class="cycle-score">${session.correct}/${session.total}</span>
             ${modeLabel}
             ${time}
             <span class="cycle-detail">${detail.join(" ")}</span>
-        </div>
+        </summary>
     `;
+}
+
+// Keep earlier rounds available next to their scores. Native disclosures
+// allow several rounds to stay open for comparison; only the latest starts
+// open. The same outcome renderer preserves each exercise's answer details.
+function renderResultCycles(cycles, detail) {
+    return `<section class="result-cycles">
+        <h3 class="section-title">Overzicht per ronde</h3>
+        ${cycles
+            .map((session, i) => {
+                return `<details class="result-cycle" data-cycle-index="${i}"${i === cycles.length - 1 ? " open" : ""}>
+                    ${cycleSummaryLine(session, i + 1)}
+                    ${renderResultOutcomes(session, detail)}
+                </details>`;
+            })
+            .join("")}
+    </section>`;
 }
 
 function formatMillis(ms) {
@@ -3176,9 +3193,9 @@ export function runExercise(spec) {
             ? `<h2>${emojiPrefix}ronde ${cycleNum} afgerond</h2>`
             : `<h2>${emojiPrefix}klaar</h2>`;
 
-        const cyclesList = state.cycles.map((c, i) => cycleSummaryLine(c, i + 1)).join("");
-
-        const outcomesSection = renderResultOutcomes(session, spec.renderOutcomeDetail);
+        const outcomesSection = isMultiCycle
+            ? renderResultCycles(state.cycles, spec.renderOutcomeDetail)
+            : renderResultOutcomes(session, spec.renderOutcomeDetail);
 
         const reviewable = session.questions.some(isPracticeMistake);
 
@@ -3189,7 +3206,6 @@ export function runExercise(spec) {
         const html = `
             ${headline}
             <h3>${score} / ${total}${isMultiCycle ? ` <small class="muted">deze ronde</small>` : ""}${sessionTime}</h3>
-            ${isMultiCycle ? `<section class="result-cycles"><h3 class="section-title">Overzicht per ronde</h3>${cyclesList}</section>` : ""}
             <div class="result-actions">
                 ${reviewable ? `<button type="button" class="default-button primary btn-lift" id="review-button-repeat">🟢 oefen fouten opnieuw</button>` : ""}
                 <button type="button" class="default-button button-reset btn-lift">🆕 nieuwe oefening</button>
@@ -3658,13 +3674,19 @@ export function runExercise(spec) {
         startSession(shuffle(picked.slice()), cfg, "mistakes");
     });
 
-    // The eye toggle swaps only the list, so the toggle itself keeps focus.
+    // Update every round's list without replacing disclosures or toggles:
+    // open rounds stay open and the focused control keeps focus.
     document.addEventListener("homework:show-all-changed", () => {
-        const session = state.resultSession;
-        const section = resultEl?.querySelector(".result-detail");
-        if (!session || !section) return;
-        section.querySelector(".section-title").textContent = resultOutcomesTitle();
-        section.querySelector(".result-detail-body").innerHTML = resultOutcomesHtml(session, spec.renderOutcomeDetail);
+        for (const section of resultEl?.querySelectorAll(".result-detail") || []) {
+            const cycle = section.closest(".result-cycle");
+            const session = cycle ? state.cycles[Number(cycle.dataset.cycleIndex)] : state.resultSession;
+            if (!session) continue;
+            section.querySelector(".section-title").textContent = resultOutcomesTitle();
+            section.querySelector(".result-detail-body").innerHTML = resultOutcomesHtml(
+                session,
+                spec.renderOutcomeDetail,
+            );
+        }
     });
 
     loadSavedConfig();

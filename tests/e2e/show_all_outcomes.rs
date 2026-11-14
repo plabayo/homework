@@ -8,7 +8,8 @@
 use super::helpers::{
     click, poll_until, set_checkbox, set_input_value, wait_for_css, wait_for_text,
 };
-use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver};
+use super::{BrowserHarness, By, Duration, TestApp, TestResult, WebDriver, check_a11y};
+use thirtyfour::prelude::Key;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -153,6 +154,140 @@ async fn show_all_toggle_lists_every_exercise_in_order() -> TestResult<()> {
         TIMEOUT,
     )
     .await?;
+
+    driver.clone().quit().await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a browser (Chrome/Edge/Firefox) and its driver; run via `just test-e2e`"]
+async fn result_keeps_exercise_details_from_every_retry_round() -> TestResult<()> {
+    let app = TestApp::spawn()?;
+    let browser = BrowserHarness::spawn().await?;
+    let driver = &browser.driver;
+
+    driver.goto(app.url("/1/mathbox")).await?;
+    wait_for_css(driver, "#form-setup", TIMEOUT).await?;
+    set_input_value(driver, "#num-exercises", "2").await?;
+    set_checkbox(driver, "input[name='practice'][value='verschil']", false).await?;
+    set_checkbox(driver, "input[name='practice'][value='splitsen']", false).await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+
+    // Round one: one clean answer, one skipped after a mistake.
+    wait_for_text(driver, "#exercise-title", "oefening 1 van 2", TIMEOUT).await?;
+    let sum = current_sum(driver).await?;
+    answer(driver, sum).await?;
+    wait_for_text(driver, "#exercise-title", "oefening 2 van 2", TIMEOUT).await?;
+    let retry_sum = current_sum(driver).await?;
+    answer(driver, retry_sum + 1).await?;
+    wait_for_css(driver, "#button-skip", TIMEOUT).await?;
+    click(driver, "#button-skip").await?;
+    wait_for_css(driver, "#button-next", TIMEOUT).await?;
+    click(driver, "#button-next").await?;
+    wait_for_text(driver, "#result h3", "1 / 2", TIMEOUT).await?;
+    let first_round = list_items(driver, ".result-detail li").await?;
+    assert_eq!(first_round.len(), 1);
+    assert!(first_round[0].contains("overgeslagen"));
+
+    // Round two: correct it after another mistake. Round three: clean.
+    click(driver, "#review-button-repeat").await?;
+    wait_for_text(driver, "#exercise-title", "oefening 1 van 1", TIMEOUT).await?;
+    answer(driver, retry_sum + 2).await?;
+    wait_for_css(driver, "#exercise-feedback.is-bad", TIMEOUT).await?;
+    answer(driver, retry_sum).await?;
+    wait_for_text(driver, "#result h2", "ronde 2 afgerond", TIMEOUT).await?;
+    let second_round = list_items(driver, ".result-cycle[open] li").await?;
+    assert_eq!(second_round.len(), 1);
+    assert!(second_round[0].contains("1× fout vooraf"));
+    click(driver, "#review-button-repeat").await?;
+    wait_for_text(driver, "#exercise-title", "oefening 1 van 1", TIMEOUT).await?;
+    answer(driver, retry_sum).await?;
+    wait_for_text(driver, "#result h2", "ronde 3 afgerond", TIMEOUT).await?;
+
+    const FIRST: &str = ".result-cycle[data-cycle-index='0']";
+    const SECOND: &str = ".result-cycle[data-cycle-index='1']";
+    const LATEST: &str = ".result-cycle[data-cycle-index='2']";
+    wait_for_css(driver, &format!("{FIRST}:not([open])"), TIMEOUT).await?;
+    wait_for_css(driver, &format!("{SECOND}:not([open])"), TIMEOUT).await?;
+    wait_for_css(driver, &format!("{LATEST}[open]"), TIMEOUT).await?;
+    assert_eq!(driver.find_all(By::Css(".result-cycle")).await?.len(), 3);
+    wait_for_text(
+        driver,
+        &format!("{LATEST} .history-perfect"),
+        "alles vlekkeloos",
+        TIMEOUT,
+    )
+    .await?;
+
+    // Native disclosures work with the keyboard, and several can stay open.
+    driver
+        .find(By::Css(format!("{FIRST} > summary")))
+        .await?
+        .send_keys(Key::Enter)
+        .await?;
+    wait_for_css(driver, &format!("{FIRST}[open]"), TIMEOUT).await?;
+    click(driver, &format!("{SECOND} > summary")).await?;
+    assert_eq!(
+        list_items(driver, &format!("{FIRST} li")).await?,
+        first_round
+    );
+    assert_eq!(
+        list_items(driver, &format!("{SECOND} li")).await?,
+        second_round
+    );
+
+    click(driver, &format!("{LATEST} .show-all-toggle")).await?;
+    for (selector, count) in [(FIRST, 2), (SECOND, 1), (LATEST, 1)] {
+        wait_for_css(driver, &format!("{selector}[open]"), TIMEOUT).await?;
+        wait_for_text(
+            driver,
+            &format!("{selector} .section-title"),
+            "Alle oefeningen",
+            TIMEOUT,
+        )
+        .await?;
+        assert_eq!(
+            list_items(driver, &format!("{selector} li")).await?.len(),
+            count
+        );
+        wait_for_css(
+            driver,
+            &format!("{selector} .show-all-toggle[aria-pressed='true']"),
+            TIMEOUT,
+        )
+        .await?;
+    }
+    assert!(driver.execute(
+        "return document.activeElement.matches('.result-cycle[data-cycle-index=\"2\"] .show-all-toggle');",
+        vec![],
+    ).await?.json().as_bool().unwrap_or(false), "toggling keeps keyboard focus");
+
+    // Updating a hidden round must neither open it nor replace its answers.
+    click(driver, &format!("{FIRST} > summary")).await?;
+    click(driver, &format!("{SECOND} .show-all-toggle")).await?;
+    wait_for_css(driver, &format!("{FIRST}:not([open])"), TIMEOUT).await?;
+    click(driver, &format!("{FIRST} > summary")).await?;
+    assert_eq!(
+        list_items(driver, &format!("{FIRST} li")).await?,
+        first_round
+    );
+    assert_eq!(
+        list_items(driver, &format!("{SECOND} li")).await?,
+        second_round
+    );
+    driver.set_window_rect(0, 0, 390, 844).await?;
+    check_a11y(driver).await?;
+
+    // A new exercise must start its own set of rounds.
+    click(driver, "#page-result .button-reset").await?;
+    wait_for_css(driver, "#page-setup:not([hidden])", TIMEOUT).await?;
+    set_input_value(driver, "#num-exercises", "1").await?;
+    click(driver, "#form-setup button[type='submit']").await?;
+    wait_for_text(driver, "#exercise-title", "oefening 1 van 1", TIMEOUT).await?;
+    let sum = current_sum(driver).await?;
+    answer(driver, sum).await?;
+    wait_for_text(driver, "#result h2", "klaar", TIMEOUT).await?;
+    assert!(driver.find_all(By::Css(".result-cycle")).await?.is_empty());
 
     driver.clone().quit().await?;
     Ok(())

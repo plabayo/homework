@@ -138,6 +138,29 @@ async fn flashcards_strict_missing_accent_gets_a_hint_and_the_fix_is_practised_a
     .await?;
     wait_for_text_content(driver, ".result-detail", "daarna zelf verbeterd").await?;
 
+    // Finishing a clean retry must keep the first round's typed answer and
+    // comparison available, even though the current round has no mistakes.
+    click(driver, "#review-button-repeat").await?;
+    answer(driver, "écouter").await?;
+    wait_for_text(driver, "#result h2", "ronde 2 afgerond", TIMEOUT).await?;
+    click(driver, ".result-cycle[data-cycle-index='0'] > summary").await?;
+    wait_for_text_content(
+        driver,
+        ".result-cycle[data-cycle-index='0'] .fc-diff figcaption",
+        "Jij typte “ecouter”, juist is “écouter”.",
+    )
+    .await?;
+    wait_for_text_content(
+        driver,
+        ".result-cycle[data-cycle-index='0']",
+        "daarna zelf verbeterd",
+    )
+    .await?;
+    assert_eq!(
+        count(driver, ".result-cycle[data-cycle-index='1'] li").await?,
+        0
+    );
+
     driver.clone().quit().await?;
     Ok(())
 }

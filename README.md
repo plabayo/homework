@@ -86,6 +86,8 @@ Requirements:
 - **Rust 1.96+** (the project uses edition 2024).
 - **[just](https://just.systems/)** is the task runner. Without it,
   read `justfile` and run the underlying `cargo` commands directly.
+- **Node.js 22.19+** for the JavaScript tooling and Lighthouse accessibility
+  checks in `just qa-full`.
 
 ```bash
 # run on http://127.0.0.1:8080
@@ -113,6 +115,11 @@ or Chromium is installed; set `CHROME_BIN` (or `CHROMEDRIVER`) if you
 need to point at a non-default install. Setting `CHROMEDRIVER` to a compatible
 installed driver also avoids version-catalogue requests for every test session;
 CI installs the matching driver once and passes that path explicitly.
+
+After practising mistakes again, the results screen keeps every round under
+**Overzicht per ronde**. The latest round starts open; expand earlier rounds
+to compare their mistakes and corrections. **Toon alle oefeningen** switches
+every round between the difficult questions and the complete question list.
 
 The dev server runs plain HTTP by default. Pass `--https <addr>` (with
 the cert-issuer env vars wired up) to enable TLS locally, and add

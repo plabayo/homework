@@ -134,7 +134,6 @@ pub fn exercise_breadcrumb(info: ExerciseInfo) -> impl IntoHtml {
                 li!(a!(
                     class = "home-link",
                     href = "/",
-                    "aria-label" = "thuispagina",
                     span!(class = "icon", "aria-hidden" = "true", "🏠 "),
                     "start",
                 )),

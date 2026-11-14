@@ -207,6 +207,12 @@ async fn written_arithmetic_borrow_toggle_follows_the_next_column() -> TestResul
     let toggle = driver.find(By::Css(".written-transfer-toggle")).await?;
     assert_eq!(toggle.text().await?, "0");
     assert_eq!(toggle.attr("aria-pressed").await?.as_deref(), Some("false"));
+    // The stable toggle name includes both visible states for voice control.
+    assert_eq!(
+        toggle.attr("aria-label").await?.as_deref(),
+        Some("0 of 1 lenen bij de eenheden")
+    );
+    check_a11y(driver).await?;
     let toggle_column = driver
         .execute(
             "const cell = document.querySelector('.written-transfer-toggle').closest('td');

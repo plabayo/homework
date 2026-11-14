@@ -114,6 +114,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{env.RUST_TOOLCHAIN}}
@@ -135,14 +138,14 @@ jobs:
           done
       - name: Run Lighthouse accessibility audit
         run: |
-          npx --yes lighthouse@12 http://127.0.0.1:8080/ \
+          npx --yes lighthouse@13 http://127.0.0.1:8080/ \
             --only-categories=accessibility \
             --output=json \
             --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" \
             --quiet \
             2>/dev/null \
             | jq -e '.categories.accessibility.score >= 0.9'
-          npx --yes lighthouse@12 http://127.0.0.1:8080/1/multiplications \
+          npx --yes lighthouse@13 http://127.0.0.1:8080/1/multiplications \
             --only-categories=accessibility \
             --output=json \
             --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" \
